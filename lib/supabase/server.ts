@@ -16,27 +16,29 @@
  */
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl) {
-  throw new Error('SUPABASE_URL não está definida no .env.local');
-}
-if (!serviceRoleKey) {
-  throw new Error('SUPABASE_SERVICE_ROLE_KEY não está definida no .env.local');
-}
-
 const authOpts = { persistSession: false, autoRefreshToken: false } as const;
+
+/**
+ * Valida na chamada, não no import. Se fosse no topo do módulo, `next build`
+ * quebraria em qualquer máquina sem .env.local — mesmo as páginas sendo todas
+ * force-dynamic, o build carrega o grafo de módulos.
+ */
+function creds(): { url: string; key: string } {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url) throw new Error('SUPABASE_URL não está definida no .env.local');
+  if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY não está definida no .env.local');
+  return { url, key };
+}
 
 /** Tabelas do painel (schema `painel`). */
 export function painelDb() {
-  return createClient(supabaseUrl!, serviceRoleKey!, {
-    auth: authOpts,
-    db: { schema: 'painel' },
-  });
+  const { url, key } = creds();
+  return createClient(url, key, { auth: authOpts, db: { schema: 'painel' } });
 }
 
 /** Tabelas do app (schema `public`) — leitura de usuários e assinaturas. */
 export function appDb() {
-  return createClient(supabaseUrl!, serviceRoleKey!, { auth: authOpts });
+  const { url, key } = creds();
+  return createClient(url, key, { auth: authOpts });
 }

@@ -11,8 +11,12 @@
  */
 import { cookies } from 'next/headers';
 import { createHmac, timingSafeEqual } from 'crypto';
+import { SESSION_COOKIE } from '@/lib/auth/cookie';
 
-export const SESSION_COOKIE = 'ninho_admin_session';
+// Reexportado por conveniência de quem já roda em runtime Node. O middleware
+// (Edge) precisa importar direto de '@/lib/auth/cookie' — ver o comentário lá.
+export { SESSION_COOKIE };
+
 const MAX_AGE = 60 * 60 * 24 * 7; // 7 dias
 
 export type Role = 'admin' | 'conversor';

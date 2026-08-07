@@ -9,7 +9,16 @@ export const PRECO_MENSAL = 14.9; // Premium Mensal — definido
 // ⚠️ ANUAL A CONFIRMAR: espelha o SOMI (mesma mensalidade, mesmo anual).
 // Precisa ser < PRECO_MENSAL * 12 (R$ 178,80), senão o desconto fica negativo.
 export const PRECO_ANUAL = 129.9; // Premium Anual (cobrado 1x/ano)
-export const DIAS_TRIAL = 14;
+
+/**
+ * Duração do free trial, em dias.
+ *
+ * ⚠️ ANDA JUNTO COM O BANCO. A mesma constante existe em SQL como
+ * `public.trial_dias()` (migration 00022), que é quem de fato carimba o
+ * `trial_ends_at` de cada usuário no cadastro. Mudou aqui, muda lá — senão a
+ * landing promete um prazo e o app concede outro.
+ */
+export const DIAS_TRIAL = 7;
 
 /** Mensalidade equivalente do plano anual (o que aparece no toggle "Anual"). */
 export const PRECO_ANUAL_POR_MES = PRECO_ANUAL / 12;
@@ -46,6 +55,11 @@ export const PLANOS: PlanoInfo[] = [
   { key: 'mensal', label: 'Premium mensal', price: PRECO_MENSAL, anual: false },
   { key: 'anual', label: 'Premium anual', price: PRECO_ANUAL, anual: true },
 ];
+
+export interface ComissaoPorPlano {
+  plano: PlanoInfo;
+  valor: number; // R$ de comissão por cobrança desse plano
+}
 
 export function brl(v: number): string {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

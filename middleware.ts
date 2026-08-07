@@ -4,7 +4,9 @@
  * server-side no layout/páginas do painel (runtime node).
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { SESSION_COOKIE } from '@/lib/auth/session';
+// Importa da constante isolada, NUNCA de '@/lib/auth/session': aquele módulo
+// usa node:crypto, que o Edge Runtime não suporta, e o deploy quebra.
+import { SESSION_COOKIE } from '@/lib/auth/cookie';
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
