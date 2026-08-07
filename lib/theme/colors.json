@@ -1,0 +1,84 @@
+{
+  "light": {
+    "primary": { "DEFAULT": "#9F86E0", "light": "#EDE4FB", "dark": "#7C5CD6" },
+    "background": { "DEFAULT": "#F2F3F6", "sand": "#F1E9FB" },
+    "surface": { "DEFAULT": "#FFFFFF", "muted": "#F5F1FB" },
+    "text": { "primary": "#1E1F25", "secondary": "#6B6F80" },
+    "border": { "DEFAULT": "#ECE6F5" },
+    "category": {
+      "sleep": "#9F86E0",
+      "feeding": "#FFB78C",
+      "diaper": "#6BC7A3",
+      "food": "#F5C24E",
+      "bath": "#7DB7F0",
+      "medicine": "#F2797A",
+      "growth": "#59B287"
+    },
+    "state": {
+      "success": "#4CAF74",
+      "info": "#3D8BFF",
+      "warning": "#FFB020",
+      "danger": "#E85D5D",
+      "disabled": "#C7CCD6"
+    },
+    "gradient": {
+      "primaryStart": "#A46DFF",
+      "primaryEnd": "#8C5CF8",
+      "aiStart": "#8C7AF0",
+      "aiEnd": "#6D9BFF"
+    },
+    "neutral": {
+      "50": "#FBFAFD",
+      "100": "#F5F1FB",
+      "200": "#ECE6F5",
+      "300": "#DFD7EE",
+      "400": "#C9BEE0",
+      "500": "#AFA2CC",
+      "600": "#8D80A8",
+      "700": "#655C7A",
+      "800": "#3D3849",
+      "900": "#1E1F25"
+    }
+  },
+  "dark": {
+    "primary": { "DEFAULT": "#9F86E0", "light": "#453A63", "dark": "#B79CF2" },
+    "background": { "DEFAULT": "#17151C", "sand": "#241E30" },
+    "surface": { "DEFAULT": "#201C29", "muted": "#2A2433" },
+    "text": { "primary": "#F5F6F9", "secondary": "#B0A8C4" },
+    "border": { "DEFAULT": "#3A3444" },
+    "category": {
+      "sleep": "#9F86E0",
+      "feeding": "#FFB78C",
+      "diaper": "#6BC7A3",
+      "food": "#F5C24E",
+      "bath": "#7DB7F0",
+      "medicine": "#F2797A",
+      "growth": "#59B287"
+    },
+    "state": {
+      "success": "#4CAF74",
+      "info": "#3D8BFF",
+      "warning": "#FFB020",
+      "danger": "#E85D5D",
+      "disabled": "#4A4459"
+    },
+    "gradient": {
+      "primaryStart": "#A46DFF",
+      "primaryEnd": "#8C5CF8",
+      "aiStart": "#8C7AF0",
+      "aiEnd": "#6D9BFF"
+    },
+    "neutral": {
+      "50": "#1E1F25",
+      "100": "#2A2433",
+      "200": "#3A3444",
+      "300": "#4A4459",
+      "400": "#655C7A",
+      "500": "#8D80A8",
+      "600": "#AFA2CC",
+      "700": "#C9BEE0",
+      "800": "#DFD7EE",
+      "900": "#FBFAFD"
+    }
+  }
+}

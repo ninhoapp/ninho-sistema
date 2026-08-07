@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background-color: #F2F3F6; /* background.DEFAULT */
+    color: #1E1F25;            /* text.primary */
+    font-family: system-ui, -apple-system, 'Inter', sans-serif;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer components {
+  /* Botão principal roxo */
+  .btn-ninho {
+    @apply bg-ninho-roxo text-white rounded-pill px-8 py-4 font-medium text-base transition-all;
+    @apply hover:bg-opacity-90 active:scale-[0.98];
+    @apply disabled:bg-ninho-cinza disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* Opção de múltipla escolha estilo cartão */
+  .opcao {
+    @apply w-full text-left p-5 rounded-2xl border-2 transition-all cursor-pointer;
+    @apply bg-white border-ninho-borda text-ninho-grafite;
+    @apply hover:border-ninho-roxo hover:bg-ninho-roxo-suave;
+  }
+
+  .opcao-selecionada {
+    @apply bg-ninho-roxo-suave border-ninho-roxo;
+  }
+
+  /* Input de texto */
+  .input-ninho {
+    @apply w-full p-4 rounded-2xl border-2 border-ninho-borda bg-white;
+    @apply focus:border-ninho-roxo focus:outline-none transition-colors;
+    @apply text-ninho-grafite placeholder-ninho-cinza;
+    font-size: 16px; /* evita zoom no iOS */
+  }
+
+  /* Barra de progresso */
+  .barra-progresso {
+    @apply w-full h-1 bg-ninho-borda rounded-full overflow-hidden;
+  }
+
+  .barra-progresso-fill {
+    @apply h-full bg-ninho-roxo transition-all duration-500;
+  }
+}
+
+/* Animação suave entre telas */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.anima-entrada {
+  animation: slideInRight 300ms ease-out;
+}

@@ -1,0 +1,18 @@
+/* Painel Ninho — ajustes que o Tailwind não cobre direto. */
+
+@keyframes adminLogoPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.08); }
+}
+.admin-logo-pulse {
+  animation: adminLogoPulse 2.6s ease-in-out infinite;
+  transform-origin: 50% 50%;
+}
+
+/* Scrollbar discreta nas tabelas */
+.admin-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+.admin-scroll::-webkit-scrollbar-thumb { background: #DFD7EE; border-radius: 9999px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-logo-pulse { animation: none; }
+}
