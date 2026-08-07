@@ -3,13 +3,15 @@
 /**
  * URL pública do site.
  *
- * ⚠️ DOMÍNIO PROVISÓRIO — o registro.br ainda está propagando. Assim que o
- * domínio definitivo estiver no ar, defina `NEXT_PUBLIC_SITE_URL` na Vercel
- * (Settings > Environment Variables). Nenhum outro arquivo precisa mudar:
- * todo o site monta links a partir daqui.
+ * Canônico é COM www: o apex useninho.com.br responde 308 para
+ * www.useninho.com.br (verificado). Usar o apex aqui faria todo canonical e
+ * OpenGraph apontar para uma URL que só redireciona — o que divide sinal de
+ * SEO e faz o preview de link dar um salto a mais.
+ *
+ * Todo o site monta links a partir daqui; para trocar, basta a env na Vercel.
  */
 export const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL || 'https://useninho.com.br'
+  process.env.NEXT_PUBLIC_SITE_URL || 'https://www.useninho.com.br'
 ).replace(/\/$/, '');
 
 // Para onde o desktop é direcionado (não tem loja).
