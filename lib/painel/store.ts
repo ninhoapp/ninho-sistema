@@ -289,6 +289,41 @@ export async function addOutcome(input: {
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
+// ── Exclusão de usuário do app ────────────────────────────
+export interface PreviaExclusao {
+  bebes_exclusivos: number; // serão apagados — não sobrou outro cuidador
+  bebes_transferidos: number; // passam para outro cuidador
+  registros: number;
+  fotos: number;
+}
+
+/** O que exatamente será apagado. Usado para mostrar antes de confirmar. */
+export async function previaExclusao(profileId: string): Promise<PreviaExclusao> {
+  const sb = painelDb();
+  const { data, error } = await sb.rpc('previa_exclusao', { p_profile_id: profileId });
+  if (error) throw new Error(`previa_exclusao: ${error.message}`);
+  return (data as PreviaExclusao) ?? {
+    bebes_exclusivos: 0,
+    bebes_transferidos: 0,
+    registros: 0,
+    fotos: 0,
+  };
+}
+
+/**
+ * Apaga o usuário de verdade (auth.users → cascata). Bebês com outro cuidador
+ * são transferidos em vez de apagados — ver painel.excluir_usuario no SQL.
+ */
+export async function excluirUsuarioApp(
+  profileId: string
+): Promise<{ ok: boolean; error?: string; bebes_apagados?: number; bebes_transferidos?: number }> {
+  const sb = painelDb();
+  const { data, error } = await sb.rpc('excluir_usuario', { p_profile_id: profileId });
+  if (error) return { ok: false, error: error.message };
+  const r = data as { bebes_apagados: number; bebes_transferidos: number };
+  return { ok: true, ...r };
+}
+
 // ── Leads ocultados (removidos da fila do conversor) ──────
 export async function listHiddenLeadIds(): Promise<Set<string>> {
   const sb = painelDb();

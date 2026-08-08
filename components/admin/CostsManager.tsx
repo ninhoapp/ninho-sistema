@@ -6,6 +6,7 @@ import { criarCusto, removerCusto, type ActionState } from '@/app/admin/(painel)
 import type { Cost } from '@/lib/painel/store';
 import { formatBRL } from '@/lib/metrics';
 import { Tabela, Td } from '@/components/admin/Tabela';
+import { ExportExcelButton } from '@/components/admin/ExportExcelButton';
 
 const inputCls =
   'w-full rounded-xl border border-ninho-borda bg-white px-3 py-2 text-sm text-ninho-grafite outline-none focus:border-ninho-roxo';
@@ -28,9 +29,28 @@ function mesAtual(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export function CostsManager({ custos }: { custos: Cost[] }) {
+export function CostsManager({
+  custos,
+  mesFiltro,
+}: {
+  custos: Cost[];
+  /** Quando informado, a tabela mostra só esse mês (yyyy-mm). */
+  mesFiltro?: string;
+}) {
   const [state, action] = useFormState<ActionState, FormData>(criarCusto, {});
   const [kind, setKind] = useState<'fixo' | 'variavel'>('fixo');
+
+  const visiveis = mesFiltro
+    ? custos.filter((c) => c.ref_month.slice(0, 7) === mesFiltro)
+    : custos;
+
+  const paraExcel = visiveis.map((c) => ({
+    Descrição: c.label,
+    Categoria: c.category === 'marketing' ? 'Marketing' : 'App',
+    Tipo: c.kind === 'fixo' ? 'Fixo' : 'Variável',
+    Mês: c.ref_month.slice(0, 7),
+    Valor: Number(c.amount),
+  }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -97,11 +117,22 @@ export function CostsManager({ custos }: { custos: Cost[] }) {
         </div>
       </form>
 
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-base font-bold text-ninho-grafite">
+          Lançamentos{mesFiltro ? ` de ${mesFiltro}` : ''}
+        </h3>
+        <ExportExcelButton rows={paraExcel} filename="ninho-despesas" sheetName="Despesas" />
+      </div>
+
       <Tabela
         headers={['Descrição', 'Categoria', 'Tipo', 'Mês', 'Valor', '']}
-        vazio="Nenhuma despesa lançada ainda."
+        vazio={
+          mesFiltro
+            ? `Nenhuma despesa lançada em ${mesFiltro}.`
+            : 'Nenhuma despesa lançada ainda.'
+        }
       >
-        {custos.map((c) => (
+        {visiveis.map((c) => (
           <tr key={c.id}>
             <Td className="font-medium">{c.label}</Td>
             <Td>

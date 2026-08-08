@@ -2,10 +2,20 @@ import { requireRole } from '@/lib/auth/guard';
 import { getPerfil, listOutcomes } from '@/lib/painel/store';
 import { fetchAppUsers } from '@/lib/app-users';
 import { buildConversorLeadSet, whatsappLink } from '@/lib/conversor';
-import { commissionLabel, formatBRL, repasseDoPerfil } from '@/lib/metrics';
+import {
+  commissionLabel,
+  commissionPerPlan,
+  formatBRL,
+  repasseDoPerfil,
+} from '@/lib/metrics';
+import { repasseSchedule, fmtData } from '@/lib/repasse-schedule';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
+import { Notice } from '@/components/admin/Notice';
 import { FilaConversor } from '@/components/admin/FilaConversor';
+import { CommissionBreakdown } from '@/components/admin/CommissionBreakdown';
+import { RepasseRegras } from '@/components/admin/RepasseRegras';
+import { IconCash, IconClock, IconCrown, IconUsers } from '@/components/admin/icons';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +30,7 @@ export default async function ConversorPage() {
     listOutcomes(perfil.id),
   ]);
   const r = repasseDoPerfil(perfil, users, outcomes);
+  const sched = repasseSchedule();
 
   // Mapa de links de WhatsApp — montado no servidor pra não expor a lógica
   // de telefone no cliente.
@@ -32,25 +43,44 @@ export default async function ConversorPage() {
 
   return (
     <>
-      <PageHeader
-        title="Meu painel"
-        subtitle={`Sua comissão: ${commissionLabel(perfil)}`}
-      />
+      <PageHeader title="Meu painel" subtitle={`Sua comissão: ${commissionLabel(perfil)}`} />
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {!perfil.pix_key && (
+        <Notice tone="warn">
+          Você ainda não cadastrou sua chave PIX. Sem ela não dá para receber o repasse — cadastre
+          em Minha conta.
+        </Notice>
+      )}
+
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Consolidado"
           value={formatBRL(r.consolidado)}
-          hint="Já devido — convertidos que pagam"
+          hint={`${sched.consolidado.competencia} · paga ${fmtData(sched.consolidado.pagamentoEm)}`}
+          compactHint
           accent
+          icon={<IconCash />}
         />
         <StatCard
-          label="Previsão"
+          label="Em aberto"
           value={formatBRL(r.previsao)}
-          hint="Se os trials que você converteu virarem"
+          hint={`${sched.aberto.competencia} · paga ${fmtData(sched.aberto.pagamentoEm)}`}
+          compactHint
+          icon={<IconClock />}
         />
-        <StatCard label="Convertidos" value={r.convertidos} hint="Marcados por você" />
-        <StatCard label="Pagando hoje" value={r.pagantes} />
+        <StatCard label="Convertidos" value={r.convertidos} hint="Marcados por você" icon={<IconUsers />} />
+        <StatCard label="Pagando hoje" value={r.pagantes} icon={<IconCrown />} />
+      </div>
+
+      <div className="mb-8">
+        <CommissionBreakdown
+          headline={commissionLabel(perfil)}
+          itens={commissionPerPlan(perfil)}
+        />
+      </div>
+
+      <div className="mb-8">
+        <RepasseRegras duracaoMeses={perfil.commission_duration_months} />
       </div>
 
       <FilaConversor

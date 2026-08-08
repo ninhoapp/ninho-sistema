@@ -2,11 +2,14 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireRole, requireSession } from '@/lib/auth/guard';
+import { verifyPassword } from '@/lib/auth/password';
 import {
   createPerfil,
   updatePerfil,
   deletePerfil,
   setPassword,
+  getPerfil,
+  excluirUsuarioApp,
   addCost,
   addCostSeries,
   updateCost,
@@ -17,6 +20,7 @@ import {
   unhideLead,
   type LeadOutcome,
 } from '@/lib/painel/store';
+import { resetCostsMonth, resetConversorStats, resetLeadsOcultos } from '@/lib/reset';
 import type { Role } from '@/lib/auth/session';
 
 export interface ActionState {
@@ -154,6 +158,94 @@ export async function removerCusto(fd: FormData) {
   if (fd.get('todaSerie') === '1' && serie) await deleteCostSeries(serie);
   else await deleteCost(id);
   revalidatePath('/admin/despesas');
+}
+
+// ── Exclusão de usuários do app ───────────────────────────
+export interface ExclusaoState extends ActionState {
+  /** Resumo do que aconteceu, para a tela confirmar o efeito real. */
+  resumo?: { usuarios: number; bebesApagados: number; bebesTransferidos: number };
+}
+
+/**
+ * Apaga usuários do app em definitivo. Exige a senha do admin logado.
+ *
+ * A senha não é teatro: essa ação é irreversível e cascateia para bebês,
+ * rotina, vacinas, crescimento e fotos. Sem uma segunda credencial, um painel
+ * esquecido aberto vira perda de dado de saúde de criança.
+ */
+export async function excluirUsuarios(
+  _prev: ExclusaoState,
+  fd: FormData
+): Promise<ExclusaoState> {
+  const session = requireRole('admin');
+
+  const ids = String(fd.get('ids') || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const senha = String(fd.get('senha') || '');
+
+  if (ids.length === 0) return { error: 'Nenhum usuário selecionado.' };
+  if (!senha) return { error: 'Informe sua senha para confirmar.' };
+
+  const perfil = await getPerfil(session.sub);
+  if (!perfil) return { error: 'Sessão inválida. Entre novamente.' };
+  if (!verifyPassword(senha, perfil.password_hash)) {
+    return { error: 'Senha incorreta. Nada foi excluído.' };
+  }
+
+  let bebesApagados = 0;
+  let bebesTransferidos = 0;
+  const falhas: string[] = [];
+
+  for (const id of ids) {
+    const r = await excluirUsuarioApp(id);
+    if (!r.ok) {
+      falhas.push(r.error || id);
+      continue;
+    }
+    bebesApagados += r.bebes_apagados ?? 0;
+    bebesTransferidos += r.bebes_transferidos ?? 0;
+  }
+
+  revalidatePath('/admin/usuarios');
+  revalidatePath('/admin/visao-geral');
+  revalidatePath('/admin/leads');
+
+  if (falhas.length > 0) {
+    return {
+      error: `${ids.length - falhas.length} de ${ids.length} excluídos. Falhou: ${falhas.join('; ')}`,
+    };
+  }
+
+  return {
+    ok: true,
+    resumo: { usuarios: ids.length, bebesApagados, bebesTransferidos },
+  };
+}
+
+// ── Resets por escopo (testes) ────────────────────────────
+export async function zerarCustosDoMes(fd: FormData) {
+  requireRole('admin');
+  await resetCostsMonth(String(fd.get('mes') || ''));
+  revalidatePath('/admin/despesas');
+  revalidatePath('/admin/faturamento');
+}
+
+export async function zerarConversor(fd: FormData) {
+  requireRole('admin');
+  await resetConversorStats(String(fd.get('perfil_id') || ''));
+  revalidatePath('/admin/conversores');
+  revalidatePath('/admin/conversoes');
+  revalidatePath('/admin/repasses');
+}
+
+// Recebe FormData (ignorado) para casar com a assinatura do ConfirmButton.
+export async function zerarLeadsOcultos(_fd: FormData) {
+  requireRole('admin');
+  await resetLeadsOcultos();
+  revalidatePath('/admin/leads');
+  revalidatePath('/admin/conversor');
 }
 
 // ── Fila do conversor ─────────────────────────────────────

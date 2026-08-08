@@ -1,11 +1,11 @@
 import { requireRole } from '@/lib/auth/guard';
 import { fetchAppUsers, appDbConfigured } from '@/lib/app-users';
-import { formatDate, buildOverview } from '@/lib/metrics';
+import { previaExclusao, type PreviaExclusao } from '@/lib/painel/store';
+import { buildOverview } from '@/lib/metrics';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
 import { Notice } from '@/components/admin/Notice';
-import { Tabela, Td } from '@/components/admin/Tabela';
-import { EstadoBadge } from '@/components/admin/EstadoBadge';
+import { UsuariosTable } from '@/components/admin/UsuariosTable';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,11 +14,19 @@ export default async function UsuariosPage() {
   const users = await fetchAppUsers();
   const m = buildOverview(users);
 
+  // Prévia de impacto calculada no servidor, para a confirmação de exclusão
+  // mostrar número real em vez de aviso genérico.
+  const previas: Record<string, PreviaExclusao> = {};
+  const resultados = await Promise.all(
+    users.map(async (u) => [u.id, await previaExclusao(u.id)] as const)
+  );
+  for (const [id, p] of resultados) previas[id] = p;
+
   return (
     <>
       <PageHeader
         title="Usuários ativos"
-        subtitle="Todo mundo que criou perfil no app, com o estado de assinatura atual."
+        subtitle="Todo mundo que criou perfil no app. Selecione para excluir — a exclusão pede sua senha e é definitiva."
       />
 
       {!appDbConfigured() && (
@@ -35,26 +43,7 @@ export default async function UsuariosPage() {
         <StatCard label="Pagantes" value={m.pagantes} />
       </div>
 
-      <Tabela
-        headers={['Nome', 'E-mail', 'Telefone', 'Estado', 'Plano', 'Trial acaba', 'Cadastro']}
-        vazio="Nenhum usuário cadastrado ainda."
-      >
-        {users.map((u) => (
-          <tr key={u.id}>
-            <Td className="font-medium">{u.name || '—'}</Td>
-            <Td className="text-ninho-cinza">{u.email || '—'}</Td>
-            <Td className="whitespace-nowrap text-ninho-cinza">{u.phone || '—'}</Td>
-            <Td>
-              <EstadoBadge estado={u.estado} />
-            </Td>
-            <Td className="text-ninho-cinza">
-              {u.plan_interval ? (u.plan_interval === 'anual' ? 'Anual' : 'Mensal') : '—'}
-            </Td>
-            <Td className="whitespace-nowrap text-ninho-cinza">{formatDate(u.trial_ends_at)}</Td>
-            <Td className="whitespace-nowrap text-ninho-cinza">{formatDate(u.created_at)}</Td>
-          </tr>
-        ))}
-      </Tabela>
+      <UsuariosTable users={users} previas={previas} />
     </>
   );
 }

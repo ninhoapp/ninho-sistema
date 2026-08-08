@@ -4,6 +4,9 @@ import { buildConversorLeadSet, whatsappLink } from '@/lib/conversor';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
 import { FilaConversor } from '@/components/admin/FilaConversor';
+import { ExportExcelButton } from '@/components/admin/ExportExcelButton';
+import { ConfirmButton } from '@/components/admin/ConfirmButton';
+import { zerarLeadsOcultos } from '@/app/admin/(painel)/admin-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,11 +26,35 @@ export default async function LeadsPage() {
   const removidos = todos.filter((l) => l.removido);
   const semTelefone = todos.filter((l) => !wpp[l.id]).length;
 
+  const paraExcel = todos.map((l) => ({
+    Nome: l.name || '',
+    'E-mail': l.email || '',
+    Telefone: l.phone || '',
+    Estado: l.estado,
+    'Trial acaba': l.trial_ends_at ? new Date(l.trial_ends_at).toLocaleDateString('pt-BR') : '',
+    'Já contatado': l.jaContatado ? 'Sim' : 'Não',
+    'Último desfecho': l.ultimoDesfecho || '',
+    'Removido da fila': l.removido ? 'Sim' : 'Não',
+  }));
+
   return (
     <>
       <PageHeader
         title="Leads"
         subtitle="Todas as filas de contato, na visão do admin — incluindo o que foi removido."
+        right={
+          <div className="flex flex-wrap items-center gap-2">
+            <ExportExcelButton rows={paraExcel} filename="ninho-leads" sheetName="Leads" />
+            {removidos.length > 0 && (
+              <ConfirmButton
+                action={zerarLeadsOcultos}
+                hidden={{}}
+                label="Restaurar removidos"
+                message={`Devolver os ${removidos.length} leads removidos para a fila do conversor?`}
+              />
+            )}
+          </div>
+        }
       />
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

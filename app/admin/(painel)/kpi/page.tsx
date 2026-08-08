@@ -7,13 +7,18 @@ import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
 import { Notice } from '@/components/admin/Notice';
 import { BarChart } from '@/components/admin/BarChart';
+import { MonthFilter } from '@/components/admin/MonthFilter';
 
 export const dynamic = 'force-dynamic';
 
 /** Meses médios que um assinante fica. Sem histórico real ainda, é uma premissa. */
 const LIFETIME_MESES_ESTIMADO = 12;
 
-export default async function KpiPage() {
+function mesValido(v: string | undefined): string {
+  return v && /^\d{4}-\d{2}$/.test(v) ? v : new Date().toISOString().slice(0, 7);
+}
+
+export default async function KpiPage({ searchParams }: { searchParams: { mes?: string } }) {
   requireRole('admin');
   const [users, custos, perfis, outcomes] = await Promise.all([
     fetchAppUsers(),
@@ -22,8 +27,7 @@ export default async function KpiPage() {
     listOutcomes(),
   ]);
 
-  const d = new Date();
-  const mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const mes = mesValido(searchParams.mes);
 
   const m = buildOverview(users);
   const repasses = buildRepasses(perfis, users, outcomes);
@@ -55,6 +59,7 @@ export default async function KpiPage() {
       <PageHeader
         title="KPI"
         subtitle="Indicadores do negócio. Onde houver premissa em vez de dado real, está escrito no card."
+        right={<MonthFilter value={mes} />}
       />
 
       {m.pagantes === 0 && (

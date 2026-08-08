@@ -94,6 +94,40 @@ export function buildOverview(users: AppUser[]): OverviewMetrics {
   };
 }
 
+/**
+ * Reconstrói a visão geral como estava numa data passada, para o comparativo
+ * "vs período anterior".
+ *
+ * ⚠️ É APROXIMAÇÃO, não histórico exato. `trial_ends_at` e `created_at` são
+ * datas fixas, então trial ativo/expirado saem corretos para qualquer data.
+ * Já "pagante" só temos o snapshot de hoje — quem paga hoje é contado como se
+ * já pagasse naquela data (desde que já existisse). Cancelamento ou reembolso
+ * ocorrido no meio do caminho não aparece. Para histórico exato seria preciso
+ * uma tabela de eventos de cobrança, que ainda não existe.
+ */
+export function buildOverviewAt(users: AppUser[], at: number): OverviewMetrics {
+  const existiam = users.filter((u) => new Date(u.created_at).getTime() <= at);
+
+  const trialAtivo = existiam.filter(
+    (u) => u.trial_ends_at != null && new Date(u.trial_ends_at).getTime() > at && !isPagante(u)
+  ).length;
+  const trialExpirado = existiam.filter(
+    (u) => u.trial_ends_at != null && new Date(u.trial_ends_at).getTime() <= at && !isPagante(u)
+  ).length;
+  const pagantesArr = existiam.filter(isPagante);
+
+  return {
+    appConfigured: appDbConfigured(),
+    totalUsuarios: existiam.length,
+    pagantes: pagantesArr.length,
+    trialAtivo,
+    trialExpirado,
+    churn: existiam.filter(isChurn).length,
+    free: existiam.length - pagantesArr.length - trialAtivo - trialExpirado,
+    receitaMensalEstimada: pagantesArr.reduce((s, u) => s + monthlyRevenueForUser(u), 0),
+  };
+}
+
 // ── Repasses ──────────────────────────────────────────────
 /**
  * No Ninho o repasse é sempre do conversor, e sempre sobre os leads que ELE
