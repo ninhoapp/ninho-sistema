@@ -20,7 +20,20 @@ export async function signIn(_prev: ActionState, formData: FormData): Promise<Ac
   const password = String(formData.get('password') || '');
   if (!login || !password) return { error: 'Preencha usuário e senha.' };
 
-  const perfil = await findPerfilByLogin(login);
+  // Falha de infraestrutura (env faltando, schema não exposto, permissão) não
+  // pode se disfarçar de credencial errada — são diagnósticos completamente
+  // diferentes, e confundir os dois custa horas.
+  let perfil;
+  try {
+    perfil = await findPerfilByLogin(login);
+  } catch (e) {
+    console.error('[admin/signIn] falha ao consultar o banco:', e);
+    return {
+      error:
+        'Não consegui acessar o banco. Confira SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY, e se o schema "painel" está em Settings > API > Exposed schemas.',
+    };
+  }
+
   if (!perfil || !verifyPassword(password, perfil.password_hash)) {
     return { error: 'Usuário ou senha incorretos.' };
   }

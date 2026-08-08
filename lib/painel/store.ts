@@ -54,16 +54,26 @@ export interface LeadOutcome {
 }
 
 // ── Perfis de acesso ──────────────────────────────────────
+/**
+ * Lança em erro de banco em vez de devolver null.
+ *
+ * Engolir o erro aqui faz o login responder "usuário ou senha incorretos"
+ * quando o problema real é permissão, schema não exposto ou env faltando —
+ * e aí se perde muito tempo procurando no lugar errado.
+ */
 export async function findPerfilByLogin(login: string): Promise<Perfil | null> {
   const sb = painelDb();
   const value = login.trim().toLowerCase();
-  const { data } = await sb
+  const { data, error } = await sb
     .from('perfis')
     .select('*')
     .or(`username.eq.${value},email.eq.${value}`)
     .eq('active', true)
     .limit(1)
     .maybeSingle();
+  if (error) {
+    throw new Error(`painel.perfis: ${error.message}${error.hint ? ` (${error.hint})` : ''}`);
+  }
   return (data as Perfil) ?? null;
 }
 
