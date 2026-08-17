@@ -20,6 +20,12 @@ export const LANDING_URL = process.env.NEXT_PUBLIC_LANDING_URL || SITE_URL;
 // E-mail de contato exibido na landing e nas páginas legais.
 export const CONTATO_EMAIL = process.env.NEXT_PUBLIC_CONTATO_EMAIL || 'contato@useninho.com.br';
 
+// E-mail de suporte — o mesmo usado dentro do app (Termos/Privacidade,
+// menu de Configurações) e exibido em /suporte. Separado do CONTATO_EMAIL
+// de propósito: contato@ é para imprensa/parcerias vindas da landing,
+// suporte@ é o canal de ajuda de quem já usa o app.
+export const SUPORTE_EMAIL = process.env.NEXT_PUBLIC_SUPORTE_EMAIL || 'suporte@useninho.com.br';
+
 // Identificadores do app (batem com o app.json do Ninho-expo).
 export const BUNDLE_ID_IOS = 'com.ninho.app';
 export const PACKAGE_ANDROID = 'com.ninho.app';

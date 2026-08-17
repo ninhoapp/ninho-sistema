@@ -1106,6 +1106,7 @@ const bodyHtml = `
         <a href="/get/android">Google Play</a>
         <a href="#features">Funcionalidades</a>
         <a href="#planos">Planos</a>
+        <a href="/suporte">Suporte</a>
         <a href="mailto:${CONTATO_EMAIL}">Contato</a>
         <a href="/privacy">Privacidade</a>
         <a href="/termos">Termos</a>
