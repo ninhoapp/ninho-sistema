@@ -1,18 +1,22 @@
 import { requireRole } from '@/lib/auth/guard';
-import { fetchAppUsers, appDbConfigured } from '@/lib/app-users';
+import {
+  fetchAppUsers,
+  fetchUsoPorUsuario,
+  appDbConfigured,
+  accountStatus,
+  countryFromTimezone,
+} from '@/lib/app-users';
 import { previaExclusao, type PreviaExclusao } from '@/lib/painel/store';
-import { buildOverview } from '@/lib/metrics';
 import { PageHeader } from '@/components/admin/PageHeader';
-import { StatCard } from '@/components/admin/StatCard';
 import { Notice } from '@/components/admin/Notice';
-import { UsuariosTable } from '@/components/admin/UsuariosTable';
+import { UsuariosTable, type UsuarioRow } from '@/components/admin/UsuariosTable';
 
 export const dynamic = 'force-dynamic';
 
 export default async function UsuariosPage() {
   requireRole('admin');
-  const users = await fetchAppUsers();
-  const m = buildOverview(users);
+
+  const [users, uso] = await Promise.all([fetchAppUsers(), fetchUsoPorUsuario()]);
 
   // Prévia de impacto calculada no servidor, para a confirmação de exclusão
   // mostrar número real em vez de aviso genérico.
@@ -22,11 +26,40 @@ export default async function UsuariosPage() {
   );
   for (const [id, p] of resultados) previas[id] = p;
 
+  const rows: UsuarioRow[] = users.map((u) => {
+    const m = uso.get(u.id);
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      created_at: u.created_at,
+      status: accountStatus(u),
+      country: countryFromTimezone(u.timezone),
+      // Duas colunas no banco, uma pergunta só na tela: quem paga (ou
+      // cancelou no meio do ciclo) conta pelo fim do período pago; o resto
+      // conta pelo fim do trial.
+      expiraEm:
+        u.estado === 'pagante' || u.estado === 'churn'
+          ? u.current_period_end ?? u.trial_ends_at
+          : u.trial_ends_at,
+      registros: m?.registros ?? 0,
+      diasRegistro: m?.diasRegistro ?? 0,
+      ultimoRegistroAt: m?.ultimoRegistroAt ?? null,
+      diasAbertura: m?.diasAbertura ?? 0,
+      ultimoAppAbertoAt: m?.ultimoAppAbertoAt ?? null,
+      bebes: m?.bebes ?? 0,
+      primeiroBebeEm: m?.primeiroBebeEm ?? null,
+      sistema: m?.sistema ?? null,
+      appVersion: m?.appVersion ?? null,
+    };
+  });
+
   return (
-    <>
+    <div>
       <PageHeader
         title="Usuários ativos"
-        subtitle="Todo mundo que criou perfil no app. Selecione para excluir — a exclusão pede sua senha e é definitiva."
+        subtitle="Todos os usuários do app, status da conta e atividade. Selecione para excluir — a exclusão pede sua senha e é definitiva."
       />
 
       {!appDbConfigured() && (
@@ -36,14 +69,7 @@ export default async function UsuariosPage() {
         </Notice>
       )}
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total" value={m.totalUsuarios} accent />
-        <StatCard label="Trial ativo" value={m.trialAtivo} />
-        <StatCard label="Trial expirado" value={m.trialExpirado} />
-        <StatCard label="Pagantes" value={m.pagantes} />
-      </div>
-
-      <UsuariosTable users={users} previas={previas} />
-    </>
+      <UsuariosTable rows={rows} previas={previas} />
+    </div>
   );
 }
