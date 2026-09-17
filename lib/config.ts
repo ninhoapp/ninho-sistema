@@ -33,11 +33,13 @@ export const PACKAGE_ANDROID = 'com.ninho.app';
 /**
  * Links de loja.
  *
- * Pré-lançamento: deixe as duas vazias. Nesse estado o mobile cai na landing
- * (desktop também), e /get/ios · /get/android mostram a página de espera.
- * Ao publicar, preencha STORE_IOS_URL / STORE_ANDROID_URL (ou as envs).
+ * Enquanto uma loja não estiver preenchida, o mobile daquela plataforma cai
+ * na landing (desktop também), e /get/ios · /get/android mostram a página de
+ * espera. STORE_ANDROID_URL ainda está vazia até o Google Play publicar.
  */
-export const STORE_IOS_URL = process.env.STORE_IOS_URL || ''; // ex: https://apps.apple.com/app/id0000000000
+export const STORE_IOS_URL =
+  process.env.STORE_IOS_URL ||
+  'https://apps.apple.com/us/app/ninho-di%C3%A1rio-do-beb%C3%AA/id6802341156';
 export const STORE_ANDROID_URL =
   process.env.STORE_ANDROID_URL || ''; // ex: https://play.google.com/store/apps/details?id=com.ninho.app
 
