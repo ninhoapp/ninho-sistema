@@ -14,25 +14,20 @@ export interface UsuarioRow {
   id: string;
   name: string | null;
   email: string | null;
+  /** Não é coluna — só usado na busca por texto. */
   phone: string | null;
   created_at: string;
   status: StatusConta;
-  country: string;
-  /** Data em que o acesso vigente acaba — trial ou ciclo pago, já resolvida. */
+  /** Data em que o acesso vigente acaba — trial ou ciclo pago, já resolvida.
+   *  Alimenta a coluna Dias. */
   expiraEm: string | null;
-  /** Registros reais do usuário (regra da view `registros_reais`). */
+  /** Registros reais do usuário (regra da view `registros_reais`). Rótulo
+   *  na tela: "Lançamentos". */
   registros: number;
-  /** Dias distintos COM registro. */
+  /** Dias distintos COM registro — usado só no tooltip de Lançamentos. */
   diasRegistro: number;
-  /** Último registro — mede recência, não volume. */
-  ultimoRegistroAt: string | null;
-  /** Dias distintos COM abertura do app — histórico só a partir de 19/08/2026. */
+  /** Dias distintos COM abertura do app — usado só no tooltip de Lançamentos. */
   diasAbertura: number;
-  ultimoAppAbertoAt: string | null;
-  /** Bebês vinculados. Zero = onboarding não concluído. */
-  bebes: number;
-  /** Primeiro vínculo com um bebê — relógio das métricas de uso. */
-  primeiroBebeEm: string | null;
   sistema: 'ios' | 'android' | 'web' | null;
   appVersion: string | null;
 }
@@ -48,11 +43,11 @@ const STATUS_STYLE: Record<StatusConta, string> = {
   Cadastrado: 'bg-ninho-nuvem text-ninho-cinza',
 };
 
-// Toda coluna ordena e filtra — as duas listas cobrem as 13, na mesma ordem
+// Toda coluna ordena e filtra — as duas listas cobrem as 8, na mesma ordem
 // em que aparecem na tabela.
 type SortKey =
-  | 'nome' | 'created_at' | 'etapa' | 'registros' | 'sinal' | 'status'
-  | 'dias' | 'sistema' | 'versao' | 'pais' | 'expiry' | 'email' | 'whatsapp';
+  | 'nome' | 'created_at' | 'registros' | 'status'
+  | 'dias' | 'sistema' | 'versao' | 'email';
 
 type SortDir = 'asc' | 'desc';
 type FilterCol = SortKey;
@@ -61,7 +56,7 @@ type StatKey = 'total' | 'hoje' | 'assinantes' | 'trial_ativo' | 'trial_expirado
 
 // Larguras padrão em px, na ordem das células: a primeira é a caixinha de
 // seleção (que não ordena nem filtra), as outras seguem CABECALHOS.
-const DEFAULT_COL_WIDTHS = [40, 140, 72, 100, 96, 76, 128, 60, 68, 72, 76, 80, 150, 110];
+const DEFAULT_COL_WIDTHS = [40, 170, 90, 110, 130, 70, 80, 80, 200];
 
 // Fuso do Brasil: é onde estão os usuários e é a virada de dia que o time
 // enxerga. "Hoje" e as datas da tabela seguem ele, não o fuso do navegador
@@ -104,116 +99,6 @@ function diasClass(d: number | null): string {
   return 'text-ninho-grafite';
 }
 
-function diasDesde(iso: string | null): number | null {
-  if (!iso) return null;
-  return (Date.now() - new Date(iso).getTime()) / 86400000;
-}
-
-// ─── ETAPA: onde a pessoa está no funil ───────────────────────────────
-//
-// O sinal de cadastro concluído no Ninho é ter NOME e pelo menos um BEBÊ —
-// exatamente a regra que o app usa pra decidir se manda a pessoa pro
-// onboarding ou pra Home (resolvePostAuthRoute). Não existe flag de
-// "onboarding_completed" no banco, e inventar uma aqui só criaria uma
-// segunda verdade pra discordar da primeira.
-//
-// Carência de 3 dias antes de rotular Abandono: é a janela em que a régua
-// de notificação ainda está tentando trazer a pessoa de volta. Antes disso
-// é só Incompleto — ela ainda pode voltar sozinha.
-const DIAS_CARENCIA_ABANDONO = 3;
-
-// Sem nenhum sinal de vida (abertura ou registro) por mais que isso, a
-// pessoa não é "pouco engajada", é perdida. Sem esse corte, quem usou muito
-// na primeira semana e sumiu ficaria marcado como ativo pra sempre.
-const DIAS_SUMIDO = 14;
-
-type Etapa = 'incompleto' | 'abandono' | 'sem_registrar' | 'ativo' | 'sumido';
-
-function onboardingConcluido(r: UsuarioRow): boolean {
-  return Boolean(r.name && r.name.trim()) && r.bebes > 0;
-}
-
-function calcEtapa(r: UsuarioRow): Etapa {
-  if (!onboardingConcluido(r)) {
-    return (diasDesde(r.created_at) ?? 0) >= DIAS_CARENCIA_ABANDONO ? 'abandono' : 'incompleto';
-  }
-  if (r.registros === 0) return 'sem_registrar';
-  // Recência = o mais recente entre abrir o app e registrar algo. Abrir pra
-  // conferir a rotina conta como vida, mesmo sem registrar nada.
-  const sinais = [r.ultimoAppAbertoAt, r.ultimoRegistroAt].filter(Boolean) as string[];
-  const ultimo = sinais.length ? sinais.reduce((m, d) => (d > m ? d : m)) : null;
-  const d = diasDesde(ultimo);
-  return d !== null && d > DIAS_SUMIDO ? 'sumido' : 'ativo';
-}
-
-const ETAPA_CONFIG: Record<Etapa, { label: string; cls: string }> = {
-  incompleto:    { label: 'Incompleto',    cls: 'bg-ninho-nuvem text-ninho-cinza' },
-  abandono:      { label: 'Abandono',      cls: 'bg-red-50 text-red-600' },
-  sem_registrar: { label: 'Sem registrar', cls: 'bg-[#FDF0E4] text-[#9A5B1E]' },
-  ativo:         { label: 'Ativo',         cls: 'bg-[#E4F5EC] text-[#2E7D51]' },
-  sumido:        { label: 'Sumido',        cls: 'bg-ninho-roxo-suave text-ninho-roxo-escuro' },
-};
-
-const ETAPA_ORDER: Record<Etapa, number> = {
-  abandono: 0, incompleto: 1, sumido: 2, sem_registrar: 3, ativo: 4,
-};
-
-// ─── DIAS DE USO (interno) ────────────────────────────────────────────
-//
-// Não é coluna, mas é o que dá peso ao Sinal. Prefere ABERTURA do app — é o
-// sinal honesto de uso: entrar pra conferir a rotina é usar o app, mesmo
-// sem registrar nada. Só que esse histórico começou em 19/08/2026, então
-// cai em dias-com-registro enquanto não amadurece. Conforme as aberturas
-// acumulam, elas passam a dominar sozinhas e o número nunca regride.
-function diasUso(r: UsuarioRow): number {
-  return Math.max(r.diasAbertura, r.diasRegistro);
-}
-
-// ─── SINAL DE ASSINATURA ──────────────────────────────────────────────
-//
-// NÃO é probabilidade. É um rótulo de comportamento — com a base do tamanho
-// atual, qualquer porcentagem seria inventada, e o risco é decidir em cima
-// dela achando que foi medida. Quando ~30 trials resolverem, dá pra olhar
-// quem assinou e calibrar de verdade.
-//
-// Só aparece 10 dias depois do primeiro bebê (a conclusão do cadastro):
-// alguém com 3 dias de uso intenso ainda não provou nada — pode ser só a
-// empolgação da novidade.
-const DIAS_MATURIDADE_SINAL = 10;
-
-type Sinal = 'imaturo' | 'fraco' | 'medio' | 'forte';
-
-function calcSinal(r: UsuarioRow): Sinal {
-  if (!onboardingConcluido(r) || !r.primeiroBebeEm) return 'imaturo';
-  const janelaDias = diasDesde(r.primeiroBebeEm) ?? 0;
-  if (janelaDias < DIAS_MATURIDADE_SINAL) return 'imaturo';
-
-  // Proporção dos dias desde o cadastro completo em que a pessoa usou o app.
-  const proporcao = diasUso(r) / Math.max(1, Math.floor(janelaDias));
-  const registrouRecente = (diasDesde(r.ultimoRegistroAt) ?? Infinity) <= 7;
-
-  if (proporcao >= 0.6 && registrouRecente) return 'forte';
-  if (proporcao >= 0.3 || registrouRecente) return 'medio';
-  return 'fraco';
-}
-
-const SINAL_CONFIG: Record<Sinal, { label: string; cls: string }> = {
-  imaturo: { label: '—',     cls: 'bg-transparent text-ninho-cinza' },
-  fraco:   { label: 'Fraco', cls: 'bg-red-50 text-red-600' },
-  medio:   { label: 'Médio', cls: 'bg-[#FDF0E4] text-[#9A5B1E]' },
-  forte:   { label: 'Forte', cls: 'bg-[#E4F5EC] text-[#2E7D51]' },
-};
-
-const SINAL_ORDER: Record<Sinal, number> = { imaturo: 0, fraco: 1, medio: 2, forte: 3 };
-
-function Badge({ label, cls }: { label: string; cls: string }) {
-  return (
-    <span className={`rounded-pill px-2 py-0.5 text-xs font-medium whitespace-nowrap ${cls}`}>
-      {label}
-    </span>
-  );
-}
-
 function sistemaLabel(r: UsuarioRow): string {
   if (r.sistema === 'ios') return 'iOS';
   if (r.sistema === 'android') return 'Android';
@@ -228,16 +113,11 @@ function colValue(r: UsuarioRow, col: FilterCol): string {
   switch (col) {
     case 'nome':       return r.name || '—';
     case 'email':      return r.email || '—';
-    case 'whatsapp':   return r.phone || '—';
     case 'created_at': return fmt(r.created_at);
     case 'status':     return r.status;
-    case 'etapa':      return ETAPA_CONFIG[calcEtapa(r)].label;
     case 'registros':  return String(r.registros);
-    case 'sinal':      return SINAL_CONFIG[calcSinal(r)].label;
-    case 'expiry':     return fmt(r.expiraEm);
     case 'dias':       return diasLabel(dias(r));
     case 'sistema':    return sistemaLabel(r);
-    case 'pais':       return r.country;
     case 'versao':     return r.appVersion || '—';
   }
 }
@@ -247,18 +127,13 @@ function colValue(r: UsuarioRow, col: FilterCol): string {
  *  Mexer aqui exige mexer nos três. */
 const CABECALHOS: [SortKey, string][] = [
   ['nome', 'Nome'],
-  ['created_at', 'Criou'],
-  ['etapa', 'Etapa'],
-  ['registros', 'Registros'],
-  ['sinal', 'Sinal'],
+  ['created_at', 'Criou em'],
+  ['registros', 'Lançamentos'],
   ['status', 'Status'],
   ['dias', 'Dias'],
   ['sistema', 'Sistema'],
   ['versao', 'Versão'],
-  ['pais', 'País'],
-  ['expiry', 'Expira em'],
   ['email', 'E-mail'],
-  ['whatsapp', 'WhatsApp'],
 ];
 
 /** Todas as colunas, na ordem da tabela. Toda uma delas ordena e filtra. */
@@ -267,15 +142,6 @@ const COLUNAS: SortKey[] = CABECALHOS.map(([c]) => c);
 /** Colunas cujo filtro lista valores numéricos (ordena por número, não por
  *  texto — senão 10 vem antes de 2). */
 const COLUNAS_NUMERICAS: Set<FilterCol> = new Set(['registros']);
-
-/** Colunas com ordem própria: Etapa e Sinal são escalas, não listas
- *  alfabéticas — o filtro deve mostrá-las do pior pro melhor. */
-const ORDEM_FIXA: Partial<Record<FilterCol, string[]>> = {
-  etapa: (['abandono', 'incompleto', 'sumido', 'sem_registrar', 'ativo'] as Etapa[])
-    .map((e) => ETAPA_CONFIG[e].label),
-  sinal: (['imaturo', 'fraco', 'medio', 'forte'] as Sinal[])
-    .map((s) => SINAL_CONFIG[s].label),
-};
 
 function SortArrow({ col, sort }: { col: SortKey; sort: { key: SortKey; dir: SortDir } | null }) {
   if (!sort || sort.key !== col) return <span className="ml-1 text-ninho-borda opacity-70">↕</span>;
@@ -463,10 +329,7 @@ export function UsuariosTable({
     const out = {} as Record<FilterCol, string[]>;
     for (const col of COLUNAS) {
       const vals = Array.from(new Set(rows.map((r) => colValue(r, col))));
-      const fixa = ORDEM_FIXA[col];
-      if (fixa) {
-        vals.sort((a, b) => fixa.indexOf(a) - fixa.indexOf(b));
-      } else if (COLUNAS_NUMERICAS.has(col)) {
+      if (COLUNAS_NUMERICAS.has(col)) {
         vals.sort((a, b) => Number(a) - Number(b));
       } else {
         vals.sort((a, b) => a.localeCompare(b, 'pt-BR'));
@@ -523,26 +386,12 @@ export function UsuariosTable({
         switch (sort.key) {
           case 'nome': cmp = (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR'); break;
           case 'email': cmp = (a.email ?? '').localeCompare(b.email ?? '', 'pt-BR'); break;
-          case 'whatsapp': cmp = (a.phone ?? '').localeCompare(b.phone ?? ''); break;
           case 'created_at': cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime(); break;
           case 'status': cmp = a.status.localeCompare(b.status, 'pt-BR'); break;
-          // Etapa e Sinal ordenam pela escala (pior → melhor), não pelo
-          // alfabeto: quem olha quer ver o funil, não a ordem das letras.
-          case 'etapa': cmp = ETAPA_ORDER[calcEtapa(a)] - ETAPA_ORDER[calcEtapa(b)]; break;
-          case 'sinal': cmp = SINAL_ORDER[calcSinal(a)] - SINAL_ORDER[calcSinal(b)]; break;
           case 'registros': cmp = a.registros - b.registros; break;
-          case 'expiry': {
-            const da = a.expiraEm, db = b.expiraEm;
-            if (!da && !db) cmp = 0;
-            else if (!da) cmp = 1;
-            else if (!db) cmp = -1;
-            else cmp = new Date(da).getTime() - new Date(db).getTime();
-            break;
-          }
           case 'dias': cmp = (dias(a) ?? Infinity) - (dias(b) ?? Infinity); break;
           case 'sistema': cmp = sistemaLabel(a).localeCompare(sistemaLabel(b), 'pt-BR'); break;
           case 'versao': cmp = (a.appVersion ?? '').localeCompare(b.appVersion ?? '', 'pt-BR'); break;
-          case 'pais': cmp = a.country.localeCompare(b.country, 'pt-BR'); break;
         }
         return sort.dir === 'asc' ? cmp : -cmp;
       });
@@ -596,18 +445,13 @@ export function UsuariosTable({
     () =>
       filteredRows.map((r) => ({
         Nome: r.name || '',
-        Criou: fmt(r.created_at),
-        Etapa: ETAPA_CONFIG[calcEtapa(r)].label,
-        Registros: r.registros,
-        Sinal: SINAL_CONFIG[calcSinal(r)].label,
+        'Criou em': fmt(r.created_at),
+        Lançamentos: r.registros,
         Status: r.status,
         Dias: diasLabel(dias(r)),
         Sistema: r.sistema ? sistemaLabel(r) : '',
         Versão: r.appVersion || '',
-        País: r.country,
-        'Expira em': fmt(r.expiraEm),
         'E-mail': r.email || '',
-        WhatsApp: r.phone || '',
       })),
     [filteredRows]
   );
@@ -883,8 +727,7 @@ export function UsuariosTable({
                     marcado ? 'bg-ninho-roxo-suave/40' : 'hover:bg-ninho-nuvem'
                   }`}
                 >
-                  {/* A ordem daqui tem que espelhar CABECALHOS e
-                      DEFAULT_COL_WIDTHS — diagnóstico primeiro, contato no fim. */}
+                  {/* A ordem daqui tem que espelhar CABECALHOS e DEFAULT_COL_WIDTHS. */}
                   <td className="p-3">
                     <input
                       type="checkbox"
@@ -902,17 +745,11 @@ export function UsuariosTable({
                   <td className="overflow-hidden p-3 text-ninho-cinza">
                     <div className="truncate">{fmt(r.created_at)}</div>
                   </td>
-                  <td className="overflow-hidden p-3">
-                    <Badge {...ETAPA_CONFIG[calcEtapa(r)]} />
-                  </td>
                   <td
                     className="overflow-hidden p-3 text-right font-medium tabular-nums text-ninho-grafite"
                     title={`${r.diasRegistro} dia(s) registrando · ${r.diasAbertura} dia(s) abrindo o app`}
                   >
                     {r.registros}
-                  </td>
-                  <td className="overflow-hidden p-3">
-                    <Badge {...SINAL_CONFIG[calcSinal(r)]} />
                   </td>
                   <td className="overflow-hidden p-3">
                     <span className={`rounded-pill px-2 py-0.5 text-xs ${STATUS_STYLE[r.status]}`}>
@@ -934,20 +771,9 @@ export function UsuariosTable({
                   <td className="overflow-hidden p-3 text-ninho-cinza">
                     <div className="truncate font-mono text-xs">{r.appVersion || '—'}</div>
                   </td>
-                  <td className="overflow-hidden p-3 text-ninho-cinza">
-                    <div className="truncate" title={r.country}>{r.country}</div>
-                  </td>
-                  <td className="overflow-hidden p-3 text-ninho-cinza">
-                    <div className="truncate">{fmt(r.expiraEm)}</div>
-                  </td>
                   <td className="p-3">
                     <div className="truncate text-ninho-grafite" title={r.email ?? undefined}>
                       {r.email || '—'}
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    <div className="truncate font-mono text-ninho-grafite" title={r.phone ?? undefined}>
-                      {r.phone || '—'}
                     </div>
                   </td>
                 </tr>
@@ -958,19 +784,11 @@ export function UsuariosTable({
       </section>
 
       <p className="mt-3 text-xs text-ninho-cinza">
-        <strong>Etapa:</strong> Incompleto = cadastro em andamento (até 3 dias) · Abandono = não
-        concluiu o cadastro há 3+ dias · Sem registrar = concluiu mas nunca registrou nada · Ativo =
-        usando · Sumido = 14+ dias sem abrir nem registrar. Cadastro concluído = tem nome e pelo
-        menos um bebê.{' '}
-        <strong>Registros:</strong> registros reais do usuário (regra da view{' '}
-        <code>registros_reais</code>) — o tooltip mostra em quantos dias distintos ele registrou e
-        abriu o app.{' '}
-        <strong>Sinal:</strong> rótulo de comportamento, não probabilidade — só aparece 10 dias
-        depois do cadastro completo, e pesa dias de uso contra dias desde o cadastro.
-        <br />
+        <strong>Lançamentos:</strong> registros reais do usuário — momentos e ações do bebê (regra
+        da view <code>registros_reais</code>) — o tooltip mostra em quantos dias distintos ele
+        registrou e abriu o app.{' '}
         <strong>Versão/Sistema</strong> vêm do aparelho mais recente com push token: ficam vazios
-        pra quem recusou notificações. Histórico de abertura do app existe só a partir de
-        19/08/2026.
+        pra quem recusou notificações.
       </p>
     </div>
   );

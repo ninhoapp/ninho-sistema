@@ -143,26 +143,6 @@ export const STATUS_ASSINANTE: StatusConta[] = [
   'Básico anual',
 ];
 
-// ─── País ──────────────────────────────────────────────────────────────
-const BR_ZONES = [
-  'sao_paulo', 'fortaleza', 'recife', 'bahia', 'manaus', 'cuiaba', 'belem',
-  'maceio', 'campo_grande', 'porto_velho', 'boa_vista', 'rio_branco',
-  'noronha', 'araguaina', 'santarem',
-];
-
-/** País aproximado a partir do timezone — não existe coluna de país. */
-export function countryFromTimezone(tz: string | null): string {
-  if (!tz) return '—';
-  const t = tz.toLowerCase();
-  if (BR_ZONES.some((z) => t.includes(z))) return 'Brasil';
-  if (t.startsWith('america/')) return 'Américas';
-  if (t.startsWith('europe/')) return 'Europa';
-  if (t.startsWith('africa/')) return 'África';
-  if (t.startsWith('asia/')) return 'Ásia';
-  if (t.startsWith('australia/') || t.startsWith('pacific/')) return 'Oceania';
-  return tz.split('/').pop()?.replace(/_/g, ' ') || tz;
-}
-
 // ─── Uso por usuário ───────────────────────────────────────────────────
 /**
  * Métricas de uso — base do funil "baixou → cadastrou → usou de fato →

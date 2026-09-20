@@ -27,21 +27,22 @@ export const CONTATO_EMAIL = process.env.NEXT_PUBLIC_CONTATO_EMAIL || 'contato@u
 export const SUPORTE_EMAIL = process.env.NEXT_PUBLIC_SUPORTE_EMAIL || 'suporte@useninho.com.br';
 
 // Identificadores do app (batem com o app.json do Ninho-expo).
-export const BUNDLE_ID_IOS = 'com.ninho.app';
-export const PACKAGE_ANDROID = 'com.ninho.app';
+export const BUNDLE_ID_IOS = 'com.useninho.app';
+export const PACKAGE_ANDROID = 'com.useninho.app';
 
 /**
  * Links de loja.
  *
  * Enquanto uma loja não estiver preenchida, o mobile daquela plataforma cai
  * na landing (desktop também), e /get/ios · /get/android mostram a página de
- * espera. STORE_ANDROID_URL ainda está vazia até o Google Play publicar.
+ * espera.
  */
 export const STORE_IOS_URL =
   process.env.STORE_IOS_URL ||
   'https://apps.apple.com/us/app/ninho-di%C3%A1rio-do-beb%C3%AA/id6802341156';
 export const STORE_ANDROID_URL =
-  process.env.STORE_ANDROID_URL || ''; // ex: https://play.google.com/store/apps/details?id=com.ninho.app
+  process.env.STORE_ANDROID_URL ||
+  'https://play.google.com/store/apps/details?id=com.useninho.app';
 
 // Página de espera (exibida enquanto o app não está nas lojas).
 export const ESPERA_URL = process.env.ESPERA_URL || `${SITE_URL}/landing/em-breve`;

@@ -4,7 +4,6 @@ import {
   fetchUsoPorUsuario,
   appDbConfigured,
   accountStatus,
-  countryFromTimezone,
 } from '@/lib/app-users';
 import { previaExclusao, type PreviaExclusao } from '@/lib/painel/store';
 import { PageHeader } from '@/components/admin/PageHeader';
@@ -35,7 +34,6 @@ export default async function UsuariosPage() {
       phone: u.phone,
       created_at: u.created_at,
       status: accountStatus(u),
-      country: countryFromTimezone(u.timezone),
       // Duas colunas no banco, uma pergunta só na tela: quem paga (ou
       // cancelou no meio do ciclo) conta pelo fim do período pago; o resto
       // conta pelo fim do trial.
@@ -45,11 +43,7 @@ export default async function UsuariosPage() {
           : u.trial_ends_at,
       registros: m?.registros ?? 0,
       diasRegistro: m?.diasRegistro ?? 0,
-      ultimoRegistroAt: m?.ultimoRegistroAt ?? null,
       diasAbertura: m?.diasAbertura ?? 0,
-      ultimoAppAbertoAt: m?.ultimoAppAbertoAt ?? null,
-      bebes: m?.bebes ?? 0,
-      primeiroBebeEm: m?.primeiroBebeEm ?? null,
       sistema: m?.sistema ?? null,
       appVersion: m?.appVersion ?? null,
     };
