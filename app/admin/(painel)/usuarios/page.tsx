@@ -33,6 +33,7 @@ export default async function UsuariosPage() {
       email: u.email,
       phone: u.phone,
       created_at: u.created_at,
+      birthDate: u.birthDate,
       status: accountStatus(u),
       // Duas colunas no banco, uma pergunta só na tela: quem paga (ou
       // cancelou no meio do ciclo) conta pelo fim do período pago; o resto

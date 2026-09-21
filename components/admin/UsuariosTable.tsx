@@ -17,6 +17,10 @@ export interface UsuarioRow {
   /** Não é coluna — só usado na busca por texto. */
   phone: string | null;
   created_at: string;
+  /** Nascimento (yyyy-mm-dd) do primeiro bebê que a conta cadastrou. Null =
+   *  ainda não cadastrou nenhum. Futuro = ainda não nasceu. Alimenta a
+   *  coluna Idade do bebê. */
+  birthDate: string | null;
   status: StatusConta;
   /** Data em que o acesso vigente acaba — trial ou ciclo pago, já resolvida.
    *  Alimenta a coluna Dias. */
@@ -43,10 +47,10 @@ const STATUS_STYLE: Record<StatusConta, string> = {
   Cadastrado: 'bg-ninho-nuvem text-ninho-cinza',
 };
 
-// Toda coluna ordena e filtra — as duas listas cobrem as 8, na mesma ordem
+// Toda coluna ordena e filtra — as duas listas cobrem as 9, na mesma ordem
 // em que aparecem na tabela.
 type SortKey =
-  | 'nome' | 'created_at' | 'registros' | 'status'
+  | 'nome' | 'created_at' | 'idade' | 'registros' | 'status'
   | 'dias' | 'sistema' | 'versao' | 'email';
 
 type SortDir = 'asc' | 'desc';
@@ -56,12 +60,13 @@ type StatKey = 'total' | 'hoje' | 'assinantes' | 'trial_ativo' | 'trial_expirado
 
 // Larguras padrão em px, na ordem das células: a primeira é a caixinha de
 // seleção (que não ordena nem filtra), as outras seguem CABECALHOS.
-const DEFAULT_COL_WIDTHS = [40, 170, 90, 110, 130, 70, 80, 80, 200];
+const DEFAULT_COL_WIDTHS = [40, 170, 90, 90, 110, 130, 70, 80, 80, 200];
 
-// Fuso do Brasil: é onde estão os usuários e é a virada de dia que o time
-// enxerga. "Hoje" e as datas da tabela seguem ele, não o fuso do navegador
-// de quem abre o painel.
-const TZ = 'America/Sao_Paulo';
+// Fuso de quem opera o painel (Dubai), não o dos usuários: é daqui que os
+// anúncios rodam, e é essa virada de dia que precisa bater com "novos
+// usuários hoje". "Hoje" e as datas da tabela seguem ele, não o fuso do
+// navegador de quem abre o painel nem o dos usuários (Brasil).
+const TZ = 'Asia/Dubai';
 
 function fmt(s: string | null): string {
   if (!s) return '—';
@@ -99,6 +104,85 @@ function diasClass(d: number | null): string {
   return 'text-ninho-grafite';
 }
 
+// ─── IDADE DO BEBÊ ─────────────────────────────────────────────────────
+//
+// Existe pra separar os dois motivos de "zero Lançamentos": o bebê ainda
+// não nasceu (nada a registrar mesmo) vs. a pessoa cadastrou e sumiu. Sem
+// essa coluna os dois casos ficam idênticos na tabela.
+interface IdadeYMD { anos: number; meses: number; dias: number; futuro: boolean }
+
+/** Diferença calendário (anos/meses/dias) entre hoje e o nascimento.
+ *  `futuro: true` quando o nascimento ainda não chegou (data cadastrada
+ *  errada, ou bebê a caminho). */
+function idadeYMD(nascimentoIso: string): IdadeYMD {
+  const nascimento = new Date(`${nascimentoIso}T00:00:00`);
+  const agora = new Date();
+  const futuro = nascimento.getTime() > agora.getTime();
+  const [de, para] = futuro ? [agora, nascimento] : [nascimento, agora];
+
+  let anos = para.getFullYear() - de.getFullYear();
+  let meses = para.getMonth() - de.getMonth();
+  let dd = para.getDate() - de.getDate();
+  if (dd < 0) {
+    meses -= 1;
+    dd += new Date(para.getFullYear(), para.getMonth(), 0).getDate();
+  }
+  if (meses < 0) {
+    anos -= 1;
+    meses += 12;
+  }
+  return { anos, meses, dias: dd, futuro };
+}
+
+/** "1a2m", "1m4d", "5d", "-2m" (nascimento no futuro). Sem bebê cadastrado: "—". */
+function idadeLabel(r: UsuarioRow): string {
+  if (!r.birthDate) return '—';
+  const { anos, meses, dias: dd, futuro } = idadeYMD(r.birthDate);
+  let s: string;
+  if (anos > 0) s = meses > 0 ? `${anos}a${meses}m` : `${anos}a`;
+  else if (meses > 0) s = dd > 0 ? `${meses}m${dd}d` : `${meses}m`;
+  else s = `${dd}d`;
+  return futuro ? `-${s}` : s;
+}
+
+/** Vermelho só quando o nascimento está no futuro — data errada ou bebê a caminho. */
+function idadeClass(r: UsuarioRow): string {
+  if (r.birthDate && idadeYMD(r.birthDate).futuro) return 'text-red-500 font-semibold';
+  return 'text-ninho-grafite';
+}
+
+/** Bucket do filtro: meses completos de vida (0m, 1m, 2m…). "Ainda não
+ *  nasceu" e "—" (sem bebê cadastrado) não passam por aqui. */
+function idadeMesesCompletos(r: UsuarioRow): number {
+  const { anos, meses } = idadeYMD(r.birthDate as string);
+  return anos * 12 + meses;
+}
+
+/** Valor do filtro — DE PROPÓSITO mais grosso que `idadeLabel`: 5d, 20d e
+ *  28d caem todos em "0m"; 1m, 1m11d e 1m28d caem todos em "1m". A regra
+ *  geral de "bater exatamente com a célula" (ver `colValue`) não vale para
+ *  esta coluna. */
+function idadeFilterValue(r: UsuarioRow): string {
+  if (!r.birthDate) return '—';
+  if (idadeYMD(r.birthDate).futuro) return 'Ainda não nasceu';
+  return `${idadeMesesCompletos(r)}m`;
+}
+
+/** Ordem do filtro de Idade: "Ainda não nasceu" primeiro, depois 0m, 1m,
+ *  2m… crescente, e "—" (sem bebê) por último. */
+function idadeFilterOrder(v: string): number {
+  if (v === 'Ainda não nasceu') return -1;
+  const m = /^(\d+)m$/.exec(v);
+  return m ? Number(m[1]) : Infinity;
+}
+
+/** Dias com sinal (negativo = ainda não nasceu), pra ordenar a coluna.
+ *  Sem bebê cadastrado vai pro fim. */
+function idadeSortValue(r: UsuarioRow): number {
+  if (!r.birthDate) return Infinity;
+  return (Date.now() - new Date(`${r.birthDate}T00:00:00`).getTime()) / 86400000;
+}
+
 function sistemaLabel(r: UsuarioRow): string {
   if (r.sistema === 'ios') return 'iOS';
   if (r.sistema === 'android') return 'Android';
@@ -108,12 +192,15 @@ function sistemaLabel(r: UsuarioRow): string {
 
 /** Valor textual de cada coluna — é o que o filtro da setinha lista e
  *  compara. Precisa bater EXATAMENTE com o que a célula mostra, senão o
- *  usuário marca um valor no filtro e some linha que estava na tela. */
+ *  usuário marca um valor no filtro e some linha que estava na tela.
+ *  ÚNICA EXCEÇÃO: 'idade' filtra por bucket (ver `idadeFilterValue`), não
+ *  pelo texto exato da célula. */
 function colValue(r: UsuarioRow, col: FilterCol): string {
   switch (col) {
     case 'nome':       return r.name || '—';
     case 'email':      return r.email || '—';
     case 'created_at': return fmt(r.created_at);
+    case 'idade':      return idadeFilterValue(r);
     case 'status':     return r.status;
     case 'registros':  return String(r.registros);
     case 'dias':       return diasLabel(dias(r));
@@ -128,6 +215,7 @@ function colValue(r: UsuarioRow, col: FilterCol): string {
 const CABECALHOS: [SortKey, string][] = [
   ['nome', 'Nome'],
   ['created_at', 'Criou em'],
+  ['idade', 'Idade do bebê'],
   ['registros', 'Lançamentos'],
   ['status', 'Status'],
   ['dias', 'Dias'],
@@ -329,7 +417,9 @@ export function UsuariosTable({
     const out = {} as Record<FilterCol, string[]>;
     for (const col of COLUNAS) {
       const vals = Array.from(new Set(rows.map((r) => colValue(r, col))));
-      if (COLUNAS_NUMERICAS.has(col)) {
+      if (col === 'idade') {
+        vals.sort((a, b) => idadeFilterOrder(a) - idadeFilterOrder(b));
+      } else if (COLUNAS_NUMERICAS.has(col)) {
         vals.sort((a, b) => Number(a) - Number(b));
       } else {
         vals.sort((a, b) => a.localeCompare(b, 'pt-BR'));
@@ -387,6 +477,7 @@ export function UsuariosTable({
           case 'nome': cmp = (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR'); break;
           case 'email': cmp = (a.email ?? '').localeCompare(b.email ?? '', 'pt-BR'); break;
           case 'created_at': cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime(); break;
+          case 'idade': cmp = idadeSortValue(a) - idadeSortValue(b); break;
           case 'status': cmp = a.status.localeCompare(b.status, 'pt-BR'); break;
           case 'registros': cmp = a.registros - b.registros; break;
           case 'dias': cmp = (dias(a) ?? Infinity) - (dias(b) ?? Infinity); break;
@@ -446,6 +537,7 @@ export function UsuariosTable({
       filteredRows.map((r) => ({
         Nome: r.name || '',
         'Criou em': fmt(r.created_at),
+        'Idade do bebê': idadeLabel(r),
         Lançamentos: r.registros,
         Status: r.status,
         Dias: diasLabel(dias(r)),
@@ -745,6 +837,9 @@ export function UsuariosTable({
                   <td className="overflow-hidden p-3 text-ninho-cinza">
                     <div className="truncate">{fmt(r.created_at)}</div>
                   </td>
+                  <td className={`overflow-hidden p-3 tabular-nums ${idadeClass(r)}`}>
+                    <div className="truncate">{idadeLabel(r)}</div>
+                  </td>
                   <td
                     className="overflow-hidden p-3 text-right font-medium tabular-nums text-ninho-grafite"
                     title={`${r.diasRegistro} dia(s) registrando · ${r.diasAbertura} dia(s) abrindo o app`}
@@ -784,6 +879,10 @@ export function UsuariosTable({
       </section>
 
       <p className="mt-3 text-xs text-ninho-cinza">
+        <strong>Idade do bebê:</strong> do primeiro bebê que a conta cadastrou. Vermelho e negativo
+        (ex.: -2m) = data de nascimento no futuro. "—" = conta sem bebê cadastrado ainda. O filtro
+        agrupa por mês completo de vida (5d/20d/28d caem em "0m", 1m/1m11d/1m28d caem em "1m") — é
+        mais grosso de propósito que o texto da célula.{' '}
         <strong>Lançamentos:</strong> registros reais do usuário — momentos e ações do bebê (regra
         da view <code>registros_reais</code>) — o tooltip mostra em quantos dias distintos ele
         registrou e abriu o app.{' '}

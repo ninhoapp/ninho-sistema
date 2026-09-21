@@ -22,6 +22,9 @@ export interface AppUser {
   plan_interval: 'mensal' | 'anual' | null;
   trial_ends_at: string | null;
   current_period_end: string | null;
+  /** Nascimento (yyyy-mm-dd) do primeiro bebê que esta conta cadastrou.
+   *  Null = ainda não cadastrou nenhum. Futuro = ainda não nasceu. */
+  birthDate: string | null;
 }
 
 /** True quando o painel consegue ler o banco. Falso = telas vazias, sem chute. */
@@ -65,13 +68,39 @@ async function fetchEmails(): Promise<Map<string, string>> {
   return out;
 }
 
+interface BabyRow {
+  created_by: string;
+  birth_date: string;
+}
+
+/**
+ * Nascimento do PRIMEIRO bebê que cada conta cadastrou (`created_by` em
+ * `babies` — quem registrou, não quem cuida). Uma conta com gêmeos ou dois
+ * filhos cadastrados em épocas diferentes mostra só o mais antigo, pelo
+ * mesmo motivo do `primeiro_bebe_em` do RPC de uso: é o relógio da conta,
+ * não um resumo de todos os bebês dela.
+ */
+async function fetchPrimeiroNascimento(): Promise<Map<string, string>> {
+  const sb = appDb();
+  const out = new Map<string, string>();
+  const { data } = await sb
+    .from('babies')
+    .select('created_by,birth_date')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true });
+  for (const b of (data as BabyRow[] | null) ?? []) {
+    if (!out.has(b.created_by)) out.set(b.created_by, b.birth_date);
+  }
+  return out;
+}
+
 export async function fetchAppUsers(): Promise<AppUser[]> {
   if (!appDbConfigured()) return [];
   const sb = appDb();
 
   // profiles e a view não têm FK declarada entre si, então PostgREST não faz o
   // embed — busca separado e junta aqui.
-  const [profilesRes, estadosRes, emails] = await Promise.all([
+  const [profilesRes, estadosRes, emails, nascimentos] = await Promise.all([
     sb
       .from('profiles')
       .select('id,full_name,phone,created_at,timezone')
@@ -81,6 +110,7 @@ export async function fetchAppUsers(): Promise<AppUser[]> {
       .from('assinatura_estado')
       .select('profile_id,plan,plan_interval,trial_ends_at,current_period_end,estado'),
     fetchEmails(),
+    fetchPrimeiroNascimento(),
   ]);
 
   const profiles = (profilesRes.data as ProfileRow[] | null) ?? [];
@@ -98,13 +128,34 @@ export async function fetchAppUsers(): Promise<AppUser[]> {
       timezone: p.timezone,
       // Sem linha de assinatura o usuário é 'free'. Depois da 00022 isso não
       // deve acontecer (trigger + backfill), mas não vale inventar estado.
-      estado: e?.estado ?? 'free',
+      estado: estadoEfetivo(e),
       plan: e?.plan ?? null,
       plan_interval: e?.plan_interval ?? null,
       trial_ends_at: e?.trial_ends_at ?? null,
       current_period_end: e?.current_period_end ?? null,
+      birthDate: nascimentos.get(p.id) ?? null,
     };
   });
+}
+
+/**
+ * Corrige `pagante` quando o período pago já venceu.
+ *
+ * A view `assinatura_estado` só marca `churn` quando a loja já respondeu
+ * `canceled`/`past_due` — mas essa resposta depende de webhook (App Store
+ * Server Notifications / RTDN do Google), e webhook pode atrasar, falhar ou
+ * nunca chegar. Enquanto isso, `status` fica travado em `active` com
+ * `current_period_end` no passado, e a conta contaria como assinante pra
+ * sempre. Quem decide de verdade aqui é a data, não o último status que a
+ * loja mandou: período vencido é churn, ponto — evita inflar MRR/LTV e
+ * "Assinantes" no painel com gente que já parou de pagar.
+ */
+function estadoEfetivo(e: EstadoRow | undefined): Estado {
+  const estado = e?.estado ?? 'free';
+  if (estado === 'pagante' && e?.current_period_end) {
+    if (new Date(e.current_period_end).getTime() < Date.now()) return 'churn';
+  }
+  return estado;
 }
 
 // ─── Status da conta (rótulo legível) ──────────────────────────────────
