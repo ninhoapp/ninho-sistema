@@ -199,11 +199,14 @@ export const STATUS_ASSINANTE: StatusConta[] = [
  * Métricas de uso — base do funil "baixou → cadastrou → usou de fato →
  * assina".
  *
- * Vem pronta do banco (RPC `get_uso_por_usuario`, migration 00063 do app)
- * porque o PostgREST corta em 1.000 linhas e `activities` cresce rápido:
- * agregar no Postgres é a única forma de não perder linha em silêncio.
- * A regra de "registro real" sai inteira da view `registros_reais`, que é
- * a fonte única — nada de recopiar filtro aqui.
+ * Vem pronta do banco (RPC `get_uso_por_usuario`, migrations 00063 e 00065
+ * do app) porque o PostgREST corta em 1.000 linhas e `activities` cresce
+ * rápido: agregar no Postgres é a única forma de não perder linha em
+ * silêncio. A regra de "registro real" (atividades) sai inteira da view
+ * `registros_reais`, que é a fonte única — nada de recopiar filtro aqui.
+ * Momentos têm contagem própria (00065), separada de propósito: são uma
+ * ação de produto diferente de rotina, e misturadas numa coluna só não
+ * dava pra saber qual das duas explicava um pico de "lançamentos".
  *
  * NOTA sobre `diasAbertura`: só há histórico a partir de 19/08/2026, quando
  * `analytics_events` começou a gravar `app_aberto`. O número começa do zero
@@ -214,6 +217,10 @@ export interface UsoUsuario {
   registros: number;
   diasRegistro: number;
   ultimoRegistroAt: string | null;
+  /** Momentos (fotos/álbum) criados pela conta — contagem própria, não
+   *  passa por `registros_reais` (essa é só de rotina/atividades). */
+  momentos: number;
+  ultimoMomentoAt: string | null;
   diasAbertura: number;
   ultimoAppAbertoAt: string | null;
   /** Bebês vinculados hoje. Zero = onboarding não concluído. */
@@ -229,6 +236,8 @@ interface UsoRow {
   registros: number;
   dias_registro: number;
   ultimo_registro_at: string | null;
+  momentos: number;
+  ultimo_momento_at: string | null;
   dias_abertura: number;
   ultimo_app_aberto_at: string | null;
   bebes: number;
@@ -254,6 +263,8 @@ export async function fetchUsoPorUsuario(): Promise<Map<string, UsoUsuario>> {
       registros: Number(r.registros) || 0,
       diasRegistro: Number(r.dias_registro) || 0,
       ultimoRegistroAt: r.ultimo_registro_at,
+      momentos: Number(r.momentos) || 0,
+      ultimoMomentoAt: r.ultimo_momento_at,
       diasAbertura: Number(r.dias_abertura) || 0,
       ultimoAppAbertoAt: r.ultimo_app_aberto_at,
       bebes: Number(r.bebes) || 0,

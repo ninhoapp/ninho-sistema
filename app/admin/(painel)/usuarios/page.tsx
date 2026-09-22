@@ -44,6 +44,7 @@ export default async function UsuariosPage() {
           : u.trial_ends_at,
       registros: m?.registros ?? 0,
       diasRegistro: m?.diasRegistro ?? 0,
+      momentos: m?.momentos ?? 0,
       diasAbertura: m?.diasAbertura ?? 0,
       sistema: m?.sistema ?? null,
       appVersion: m?.appVersion ?? null,

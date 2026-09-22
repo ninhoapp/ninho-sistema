@@ -25,11 +25,14 @@ export interface UsuarioRow {
   /** Data em que o acesso vigente acaba — trial ou ciclo pago, já resolvida.
    *  Alimenta a coluna Dias. */
   expiraEm: string | null;
-  /** Registros reais do usuário (regra da view `registros_reais`). Rótulo
-   *  na tela: "Lançamentos". */
+  /** Registros reais de ATIVIDADE (sono, mamada, fralda...) — regra da view
+   *  `registros_reais`. Rótulo na tela: "Lançamentos". Não inclui momentos. */
   registros: number;
   /** Dias distintos COM registro — usado só no tooltip de Lançamentos. */
   diasRegistro: number;
+  /** Momentos (fotos/álbum) criados pela conta — contagem própria, separada
+   *  de Lançamentos de propósito (são ações de produto diferentes). */
+  momentos: number;
   /** Dias distintos COM abertura do app — usado só no tooltip de Lançamentos. */
   diasAbertura: number;
   sistema: 'ios' | 'android' | 'web' | null;
@@ -47,10 +50,10 @@ const STATUS_STYLE: Record<StatusConta, string> = {
   Cadastrado: 'bg-ninho-nuvem text-ninho-cinza',
 };
 
-// Toda coluna ordena e filtra — as duas listas cobrem as 9, na mesma ordem
+// Toda coluna ordena e filtra — as duas listas cobrem as 10, na mesma ordem
 // em que aparecem na tabela.
 type SortKey =
-  | 'nome' | 'created_at' | 'idade' | 'registros' | 'status'
+  | 'nome' | 'created_at' | 'idade' | 'registros' | 'momentos' | 'status'
   | 'dias' | 'sistema' | 'versao' | 'email';
 
 type SortDir = 'asc' | 'desc';
@@ -60,7 +63,7 @@ type StatKey = 'total' | 'hoje' | 'assinantes' | 'trial_ativo' | 'trial_expirado
 
 // Larguras padrão em px, na ordem das células: a primeira é a caixinha de
 // seleção (que não ordena nem filtra), as outras seguem CABECALHOS.
-const DEFAULT_COL_WIDTHS = [40, 170, 90, 90, 110, 130, 70, 80, 80, 200];
+const DEFAULT_COL_WIDTHS = [40, 170, 90, 90, 100, 90, 130, 70, 80, 80, 200];
 
 // Fuso de quem opera o painel (Dubai), não o dos usuários: é daqui que os
 // anúncios rodam, e é essa virada de dia que precisa bater com "novos
@@ -203,6 +206,7 @@ function colValue(r: UsuarioRow, col: FilterCol): string {
     case 'idade':      return idadeFilterValue(r);
     case 'status':     return r.status;
     case 'registros':  return String(r.registros);
+    case 'momentos':   return String(r.momentos);
     case 'dias':       return diasLabel(dias(r));
     case 'sistema':    return sistemaLabel(r);
     case 'versao':     return r.appVersion || '—';
@@ -217,6 +221,7 @@ const CABECALHOS: [SortKey, string][] = [
   ['created_at', 'Criou em'],
   ['idade', 'Idade do bebê'],
   ['registros', 'Lançamentos'],
+  ['momentos', 'Momentos'],
   ['status', 'Status'],
   ['dias', 'Dias'],
   ['sistema', 'Sistema'],
@@ -229,7 +234,7 @@ const COLUNAS: SortKey[] = CABECALHOS.map(([c]) => c);
 
 /** Colunas cujo filtro lista valores numéricos (ordena por número, não por
  *  texto — senão 10 vem antes de 2). */
-const COLUNAS_NUMERICAS: Set<FilterCol> = new Set(['registros']);
+const COLUNAS_NUMERICAS: Set<FilterCol> = new Set(['registros', 'momentos']);
 
 function SortArrow({ col, sort }: { col: SortKey; sort: { key: SortKey; dir: SortDir } | null }) {
   if (!sort || sort.key !== col) return <span className="ml-1 text-ninho-borda opacity-70">↕</span>;
@@ -480,6 +485,7 @@ export function UsuariosTable({
           case 'idade': cmp = idadeSortValue(a) - idadeSortValue(b); break;
           case 'status': cmp = a.status.localeCompare(b.status, 'pt-BR'); break;
           case 'registros': cmp = a.registros - b.registros; break;
+          case 'momentos': cmp = a.momentos - b.momentos; break;
           case 'dias': cmp = (dias(a) ?? Infinity) - (dias(b) ?? Infinity); break;
           case 'sistema': cmp = sistemaLabel(a).localeCompare(sistemaLabel(b), 'pt-BR'); break;
           case 'versao': cmp = (a.appVersion ?? '').localeCompare(b.appVersion ?? '', 'pt-BR'); break;
@@ -539,6 +545,7 @@ export function UsuariosTable({
         'Criou em': fmt(r.created_at),
         'Idade do bebê': idadeLabel(r),
         Lançamentos: r.registros,
+        Momentos: r.momentos,
         Status: r.status,
         Dias: diasLabel(dias(r)),
         Sistema: r.sistema ? sistemaLabel(r) : '',
@@ -846,6 +853,9 @@ export function UsuariosTable({
                   >
                     {r.registros}
                   </td>
+                  <td className="overflow-hidden p-3 text-right font-medium tabular-nums text-ninho-grafite">
+                    {r.momentos}
+                  </td>
                   <td className="overflow-hidden p-3">
                     <span className={`rounded-pill px-2 py-0.5 text-xs ${STATUS_STYLE[r.status]}`}>
                       {r.status}
@@ -883,9 +893,12 @@ export function UsuariosTable({
         (ex.: -2m) = data de nascimento no futuro. "—" = conta sem bebê cadastrado ainda. O filtro
         agrupa por mês completo de vida (5d/20d/28d caem em "0m", 1m/1m11d/1m28d caem em "1m") — é
         mais grosso de propósito que o texto da célula.{' '}
-        <strong>Lançamentos:</strong> registros reais do usuário — momentos e ações do bebê (regra
-        da view <code>registros_reais</code>) — o tooltip mostra em quantos dias distintos ele
-        registrou e abriu o app.{' '}
+        <strong>Lançamentos:</strong> registros reais de ATIVIDADE do bebê — sono, mamada, fralda,
+        comida, remédio (regra da view <code>registros_reais</code>) — o tooltip mostra em quantos
+        dias distintos ele registrou e abriu o app. Não inclui momentos.{' '}
+        <strong>Momentos:</strong> fotos/álbum criados pela conta, contados à parte — as duas
+        colunas juntas explicam de onde vem um pico de lançamentos (rotina de verdade vs. importar
+        fotos de uma vez).{' '}
         <strong>Versão/Sistema</strong> vêm do aparelho mais recente com push token: ficam vazios
         pra quem recusou notificações.
       </p>
