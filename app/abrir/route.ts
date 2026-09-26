@@ -11,6 +11,13 @@
  * sem exigir Universal Links (iOS) / App Links (Android) — que são
  * configuração nativa e só valeriam a partir de um build novo.
  *
+ * ⚠️ A ESCOLHA DE PLATAFORMA É NO CLIENTE, NÃO NO SERVIDOR. Tentador ler o
+ * User-Agent aqui e já mandar a loja certa — mas aí a resposta varia por
+ * UA, e com `Cache-Control: public` a borda serve a primeira versão gerada
+ * para todo mundo: quem entrasse depois de um Android levaria a Play Store
+ * no iPhone. (Aconteceu em teste.) Com o HTML idêntico para todos, o cache
+ * é seguro e a decisão acontece no aparelho de quem clicou.
+ *
  * `?to=` é a rota do expo-router SEM os grupos: `/(app)/baby-profile` vira
  * `baby-profile`. Allowlist em vez de sanitização — são poucos destinos
  * conhecidos, e assim ninguém monta um link do domínio do Ninho que joga a
@@ -21,7 +28,7 @@
  */
 import { NextResponse } from 'next/server';
 
-import { STORE_ANDROID_URL, STORE_IOS_URL, LANDING_URL, detectDevice } from '@/lib/config';
+import { STORE_ANDROID_URL, STORE_IOS_URL, LANDING_URL } from '@/lib/config';
 
 const SCHEME = 'ninho://';
 
@@ -30,18 +37,7 @@ const ROTAS = new Set(['', 'baby-profile', 'settings/subscription-plans']);
 
 export async function GET(request: Request) {
   const to = new URL(request.url).searchParams.get('to') ?? '';
-  const destino = ROTAS.has(to) ? to : '';
-  const deep = SCHEME + destino;
-
-  const device = detectDevice(request.headers.get('user-agent') ?? '');
-  const loja =
-    device === 'ios' ? STORE_IOS_URL : device === 'android' ? STORE_ANDROID_URL : LANDING_URL;
-
-  // No desktop nem tenta o scheme: não leva a lugar nenhum e ainda dispara
-  // um diálogo do navegador. Vai direto pra landing.
-  if (device === 'desktop') {
-    return NextResponse.redirect(LANDING_URL);
-  }
+  const deep = SCHEME + (ROTAS.has(to) ? to : '');
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -66,20 +62,34 @@ export async function GET(request: Request) {
     </p>
   </div>
   <script>
-    // O timer da loja é cancelado quando o app ASSUME e o navegador sai de
-    // cena — senão a loja abriria por cima do app que acabou de abrir.
-    var desistiu = false;
-    function cancelar() { desistiu = true; }
-    window.addEventListener('pagehide', cancelar);
-    window.addEventListener('blur', cancelar);
-    document.addEventListener('visibilitychange', function () {
-      if (document.hidden) cancelar();
-    });
+    (function () {
+      var ua = navigator.userAgent || '';
+      // iPad moderno se anuncia como Mac; maxTouchPoints o entrega.
+      var ios = /iphone|ipad|ipod/i.test(ua) || (/Mac/.test(ua) && navigator.maxTouchPoints > 1);
+      var android = /android/i.test(ua);
+      var loja = ios ? ${JSON.stringify(STORE_IOS_URL)}
+               : android ? ${JSON.stringify(STORE_ANDROID_URL)}
+               : ${JSON.stringify(LANDING_URL)};
 
-    window.location.href = '${deep}';
-    setTimeout(function () {
-      if (!desistiu && !document.hidden) window.location.href = '${loja}';
-    }, 2000);
+      // No desktop o scheme não leva a lugar nenhum e ainda dispara um
+      // diálogo do navegador — vai direto pra landing.
+      if (!ios && !android) { window.location.replace(loja); return; }
+
+      // O timer da loja é cancelado quando o app ASSUME e o navegador sai
+      // de cena — senão a loja abriria por cima do app que acabou de abrir.
+      var desistiu = false;
+      function cancelar() { desistiu = true; }
+      window.addEventListener('pagehide', cancelar);
+      window.addEventListener('blur', cancelar);
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) cancelar();
+      });
+
+      window.location.href = ${JSON.stringify(deep)};
+      setTimeout(function () {
+        if (!desistiu && !document.hidden) window.location.href = loja;
+      }, 2000);
+    })();
   </script>
 </body>
 </html>`;
@@ -87,6 +97,8 @@ export async function GET(request: Request) {
   return new NextResponse(html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
+      // Seguro porque o HTML não depende mais do User-Agent — só de `to`,
+      // que já está na URL (e portanto na chave de cache).
       'Cache-Control': 'public, max-age=300',
       'X-Robots-Tag': 'noindex',
     },
