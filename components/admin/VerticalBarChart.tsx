@@ -4,7 +4,9 @@ export function VerticalBarChart({
   height = 180,
   formatValue,
 }: {
-  data: { label: string; value: number; color?: string }[];
+  /** `highlight`: marca o bucket ainda em andamento (hoje, mês atual) com um
+   *  contorno tracejado, pra não ler um número baixo ali como queda. */
+  data: { label: string; value: number; color?: string; highlight?: boolean }[];
   height?: number;
   formatValue?: (v: number) => string;
 }) {
@@ -28,7 +30,9 @@ export function VerticalBarChart({
               {fmt(d.value)}
             </span>
             <div
-              className="w-full rounded-t-lg transition-all"
+              className={`w-full rounded-t-lg transition-all ${
+                d.highlight ? 'border-2 border-dashed border-ninho-roxo-escuro' : ''
+              }`}
               style={{
                 height: `${Math.max(2, (d.value / max) * 100)}%`,
                 background: d.color || '#9F86E0',

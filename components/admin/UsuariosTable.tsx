@@ -5,10 +5,12 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { excluirUsuarios, type ExclusaoState } from '@/app/admin/(painel)/admin-actions';
 import { STATUS_ASSINANTE, type StatusConta } from '@/lib/app-users';
 import type { PreviaExclusao } from '@/lib/painel/store';
+import type { SeriesPoint } from '@/lib/dashboard-charts';
 import { PasswordInput } from '@/components/admin/PasswordInput';
 import { ColumnFilter, applyColumnFilters } from '@/components/admin/ColumnFilter';
 import { ExportExcelButton } from '@/components/admin/ExportExcelButton';
 import { CopyAll } from '@/components/admin/CopyAll';
+import { VerticalBarChart } from '@/components/admin/VerticalBarChart';
 
 export interface UsuarioRow {
   id: string;
@@ -349,10 +351,14 @@ function BotaoConfirmar() {
 export function UsuariosTable({
   rows,
   previas,
+  usuariosPorDia,
+  usuariosPorMes,
 }: {
   rows: UsuarioRow[];
   /** Prévia de impacto por usuário, calculada no servidor. */
   previas: Record<string, PreviaExclusao>;
+  usuariosPorDia?: SeriesPoint[];
+  usuariosPorMes?: SeriesPoint[];
 }) {
   const [busca, setBusca] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -609,6 +615,24 @@ export function UsuariosTable({
           );
         })}
       </section>
+
+      {/* ── Novos usuários (dia/mês) ─────────────────────────────────── */}
+      {(usuariosPorDia?.length || usuariosPorMes?.length) ? (
+        <div className="mb-6 grid gap-6 lg:grid-cols-2">
+          <section className="rounded-2xl border border-ninho-borda bg-white p-6">
+            <h2 className="mb-4 text-base font-bold text-ninho-grafite">
+              Usuários novos por dia (últimos 7 dias)
+            </h2>
+            <VerticalBarChart data={usuariosPorDia ?? []} height={140} />
+          </section>
+          <section className="rounded-2xl border border-ninho-borda bg-white p-6">
+            <h2 className="mb-4 text-base font-bold text-ninho-grafite">
+              Usuários novos por mês (últimos 7 meses)
+            </h2>
+            <VerticalBarChart data={usuariosPorMes ?? []} height={140} />
+          </section>
+        </div>
+      ) : null}
 
       {/* ── Painel de filtros ─────────────────────────────────────────── */}
       <section className="mb-4 rounded-2xl border border-ninho-borda bg-white p-4">

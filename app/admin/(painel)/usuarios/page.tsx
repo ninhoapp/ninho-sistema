@@ -6,6 +6,7 @@ import {
   accountStatus,
 } from '@/lib/app-users';
 import { previaExclusao, type PreviaExclusao } from '@/lib/painel/store';
+import { buildUsuariosCharts } from '@/lib/dashboard-charts';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { Notice } from '@/components/admin/Notice';
 import { UsuariosTable, type UsuarioRow } from '@/components/admin/UsuariosTable';
@@ -16,6 +17,7 @@ export default async function UsuariosPage() {
   requireRole('admin');
 
   const [users, uso] = await Promise.all([fetchAppUsers(), fetchUsoPorUsuario()]);
+  const charts = buildUsuariosCharts(users);
 
   // Prévia de impacto calculada no servidor, para a confirmação de exclusão
   // mostrar número real em vez de aviso genérico.
@@ -65,7 +67,12 @@ export default async function UsuariosPage() {
         </Notice>
       )}
 
-      <UsuariosTable rows={rows} previas={previas} />
+      <UsuariosTable
+        rows={rows}
+        previas={previas}
+        usuariosPorDia={charts.usuariosPorDia}
+        usuariosPorMes={charts.usuariosPorMes}
+      />
     </div>
   );
 }
