@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { requireRole, requireSession } from '@/lib/auth/guard';
 import { verifyPassword } from '@/lib/auth/password';
+import { atualizarFimTrial } from '@/lib/app-users';
 import {
   createPerfil,
   updatePerfil,
@@ -158,6 +159,44 @@ export async function removerCusto(fd: FormData) {
   if (fd.get('todaSerie') === '1' && serie) await deleteCostSeries(serie);
   else await deleteCost(id);
   revalidatePath('/admin/despesas');
+}
+
+// ── Fim do trial ──────────────────────────────────────────
+export interface TrialState extends ActionState {
+  /** Data gravada (yyyy-mm-dd), pra tela confirmar o que de fato valeu. */
+  novaData?: string;
+}
+
+/**
+ * Muda a data de fim do trial de um usuário, pela tela de Usuários ativos.
+ *
+ * Pede a senha pelo mesmo motivo da exclusão: é escrita direta em produção,
+ * concede (ou tira) acesso pago de alguém, e um painel esquecido aberto não
+ * pode virar isso num clique.
+ */
+export async function alterarFimTrial(_prev: TrialState, fd: FormData): Promise<TrialState> {
+  const session = requireRole('admin');
+
+  const id = String(fd.get('id') || '').trim();
+  const data = String(fd.get('data') || '').trim();
+  const senha = String(fd.get('senha') || '');
+
+  if (!id) return { error: 'Usuário não informado.' };
+  if (!data) return { error: 'Escolha a nova data de fim do trial.' };
+  if (!senha) return { error: 'Informe sua senha para confirmar.' };
+
+  const perfil = await getPerfil(session.sub);
+  if (!perfil) return { error: 'Sessão inválida. Entre novamente.' };
+  if (!verifyPassword(senha, perfil.password_hash)) {
+    return { error: 'Senha incorreta. Nada foi alterado.' };
+  }
+
+  const res = await atualizarFimTrial(id, data);
+  if (!res.ok) return { error: res.error || 'Falha ao salvar.' };
+
+  revalidatePath('/admin/usuarios');
+  revalidatePath('/admin/visao-geral');
+  return { ok: true, novaData: data };
 }
 
 // ── Exclusão de usuários do app ───────────────────────────

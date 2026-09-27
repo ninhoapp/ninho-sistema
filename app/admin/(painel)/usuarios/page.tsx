@@ -37,13 +37,16 @@ export default async function UsuariosPage() {
       created_at: u.created_at,
       birthDate: u.birthDate,
       status: accountStatus(u),
+      herdadoDe: u.herdadoDe,
       // Duas colunas no banco, uma pergunta só na tela: quem paga (ou
       // cancelou no meio do ciclo) conta pelo fim do período pago; o resto
-      // conta pelo fim do trial.
+      // conta pelo fim do trial. Usa os campos EFETIVOS: pra quem herda de
+      // outra conta, "Dias" tem que contar até o fim do período de QUEM
+      // PAGA, não uma data da própria conta que nem é mais o que vale.
       expiraEm:
-        u.estado === 'pagante' || u.estado === 'churn'
-          ? u.current_period_end ?? u.trial_ends_at
-          : u.trial_ends_at,
+        u.estadoEfetivo === 'pagante' || u.estadoEfetivo === 'churn'
+          ? u.currentPeriodEndEfetivo ?? u.trialEndsAtEfetivo
+          : u.trialEndsAtEfetivo,
       registros: m?.registros ?? 0,
       diasRegistro: m?.diasRegistro ?? 0,
       momentos: m?.momentos ?? 0,

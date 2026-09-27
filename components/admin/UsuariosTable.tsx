@@ -2,8 +2,13 @@
 
 import { useState, useMemo, useRef, useCallback } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
-import { excluirUsuarios, type ExclusaoState } from '@/app/admin/(painel)/admin-actions';
-import { STATUS_ASSINANTE, type StatusConta } from '@/lib/app-users';
+import {
+  excluirUsuarios,
+  alterarFimTrial,
+  type ExclusaoState,
+  type TrialState,
+} from '@/app/admin/(painel)/admin-actions';
+import { STATUS_ASSINANTE, STATUS_TRIAL_EDITAVEL, type StatusConta } from '@/lib/app-users';
 import type { PreviaExclusao } from '@/lib/painel/store';
 import type { SeriesPoint } from '@/lib/dashboard-charts';
 import { PasswordInput } from '@/components/admin/PasswordInput';
@@ -24,6 +29,10 @@ export interface UsuarioRow {
    *  coluna Idade do bebê. */
   birthDate: string | null;
   status: StatusConta;
+  /** Nome de quem paga, quando o plano desta conta é herdado de outra que
+   *  cuida do mesmo bebê (dono ou cuidador — quem paga cobre os demais).
+   *  Null = acesso próprio. Mostrado como legenda sob o badge de Status. */
+  herdadoDe: string | null;
   /** Data em que o acesso vigente acaba — trial ou ciclo pago, já resolvida.
    *  Alimenta a coluna Dias. */
   expiraEm: string | null;
@@ -348,6 +357,41 @@ function BotaoConfirmar() {
   );
 }
 
+function BotaoSalvarTrial() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="rounded-pill bg-ninho-roxo px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-ninho-roxo-escuro disabled:opacity-50"
+    >
+      {pending ? 'Salvando...' : 'Salvar nova data'}
+    </button>
+  );
+}
+
+/** Dá pra mexer no fim do trial? Só em conta de trial COM acesso próprio —
+ *  quem herda de outra conta não tem trial que valha, e mexer aqui não mudaria
+ *  o que a pessoa enxerga no app. */
+function podeEditarTrial(r: UsuarioRow): boolean {
+  return STATUS_TRIAL_EDITAVEL.includes(r.status) && !r.herdadoDe;
+}
+
+/** ISO → yyyy-mm-dd no fuso de São Paulo, que é onde a data é gravada
+ *  (23:59:59-03:00). Converter por outro fuso faria o campo abrir mostrando
+ *  o dia anterior. */
+function dateInputValue(iso: string | null): string {
+  if (!iso) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(iso));
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
 export function UsuariosTable({
   rows,
   previas,
@@ -396,6 +440,10 @@ export function UsuariosTable({
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [confirmando, setConfirmando] = useState(false);
   const [state, action] = useFormState<ExclusaoState, FormData>(excluirUsuarios, {});
+
+  // Edição do fim do trial pela célula "Dias".
+  const [editandoTrial, setEditandoTrial] = useState<UsuarioRow | null>(null);
+  const [trialState, trialAction] = useFormState<TrialState, FormData>(alterarFimTrial, {});
 
   function setColFilter(col: FilterCol, next: Set<string> | null) {
     setColFilters((prev) => ({ ...prev, [col]: next }));
@@ -553,6 +601,7 @@ export function UsuariosTable({
         Lançamentos: r.registros,
         Momentos: r.momentos,
         Status: r.status,
+        'Herdado de': r.herdadoDe || '',
         Dias: diasLabel(dias(r)),
         Sistema: r.sistema ? sistemaLabel(r) : '',
         Versão: r.appVersion || '',
@@ -794,6 +843,96 @@ export function UsuariosTable({
         </div>
       )}
 
+      {/* ── Mudar fim do trial ────────────────────────────────────────── */}
+      {editandoTrial && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-h-full w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6">
+            {trialState.ok && trialState.novaData ? (
+              <>
+                <h2 className="text-lg font-bold text-ninho-grafite">Trial atualizado</h2>
+                <p className="mt-2 text-sm text-ninho-cinza">
+                  O trial de <strong className="text-ninho-grafite">{editandoTrial.name || editandoTrial.email}</strong>{' '}
+                  agora vale até{' '}
+                  <strong className="text-ninho-grafite">
+                    {new Date(`${trialState.novaData}T12:00:00`).toLocaleDateString('pt-BR')}
+                  </strong>
+                  .
+                </p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="mt-4 rounded-pill bg-ninho-roxo px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-ninho-roxo-escuro"
+                >
+                  Atualizar lista
+                </button>
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-bold text-ninho-grafite">Mudar fim do trial</h2>
+                <p className="mt-2 text-sm text-ninho-cinza">
+                  <strong className="text-ninho-grafite">{editandoTrial.name || 'Sem nome'}</strong>
+                  {editandoTrial.email && ` · ${editandoTrial.email}`}
+                </p>
+
+                <div className="mt-4 rounded-xl bg-ninho-nuvem p-4 text-sm">
+                  <p className="text-ninho-cinza">
+                    Hoje: <strong className="text-ninho-grafite">{editandoTrial.status}</strong>,
+                    acaba em{' '}
+                    <strong className="text-ninho-grafite">{fmt(editandoTrial.expiraEm)}</strong>{' '}
+                    ({diasLabel(dias(editandoTrial))}).
+                  </p>
+                </div>
+
+                <form action={trialAction} className="mt-5 flex flex-col gap-3">
+                  <input type="hidden" name="id" value={editandoTrial.id} />
+
+                  {trialState.error && (
+                    <div className="rounded-xl bg-red-50 p-3 text-sm text-red-600">
+                      {trialState.error}
+                    </div>
+                  )}
+
+                  <label className="text-xs text-ninho-cinza">
+                    Nova data de fim do trial
+                    <input
+                      type="date"
+                      name="data"
+                      required
+                      defaultValue={dateInputValue(editandoTrial.expiraEm)}
+                      className="mt-1 w-full rounded-xl border border-ninho-borda px-3 py-2 text-sm text-ninho-grafite focus:border-ninho-roxo focus:outline-none"
+                    />
+                    <span className="mt-1 block text-[11px] text-ninho-cinza">
+                      Vale até o fim desse dia no horário de Brasília (23:59).
+                    </span>
+                  </label>
+
+                  <label className="text-xs text-ninho-cinza">
+                    Digite sua senha de administrador para confirmar
+                    <div className="mt-1">
+                      <PasswordInput
+                        name="senha"
+                        placeholder="Sua senha"
+                        autoComplete="current-password"
+                      />
+                    </div>
+                  </label>
+
+                  <div className="flex flex-wrap gap-2">
+                    <BotaoSalvarTrial />
+                    <button
+                      type="button"
+                      onClick={() => setEditandoTrial(null)}
+                      className="rounded-pill border border-ninho-borda px-5 py-2.5 text-sm font-medium text-ninho-cinza transition hover:border-ninho-roxo hover:text-ninho-roxo"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Tabela com scrollbar dupla ────────────────────────────────── */}
       <section>
         <DualScrollTable minWidth={TABLE_MIN_W}>
@@ -884,9 +1023,25 @@ export function UsuariosTable({
                     <span className={`rounded-pill px-2 py-0.5 text-xs ${STATUS_STYLE[r.status]}`}>
                       {r.status}
                     </span>
+                    {r.herdadoDe && (
+                      <div className="mt-1 truncate text-[10px] text-ninho-cinza" title={`Herdado de ${r.herdadoDe}`}>
+                        ↳ herdado de {r.herdadoDe}
+                      </div>
+                    )}
                   </td>
                   <td className={`overflow-hidden p-3 tabular-nums ${diasClass(d)}`}>
-                    <div className="truncate">{diasLabel(d)}</div>
+                    {podeEditarTrial(r) ? (
+                      <button
+                        type="button"
+                        onClick={() => setEditandoTrial(r)}
+                        title="Clique para mudar o fim do trial"
+                        className="w-full truncate rounded px-1 text-left underline decoration-dotted underline-offset-4 transition hover:bg-ninho-roxo-suave hover:text-ninho-roxo-escuro"
+                      >
+                        {diasLabel(d)}
+                      </button>
+                    ) : (
+                      <div className="truncate">{diasLabel(d)}</div>
+                    )}
                   </td>
                   <td className="overflow-hidden p-3">
                     {r.sistema ? (

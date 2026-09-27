@@ -17,11 +17,27 @@ export interface AppUser {
   created_at: string;
   /** Fuso declarado no cadastro — é o que dá o país aproximado no painel. */
   timezone: string | null;
+  /** O que ESTA CONTA contratou — nunca resolve herança. É o que conta pra
+   *  faturamento/MRR (ver lib/metrics.ts isPagante): quem herda não paga
+   *  nada, então não pode contar como assinante aqui. */
   estado: Estado;
   plan: 'free' | 'basico' | 'premium' | null;
   plan_interval: 'mensal' | 'anual' | null;
   trial_ends_at: string | null;
   current_period_end: string | null;
+  /** O que a conta PODE USAR agora, já resolvendo o plano compartilhado
+   *  (dono/cuidador do mesmo bebê que paga cobre os demais — ver
+   *  supabase/migrations/00068 no app). Igual a `estado`/`plan`/... quando
+   *  o acesso é próprio; muda só quando `herdadoDe` não é null. Pra exibir
+   *  status/dias na tela de usuários — NUNCA pra faturamento. */
+  estadoEfetivo: Estado;
+  planoEfetivo: 'free' | 'basico' | 'premium';
+  planIntervalEfetivo: 'mensal' | 'anual' | null;
+  trialEndsAtEfetivo: string | null;
+  currentPeriodEndEfetivo: string | null;
+  /** Nome de quem paga, quando o acesso desta conta é herdado de outra que
+   *  cuida do mesmo bebê. Null = acesso próprio (mesmo que seja free/trial). */
+  herdadoDe: string | null;
   /** Nascimento (yyyy-mm-dd) do primeiro bebê que esta conta cadastrou.
    *  Null = ainda não cadastrou nenhum. Futuro = ainda não nasceu. */
   birthDate: string | null;
@@ -68,6 +84,45 @@ async function fetchEmails(): Promise<Map<string, string>> {
   return out;
 }
 
+interface EfetivoRow {
+  id: string;
+  estado_efetivo: Estado;
+  plano_efetivo: 'free' | 'basico' | 'premium';
+  plan_interval_efetivo: 'mensal' | 'anual' | null;
+  trial_ends_at_efetivo: string | null;
+  current_period_end_efetivo: string | null;
+  coberto_por: string | null;
+}
+
+/**
+ * Plano EFETIVO de cada conta — já resolvendo o plano compartilhado entre
+ * quem cuida do mesmo bebê (dono e cuidadores; quem paga cobre os demais,
+ * em qualquer direção — ver supabase/migrations/00068 no app).
+ *
+ * Vem pronto de `public.usuarios_admin` (view de operador, só service_role
+ * lê) — a MESMA fonte que resolve isso no app (`assinatura_efetiva_de`).
+ * Não recalcular aqui: se a regra de herança mudar, muda no SQL e o painel
+ * acompanha sozinho, igual já vale pra `estado`/`plan` (ver topo do arquivo).
+ */
+async function fetchPlanoEfetivo(): Promise<Map<string, EfetivoRow>> {
+  const sb = appDb();
+  const out = new Map<string, EfetivoRow>();
+  const { data, error } = await sb
+    .from('usuarios_admin')
+    .select(
+      'id,estado_efetivo,plano_efetivo,plan_interval_efetivo,trial_ends_at_efetivo,current_period_end_efetivo,coberto_por',
+    );
+  if (error) {
+    // Falhar calado faria toda conta herdada mostrar "Free trial" de novo —
+    // exatamente o bug que isto corrige. Melhor logar e cair no próprio
+    // estado (fallback abaixo em fetchAppUsers) do que silenciar o erro.
+    console.error('[painel] usuarios_admin (plano efetivo) falhou:', error.message);
+    return out;
+  }
+  for (const r of (data as EfetivoRow[] | null) ?? []) out.set(r.id, r);
+  return out;
+}
+
 interface BabyRow {
   created_by: string;
   birth_date: string;
@@ -100,7 +155,7 @@ export async function fetchAppUsers(): Promise<AppUser[]> {
 
   // profiles e a view não têm FK declarada entre si, então PostgREST não faz o
   // embed — busca separado e junta aqui.
-  const [profilesRes, estadosRes, emails, nascimentos] = await Promise.all([
+  const [profilesRes, estadosRes, efetivos, emails, nascimentos] = await Promise.all([
     sb
       .from('profiles')
       .select('id,full_name,phone,created_at,timezone')
@@ -109,6 +164,7 @@ export async function fetchAppUsers(): Promise<AppUser[]> {
     sb
       .from('assinatura_estado')
       .select('profile_id,plan,plan_interval,trial_ends_at,current_period_end,estado'),
+    fetchPlanoEfetivo(),
     fetchEmails(),
     fetchPrimeiroNascimento(),
   ]);
@@ -119,6 +175,8 @@ export async function fetchAppUsers(): Promise<AppUser[]> {
 
   return profiles.map((p) => {
     const e = estadoByProfile.get(p.id);
+    const ef = efetivos.get(p.id);
+    const estadoProprio = corrigirChurnPorData(e);
     return {
       id: p.id,
       name: p.full_name,
@@ -128,11 +186,20 @@ export async function fetchAppUsers(): Promise<AppUser[]> {
       timezone: p.timezone,
       // Sem linha de assinatura o usuário é 'free'. Depois da 00022 isso não
       // deve acontecer (trigger + backfill), mas não vale inventar estado.
-      estado: estadoEfetivo(e),
+      estado: estadoProprio,
       plan: e?.plan ?? null,
       plan_interval: e?.plan_interval ?? null,
       trial_ends_at: e?.trial_ends_at ?? null,
       current_period_end: e?.current_period_end ?? null,
+      // Sem linha em usuarios_admin (falha de rede/permissão — ver
+      // fetchPlanoEfetivo) cai pro próprio estado: nunca esconde uma conta
+      // que paga só porque a query de herança falhou.
+      estadoEfetivo: ef?.estado_efetivo ?? estadoProprio,
+      planoEfetivo: ef?.plano_efetivo ?? (e?.plan === 'basico' ? 'basico' : e?.plan === 'premium' ? 'premium' : 'free'),
+      planIntervalEfetivo: ef?.plan_interval_efetivo ?? e?.plan_interval ?? null,
+      trialEndsAtEfetivo: ef?.trial_ends_at_efetivo ?? e?.trial_ends_at ?? null,
+      currentPeriodEndEfetivo: ef?.current_period_end_efetivo ?? e?.current_period_end ?? null,
+      herdadoDe: ef?.coberto_por ?? null,
       birthDate: nascimentos.get(p.id) ?? null,
     };
   });
@@ -141,16 +208,13 @@ export async function fetchAppUsers(): Promise<AppUser[]> {
 /**
  * Corrige `pagante` quando o período pago já venceu.
  *
- * A view `assinatura_estado` só marca `churn` quando a loja já respondeu
- * `canceled`/`past_due` — mas essa resposta depende de webhook (App Store
- * Server Notifications / RTDN do Google), e webhook pode atrasar, falhar ou
- * nunca chegar. Enquanto isso, `status` fica travado em `active` com
- * `current_period_end` no passado, e a conta contaria como assinante pra
- * sempre. Quem decide de verdade aqui é a data, não o último status que a
- * loja mandou: período vencido é churn, ponto — evita inflar MRR/LTV e
- * "Assinantes" no painel com gente que já parou de pagar.
+ * Hoje a view `assinatura_estado` (migration 00066 do app) já faz essa
+ * mesma checagem no SQL — esta função ficou redundante, mas inofensiva, e
+ * continua aqui como segunda trava: se algum dia a view voltar a confiar só
+ * em `status` (webhook atrasado/nunca chegou), o painel não volta a contar
+ * quem já parou de pagar como "Assinante"/inflar MRR sozinho.
  */
-function estadoEfetivo(e: EstadoRow | undefined): Estado {
+function corrigirChurnPorData(e: EstadoRow | undefined): Estado {
   const estado = e?.estado ?? 'free';
   if (estado === 'pagante' && e?.current_period_end) {
     if (new Date(e.current_period_end).getTime() < Date.now()) return 'churn';
@@ -174,15 +238,23 @@ export type StatusConta =
   | 'Churn'
   | 'Cadastrado';
 
+/**
+ * Lê os campos EFETIVOS (`estadoEfetivo`/`planoEfetivo`/...), não os
+ * próprios — uma conta herdando Premium de quem cuida do mesmo bebê tem que
+ * aparecer como "Premium", não como "Free trial" só porque o trial DELA
+ * venceu. Quem quiser saber quem paga de verdade (faturamento/MRR) usa
+ * `u.estado`/`u.plan` direto, nunca esta função — ver `isPagante` em
+ * lib/metrics.ts.
+ */
 export function accountStatus(u: AppUser): StatusConta {
-  if (u.estado === 'pagante') {
-    const anual = u.plan_interval === 'anual';
-    if (u.plan === 'basico') return anual ? 'Básico anual' : 'Básico mensal';
+  if (u.estadoEfetivo === 'pagante') {
+    const anual = u.planIntervalEfetivo === 'anual';
+    if (u.planoEfetivo === 'basico') return anual ? 'Básico anual' : 'Básico mensal';
     return anual ? 'Premium anual' : 'Premium mensal';
   }
-  if (u.estado === 'trial_ativo') return 'Free trial ativo';
-  if (u.estado === 'trial_expirado') return 'Free trial expirado';
-  if (u.estado === 'churn') return 'Churn';
+  if (u.estadoEfetivo === 'trial_ativo') return 'Free trial ativo';
+  if (u.estadoEfetivo === 'trial_expirado') return 'Free trial expirado';
+  if (u.estadoEfetivo === 'churn') return 'Churn';
   return 'Cadastrado';
 }
 
@@ -193,6 +265,49 @@ export const STATUS_ASSINANTE: StatusConta[] = [
   'Básico mensal',
   'Básico anual',
 ];
+
+/** Status em que faz sentido mexer na data de fim do trial. Fora deles a
+ *  data que vale é `current_period_end` (ciclo pago), que quem manda é a
+ *  loja — não o operador. */
+export const STATUS_TRIAL_EDITAVEL: StatusConta[] = [
+  'Free trial ativo',
+  'Free trial expirado',
+];
+
+/**
+ * Move o fim do trial de UMA conta.
+ *
+ * `data` é yyyy-mm-dd e vira 23:59:59 em São Paulo (-03:00, fixo desde o fim
+ * do horário de verão). O usuário é brasileiro, então "vale até o dia X"
+ * precisa acabar no fim do dia DELE — gravar 23:59:59 UTC tiraria o acesso
+ * às 20:59 no relógio dele, três horas antes do combinado.
+ *
+ * Escreve direto em `public.subscriptions`, não na view: a view é projeção,
+ * e aqui só uma coluna muda. O trigger `subscriptions_bloquear_trial_cliente`
+ * não atrapalha — ele só barra `authenticated`/`anon`, e o painel entra como
+ * `service_role`.
+ *
+ * NÃO mexe em `status` de propósito. Quem estava `trialing` e venceu volta a
+ * valer sozinho pela data nova (a view recalcula `estado`); reabrir trial de
+ * quem já é pagante seria outra operação, com outro risco.
+ */
+export async function atualizarFimTrial(
+  profileId: string,
+  data: string
+): Promise<{ ok: boolean; error?: string }> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return { ok: false, error: 'Data inválida.' };
+
+  const sb = appDb();
+  const { error, count } = await sb
+    .from('subscriptions')
+    .update({ trial_ends_at: `${data}T23:59:59-03:00` }, { count: 'exact' })
+    .eq('profile_id', profileId)
+    .is('deleted_at', null);
+
+  if (error) return { ok: false, error: error.message };
+  if (!count) return { ok: false, error: 'Nenhuma assinatura encontrada para esse usuário.' };
+  return { ok: true };
+}
 
 // ─── Uso por usuário ───────────────────────────────────────────────────
 /**
