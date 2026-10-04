@@ -31,14 +31,25 @@ function creds(): { url: string; key: string } {
   return { url, key };
 }
 
-/** Tabelas do painel (schema `painel`). */
-export function painelDb() {
+// Um cliente por processo, não por chamada: o cliente é stateless (sem sessão,
+// service_role) e recriá-lo a cada query custava alocação à toa em toda tela.
+function criarPainel() {
   const { url, key } = creds();
   return createClient(url, key, { auth: authOpts, db: { schema: 'painel' } });
+}
+function criarApp() {
+  const { url, key } = creds();
+  return createClient(url, key, { auth: authOpts });
+}
+let _painel: ReturnType<typeof criarPainel> | null = null;
+let _app: ReturnType<typeof criarApp> | null = null;
+
+/** Tabelas do painel (schema `painel`). */
+export function painelDb() {
+  return (_painel ??= criarPainel());
 }
 
 /** Tabelas do app (schema `public`) — leitura de usuários e assinaturas. */
 export function appDb() {
-  const { url, key } = creds();
-  return createClient(url, key, { auth: authOpts });
+  return (_app ??= criarApp());
 }

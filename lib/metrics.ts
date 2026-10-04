@@ -6,7 +6,7 @@
  * existir no app, `pagantes` é 0 e a receita é 0 — número vazio, não fictício.
  */
 import type { AppUser } from '@/lib/app-users';
-import { appDbConfigured } from '@/lib/app-users';
+import { appDbConfigured } from '@/lib/status-conta';
 import type { Perfil, Cost, LeadOutcome } from '@/lib/painel/store';
 import {
   PLANOS,

@@ -5,7 +5,6 @@ import {
   appDbConfigured,
   accountStatus,
 } from '@/lib/app-users';
-import { previaExclusao, type PreviaExclusao } from '@/lib/painel/store';
 import { buildUsuariosCharts } from '@/lib/dashboard-charts';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { Notice } from '@/components/admin/Notice';
@@ -18,14 +17,6 @@ export default async function UsuariosPage() {
 
   const [users, uso] = await Promise.all([fetchAppUsers(), fetchUsoPorUsuario()]);
   const charts = buildUsuariosCharts(users);
-
-  // Prévia de impacto calculada no servidor, para a confirmação de exclusão
-  // mostrar número real em vez de aviso genérico.
-  const previas: Record<string, PreviaExclusao> = {};
-  const resultados = await Promise.all(
-    users.map(async (u) => [u.id, await previaExclusao(u.id)] as const)
-  );
-  for (const [id, p] of resultados) previas[id] = p;
 
   const rows: UsuarioRow[] = users.map((u) => {
     const m = uso.get(u.id);
@@ -72,7 +63,6 @@ export default async function UsuariosPage() {
 
       <UsuariosTable
         rows={rows}
-        previas={previas}
         usuariosPorDia={charts.usuariosPorDia}
         usuariosPorMes={charts.usuariosPorMes}
       />

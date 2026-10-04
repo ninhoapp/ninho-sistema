@@ -5,7 +5,12 @@
  * `public.assinatura_estado` (migration 00022), que é a fonte única. Se a
  * regra de quem é pagante mudar, muda no SQL e o painel acompanha sozinho.
  */
+import { cache } from 'react';
+import { unstable_cache } from 'next/cache';
 import { appDb } from '@/lib/supabase/server';
+
+/** Tag do cache de usuários do app — quem altera usuário chama revalidateTag. */
+export const APP_USERS_TAG = 'app-users';
 
 export type Estado = 'trial_ativo' | 'trial_expirado' | 'pagante' | 'churn' | 'free';
 
@@ -43,10 +48,13 @@ export interface AppUser {
   birthDate: string | null;
 }
 
-/** True quando o painel consegue ler o banco. Falso = telas vazias, sem chute. */
-export function appDbConfigured(): boolean {
-  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
-}
+import { appDbConfigured, type StatusConta } from '@/lib/status-conta';
+export {
+  appDbConfigured,
+  STATUS_ASSINANTE,
+  STATUS_TRIAL_EDITAVEL,
+  type StatusConta,
+} from '@/lib/status-conta';
 
 interface ProfileRow {
   id: string;
@@ -86,6 +94,7 @@ async function fetchEmails(): Promise<Map<string, string>> {
 
 interface EfetivoRow {
   id: string;
+  email: string | null;
   estado_efetivo: Estado;
   plano_efetivo: 'free' | 'basico' | 'premium';
   plan_interval_efetivo: 'mensal' | 'anual' | null;
@@ -104,20 +113,20 @@ interface EfetivoRow {
  * Não recalcular aqui: se a regra de herança mudar, muda no SQL e o painel
  * acompanha sozinho, igual já vale pra `estado`/`plan` (ver topo do arquivo).
  */
-async function fetchPlanoEfetivo(): Promise<Map<string, EfetivoRow>> {
+async function fetchPlanoEfetivo(): Promise<Map<string, EfetivoRow> | null> {
   const sb = appDb();
   const out = new Map<string, EfetivoRow>();
   const { data, error } = await sb
     .from('usuarios_admin')
     .select(
-      'id,estado_efetivo,plano_efetivo,plan_interval_efetivo,trial_ends_at_efetivo,current_period_end_efetivo,coberto_por',
+      'id,email,estado_efetivo,plano_efetivo,plan_interval_efetivo,trial_ends_at_efetivo,current_period_end_efetivo,coberto_por',
     );
   if (error) {
     // Falhar calado faria toda conta herdada mostrar "Free trial" de novo —
     // exatamente o bug que isto corrige. Melhor logar e cair no próprio
-    // estado (fallback abaixo em fetchAppUsers) do que silenciar o erro.
+    // estado (fallback abaixo em fetchAppUsersRaw) do que silenciar o erro.
     console.error('[painel] usuarios_admin (plano efetivo) falhou:', error.message);
-    return out;
+    return null;
   }
   for (const r of (data as EfetivoRow[] | null) ?? []) out.set(r.id, r);
   return out;
@@ -149,13 +158,13 @@ async function fetchPrimeiroNascimento(): Promise<Map<string, string>> {
   return out;
 }
 
-export async function fetchAppUsers(): Promise<AppUser[]> {
+async function fetchAppUsersRaw(): Promise<AppUser[]> {
   if (!appDbConfigured()) return [];
   const sb = appDb();
 
   // profiles e a view não têm FK declarada entre si, então PostgREST não faz o
   // embed — busca separado e junta aqui.
-  const [profilesRes, estadosRes, efetivos, emails, nascimentos] = await Promise.all([
+  const [profilesRes, estadosRes, efetivosRes, nascimentos] = await Promise.all([
     sb
       .from('profiles')
       .select('id,full_name,phone,created_at,timezone')
@@ -165,9 +174,15 @@ export async function fetchAppUsers(): Promise<AppUser[]> {
       .from('assinatura_estado')
       .select('profile_id,plan,plan_interval,trial_ends_at,current_period_end,estado'),
     fetchPlanoEfetivo(),
-    fetchEmails(),
     fetchPrimeiroNascimento(),
   ]);
+
+  // O e-mail vem de `usuarios_admin` (que lê auth.users). A API admin de auth
+  // pagina e é a chamada mais lenta do painel — só cai nela se a view falhou.
+  const efetivos = efetivosRes ?? new Map<string, EfetivoRow>();
+  const emails = efetivosRes
+    ? new Map(Array.from(efetivosRes.values(), (r) => [r.id, r.email ?? ''] as const))
+    : await fetchEmails();
 
   const profiles = (profilesRes.data as ProfileRow[] | null) ?? [];
   const estados = (estadosRes.data as EstadoRow[] | null) ?? [];
@@ -180,7 +195,7 @@ export async function fetchAppUsers(): Promise<AppUser[]> {
     return {
       id: p.id,
       name: p.full_name,
-      email: emails.get(p.id) ?? null,
+      email: emails.get(p.id) || null,
       phone: p.phone,
       created_at: p.created_at,
       timezone: p.timezone,
@@ -206,6 +221,21 @@ export async function fetchAppUsers(): Promise<AppUser[]> {
 }
 
 /**
+ * Usuários do app, com cache curto.
+ *
+ * Quase toda tela do painel chama isto, e são 4 consultas + junção em memória.
+ * Sem cache, cada clique no menu refazia tudo do zero. Duas camadas:
+ *  - `unstable_cache` (60s, entre requisições): navegar entre telas fica
+ *    rápido. Ações que mudam usuário chamam revalidateTag(APP_USERS_TAG), então
+ *    o que o próprio admin faz aparece na hora; cadastro novo no app aparece
+ *    em até 1 minuto.
+ *  - `cache` do React: dentro de uma mesma requisição não vai ao banco 2x.
+ */
+export const fetchAppUsers = cache(
+  unstable_cache(fetchAppUsersRaw, ['app-users-v1'], { revalidate: 60, tags: [APP_USERS_TAG] })
+);
+
+/**
  * Corrige `pagante` quando o período pago já venceu.
  *
  * Hoje a view `assinatura_estado` (migration 00066 do app) já faz essa
@@ -222,22 +252,7 @@ function corrigirChurnPorData(e: EstadoRow | undefined): Estado {
   return estado;
 }
 
-// ─── Status da conta (rótulo legível) ──────────────────────────────────
-//
-// O `estado` cru da view responde "paga ou não paga". A tela de usuários
-// precisa de mais: QUAL plano e em QUAL ciclo, senão Premium anual e
-// Básico mensal viram a mesma linha "pagante" e o filtro da coluna não
-// serve pra nada.
-export type StatusConta =
-  | 'Free trial ativo'
-  | 'Free trial expirado'
-  | 'Premium mensal'
-  | 'Premium anual'
-  | 'Básico mensal'
-  | 'Básico anual'
-  | 'Churn'
-  | 'Cadastrado';
-
+// ─── Status da conta (rótulo legível) — tipo e listas em lib/status-conta ──
 /**
  * Lê os campos EFETIVOS (`estadoEfetivo`/`planoEfetivo`/...), não os
  * próprios — uma conta herdando Premium de quem cuida do mesmo bebê tem que
@@ -257,22 +272,6 @@ export function accountStatus(u: AppUser): StatusConta {
   if (u.estadoEfetivo === 'churn') return 'Churn';
   return 'Cadastrado';
 }
-
-/** Quem conta como assinante de verdade — quem paga, em qualquer plano. */
-export const STATUS_ASSINANTE: StatusConta[] = [
-  'Premium mensal',
-  'Premium anual',
-  'Básico mensal',
-  'Básico anual',
-];
-
-/** Status em que faz sentido mexer na data de fim do trial. Fora deles a
- *  data que vale é `current_period_end` (ciclo pago), que quem manda é a
- *  loja — não o operador. */
-export const STATUS_TRIAL_EDITAVEL: StatusConta[] = [
-  'Free trial ativo',
-  'Free trial expirado',
-];
 
 /**
  * Move o fim do trial de UMA conta.

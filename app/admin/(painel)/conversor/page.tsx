@@ -21,14 +21,15 @@ export const dynamic = 'force-dynamic';
 
 export default async function ConversorPage() {
   const session = requireRole('conversor');
-  const perfil = await getPerfil(session.sub);
-  if (!perfil) return null;
-
-  const users = await fetchAppUsers();
-  const [leadSet, outcomes] = await Promise.all([
-    buildConversorLeadSet(users),
-    listOutcomes(perfil.id),
+  // Tudo em paralelo: nada aqui depende do perfil além do filtro por id, e a
+  // sessão já traz esse id.
+  const [perfil, users, outcomes] = await Promise.all([
+    getPerfil(session.sub),
+    fetchAppUsers(),
+    listOutcomes(session.sub),
   ]);
+  if (!perfil) return null;
+  const leadSet = await buildConversorLeadSet(users);
   const r = repasseDoPerfil(perfil, users, outcomes);
   const sched = repasseSchedule();
 

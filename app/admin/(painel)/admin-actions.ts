@@ -1,10 +1,12 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { requireRole, requireSession } from '@/lib/auth/guard';
 import { verifyPassword } from '@/lib/auth/password';
-import { atualizarFimTrial } from '@/lib/app-users';
+import { atualizarFimTrial, APP_USERS_TAG } from '@/lib/app-users';
 import {
+  previaExclusao,
+  type PreviaExclusao,
   createPerfil,
   updatePerfil,
   deletePerfil,
@@ -194,12 +196,32 @@ export async function alterarFimTrial(_prev: TrialState, fd: FormData): Promise<
   const res = await atualizarFimTrial(id, data);
   if (!res.ok) return { error: res.error || 'Falha ao salvar.' };
 
+  revalidateTag(APP_USERS_TAG);
   revalidatePath('/admin/usuarios');
   revalidatePath('/admin/visao-geral');
   return { ok: true, novaData: data };
 }
 
 // ── Exclusão de usuários do app ───────────────────────────
+/**
+ * Prévia de impacto só dos selecionados, pedida quando o admin abre a
+ * confirmação. Antes era calculada pra TODOS os usuários a cada carregamento
+ * da tela — uma RPC por usuário — e era o que deixava a tela lenta.
+ */
+export async function previaDosSelecionados(ids: string[]): Promise<PreviaExclusao> {
+  requireRole('admin');
+  const previas = await Promise.all(ids.slice(0, 500).map((id) => previaExclusao(id)));
+  return previas.reduce(
+    (acc, p) => ({
+      bebes_exclusivos: acc.bebes_exclusivos + p.bebes_exclusivos,
+      bebes_transferidos: acc.bebes_transferidos + p.bebes_transferidos,
+      registros: acc.registros + p.registros,
+      fotos: acc.fotos + p.fotos,
+    }),
+    { bebes_exclusivos: 0, bebes_transferidos: 0, registros: 0, fotos: 0 }
+  );
+}
+
 export interface ExclusaoState extends ActionState {
   /** Resumo do que aconteceu, para a tela confirmar o efeito real. */
   resumo?: { usuarios: number; bebesApagados: number; bebesTransferidos: number };
@@ -247,6 +269,7 @@ export async function excluirUsuarios(
     bebesTransferidos += r.bebes_transferidos ?? 0;
   }
 
+  revalidateTag(APP_USERS_TAG);
   revalidatePath('/admin/usuarios');
   revalidatePath('/admin/visao-geral');
   revalidatePath('/admin/leads');

@@ -1,7 +1,5 @@
 'use client';
 
-import * as XLSX from 'xlsx';
-
 /**
  * Botão que exporta as linhas dadas (já formatadas, com as colunas exatas
  * que devem virar cabeçalho) pra um arquivo .xlsx baixado na hora, no
@@ -19,7 +17,10 @@ export function ExportExcelButton({
   sheetName?: string;
   label?: string;
 }) {
-  function handleExport() {
+  async function handleExport() {
+    // Carregada só no clique: a lib tem ~180 kB e ia junto em toda tela com
+    // tabela, mesmo quando ninguém exporta nada.
+    const XLSX = await import('xlsx');
     const sheet = XLSX.utils.json_to_sheet(rows);
     const book = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(book, sheet, sheetName);

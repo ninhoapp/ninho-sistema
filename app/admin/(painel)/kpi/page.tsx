@@ -44,7 +44,16 @@ export default async function KpiPage({ searchParams }: { searchParams: { mes?: 
   const ltv = arpu * LIFETIME_MESES_ESTIMADO;
   const razaoLtvCac = cac > 0 ? ltv / cac : 0;
 
-  // Conversão de trial: quem terminou o teste e assinou.
+  // Conversão: de quem JÁ TERMINOU o trial, quantos assinaram.
+  //
+  // A base são os expirados + os assinantes — não a base inteira. Incluir
+  // quem ainda está em trial afundaria a taxa de propósito: essa pessoa não
+  // decidiu nada ainda, não é uma não-conversão.
+  //
+  // Churn entra na base porque quem cancelou TAMBÉM converteu um dia: deixar
+  // de fora faria a taxa subir sozinha a cada cancelamento, que é exatamente
+  // o contrário do que o número deve dizer. Hoje churn é 0, então a conta dá
+  // no mesmo; a diferença aparece quando o primeiro cancelamento chegar.
   const terminaramTrial = m.trialExpirado + m.pagantes + m.churn;
   const conversaoTrial = terminaramTrial > 0 ? (m.pagantes / terminaramTrial) * 100 : 0;
 
@@ -71,23 +80,46 @@ export default async function KpiPage({ searchParams }: { searchParams: { mes?: 
       )}
 
       <h2 className="mb-3 text-base font-bold text-ninho-grafite">Funil</h2>
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Base de usuários" value={m.totalUsuarios} accent />
+      <div className="mb-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
-          label="Conversão de trial"
+          label="Total de usuários"
+          value={m.totalUsuarios}
+          hint={`${m.trialAtivo} ainda em trial`}
+          compactHint
+          accent
+        />
+        <StatCard
+          label="Usuários expirados"
+          value={m.trialExpirado}
+          hint={`Passaram os ${DIAS_TRIAL} dias sem assinar`}
+          compactHint
+        />
+        <StatCard
+          label="Assinantes"
+          value={m.pagantes}
+          hint="Pagando hoje, qualquer plano"
+          compactHint
+        />
+        <StatCard
+          label="Taxa de conversão"
           value={`${conversaoTrial.toFixed(1)}%`}
-          hint={`De quem terminou os ${DIAS_TRIAL} dias`}
+          hint={`${m.pagantes} ÷ ${terminaramTrial} que terminaram`}
           compactHint
         />
         <StatCard
-          label="Taxa de churn"
-          value={`${taxaChurn.toFixed(1)}%`}
-          hint="Cancelaram sobre já assinaram"
+          label="Churn"
+          value={m.churn}
+          hint={m.churn > 0 ? `${taxaChurn.toFixed(1)}% de quem assinou` : 'Nenhum cancelamento'}
           compactHint
-          danger={taxaChurn > 10}
+          danger={m.churn > 0}
         />
-        <StatCard label="Em trial agora" value={m.trialAtivo} />
       </div>
+
+      <p className="mb-8 text-xs text-ninho-cinza">
+        A <strong>taxa de conversão</strong> olha só quem já decidiu: expirados + assinantes
+        {m.churn > 0 && ' + churn'}. Quem ainda está em trial fica de fora — ainda não é uma
+        não-conversão, e incluir afundaria o número sem motivo.
+      </p>
 
       <h2 className="mb-3 text-base font-bold text-ninho-grafite">Dinheiro</h2>
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

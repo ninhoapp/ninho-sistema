@@ -5,10 +5,11 @@ import { useFormState, useFormStatus } from 'react-dom';
 import {
   excluirUsuarios,
   alterarFimTrial,
+  previaDosSelecionados,
   type ExclusaoState,
   type TrialState,
 } from '@/app/admin/(painel)/admin-actions';
-import { STATUS_ASSINANTE, STATUS_TRIAL_EDITAVEL, type StatusConta } from '@/lib/app-users';
+import { STATUS_ASSINANTE, STATUS_TRIAL_EDITAVEL, type StatusConta } from '@/lib/status-conta';
 import type { PreviaExclusao } from '@/lib/painel/store';
 import type { SeriesPoint } from '@/lib/dashboard-charts';
 import { PasswordInput } from '@/components/admin/PasswordInput';
@@ -394,13 +395,10 @@ function dateInputValue(iso: string | null): string {
 
 export function UsuariosTable({
   rows,
-  previas,
   usuariosPorDia,
   usuariosPorMes,
 }: {
   rows: UsuarioRow[];
-  /** Prévia de impacto por usuário, calculada no servidor. */
-  previas: Record<string, PreviaExclusao>;
   usuariosPorDia?: SeriesPoint[];
   usuariosPorMes?: SeriesPoint[];
 }) {
@@ -559,24 +557,18 @@ export function UsuariosTable({
   const visiveisIds = useMemo(() => new Set(filteredRows.map((r) => r.id)), [filteredRows]);
   const ids = useMemo(() => Array.from(sel).filter((id) => visiveisIds.has(id)), [sel, visiveisIds]);
 
-  // Soma o impacto de tudo que está selecionado, pra confirmação ser concreta.
-  const impacto = useMemo(
-    () =>
-      ids.reduce(
-        (acc, id) => {
-          const p = previas[id];
-          if (!p) return acc;
-          return {
-            bebesApagados: acc.bebesApagados + p.bebes_exclusivos,
-            bebesTransferidos: acc.bebesTransferidos + p.bebes_transferidos,
-            registros: acc.registros + p.registros,
-            fotos: acc.fotos + p.fotos,
-          };
-        },
-        { bebesApagados: 0, bebesTransferidos: 0, registros: 0, fotos: 0 }
-      ),
-    [ids, previas]
-  );
+  // Impacto somado dos selecionados, pra confirmação ser concreta. Buscado só
+  // ao abrir a confirmação — calcular pra todo mundo no carregamento da tela
+  // era uma RPC por usuário e deixava a página lenta.
+  const [impacto, setImpacto] = useState<PreviaExclusao | null>(null);
+  const [impactoErro, setImpactoErro] = useState(false);
+
+  function abrirConfirmacao() {
+    setConfirmando(true);
+    setImpacto(null);
+    setImpactoErro(false);
+    previaDosSelecionados(ids).then(setImpacto, () => setImpactoErro(true));
+  }
 
   function toggle(id: string) {
     setSel((prev) => {
@@ -771,7 +763,7 @@ export function UsuariosTable({
               Limpar seleção
             </button>
             <button
-              onClick={() => setConfirmando(true)}
+              onClick={abrirConfirmacao}
               className="rounded-pill bg-red-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-red-700"
             >
               Excluir {ids.length === 1 ? 'usuário' : 'usuários'}
@@ -793,27 +785,38 @@ export function UsuariosTable({
 
             <div className="mt-4 rounded-xl bg-ninho-nuvem p-4 text-sm">
               <p className="mb-2 font-semibold text-ninho-grafite">O que vai ser apagado:</p>
-              <ul className="flex flex-col gap-1 text-ninho-cinza">
-                <li>
-                  <strong className="text-ninho-grafite">{impacto.bebesApagados}</strong>{' '}
-                  {impacto.bebesApagados === 1 ? 'bebê' : 'bebês'} — com rotina, vacinas,
-                  crescimento, consultas e álbuns
-                </li>
-                <li>
-                  <strong className="text-ninho-grafite">{impacto.registros}</strong> registros de
-                  rotina
-                </li>
-                <li>
-                  <strong className="text-ninho-grafite">{impacto.fotos}</strong> fotos
-                </li>
-              </ul>
-              {impacto.bebesTransferidos > 0 && (
-                <p className="mt-3 border-t border-ninho-borda pt-3 text-ninho-grafite">
-                  <strong>{impacto.bebesTransferidos}</strong>{' '}
-                  {impacto.bebesTransferidos === 1 ? 'bebê' : 'bebês'} não{' '}
-                  {impacto.bebesTransferidos === 1 ? 'será apagado' : 'serão apagados'}: tem outro
-                  cuidador na conta e a posse passa para ele.
+              {impactoErro ? (
+                <p className="text-red-600">
+                  Não foi possível calcular o impacto agora. A exclusão ainda apaga bebês, rotina
+                  e fotos vinculados a essas contas.
                 </p>
+              ) : !impacto ? (
+                <p className="text-ninho-cinza">Calculando…</p>
+              ) : (
+                <>
+                  <ul className="flex flex-col gap-1 text-ninho-cinza">
+                    <li>
+                      <strong className="text-ninho-grafite">{impacto.bebes_exclusivos}</strong>{' '}
+                      {impacto.bebes_exclusivos === 1 ? 'bebê' : 'bebês'} — com rotina, vacinas,
+                      crescimento, consultas e álbuns
+                    </li>
+                    <li>
+                      <strong className="text-ninho-grafite">{impacto.registros}</strong> registros
+                      de rotina
+                    </li>
+                    <li>
+                      <strong className="text-ninho-grafite">{impacto.fotos}</strong> fotos
+                    </li>
+                  </ul>
+                  {impacto.bebes_transferidos > 0 && (
+                    <p className="mt-3 border-t border-ninho-borda pt-3 text-ninho-grafite">
+                      <strong>{impacto.bebes_transferidos}</strong>{' '}
+                      {impacto.bebes_transferidos === 1 ? 'bebê' : 'bebês'} não{' '}
+                      {impacto.bebes_transferidos === 1 ? 'será apagado' : 'serão apagados'}: tem
+                      outro cuidador na conta e a posse passa para ele.
+                    </p>
+                  )}
+                </>
               )}
             </div>
 
