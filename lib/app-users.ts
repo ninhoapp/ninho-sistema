@@ -46,6 +46,10 @@ export interface AppUser {
   /** Nascimento (yyyy-mm-dd) do primeiro bebê que esta conta cadastrou.
    *  Null = ainda não cadastrou nenhum. Futuro = ainda não nasceu. */
   birthDate: string | null;
+  /** Quando a conta assinou de fato — primeira compra verificada. Null = nunca
+   *  pagou (ou pagou antes de `purchase_verifications` existir). NÃO confundir
+   *  com `created_at`, que é a data do cadastro. */
+  assinouEm: string | null;
 }
 
 import { appDbConfigured, type StatusConta } from '@/lib/status-conta';
@@ -158,13 +162,47 @@ async function fetchPrimeiroNascimento(): Promise<Map<string, string>> {
   return out;
 }
 
+interface CompraRow {
+  profile_id: string;
+  created_at: string;
+}
+
+/**
+ * Quando cada conta assinou de fato — a PRIMEIRA verificação de compra
+ * aceita (`purchase_verifications.status = 'verificado'`).
+ *
+ * Não dá pra usar `subscriptions.created_at`: essa linha nasce no CADASTRO,
+ * junto com o trial, então marcaria a data errada pra todo mundo (a Mariah,
+ * por exemplo, cadastrou em 28/09 e só assinou em 04/10). Também não serve
+ * `current_period_end` menos um ciclo — isso dá o início do período ATUAL,
+ * que numa renovação já não é mais a data em que a pessoa virou cliente.
+ */
+async function fetchAssinouEm(): Promise<Map<string, string>> {
+  const sb = appDb();
+  const out = new Map<string, string>();
+  const { data, error } = await sb
+    .from('purchase_verifications')
+    .select('profile_id,created_at')
+    .eq('status', 'verificado')
+    .order('created_at', { ascending: true });
+  if (error) {
+    console.error('[painel] purchase_verifications falhou:', error.message);
+    return out;
+  }
+  // Ordenado crescente: o primeiro que cair no mapa é o mais antigo.
+  for (const c of (data as CompraRow[] | null) ?? []) {
+    if (!out.has(c.profile_id)) out.set(c.profile_id, c.created_at);
+  }
+  return out;
+}
+
 async function fetchAppUsersRaw(): Promise<AppUser[]> {
   if (!appDbConfigured()) return [];
   const sb = appDb();
 
   // profiles e a view não têm FK declarada entre si, então PostgREST não faz o
   // embed — busca separado e junta aqui.
-  const [profilesRes, estadosRes, efetivosRes, nascimentos] = await Promise.all([
+  const [profilesRes, estadosRes, efetivosRes, nascimentos, assinouEm] = await Promise.all([
     sb
       .from('profiles')
       .select('id,full_name,phone,created_at,timezone')
@@ -175,6 +213,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
       .select('profile_id,plan,plan_interval,trial_ends_at,current_period_end,estado'),
     fetchPlanoEfetivo(),
     fetchPrimeiroNascimento(),
+    fetchAssinouEm(),
   ]);
 
   // O e-mail vem de `usuarios_admin` (que lê auth.users). A API admin de auth
@@ -216,6 +255,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
       currentPeriodEndEfetivo: ef?.current_period_end_efetivo ?? e?.current_period_end ?? null,
       herdadoDe: ef?.coberto_por ?? null,
       birthDate: nascimentos.get(p.id) ?? null,
+      assinouEm: assinouEm.get(p.id) ?? null,
     };
   });
 }

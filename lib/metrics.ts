@@ -10,9 +10,12 @@ import { appDbConfigured } from '@/lib/status-conta';
 import type { Perfil, Cost, LeadOutcome } from '@/lib/painel/store';
 import {
   PLANOS,
-  PRECO_MENSAL,
-  PRECO_ANUAL,
+  PLANO_LABEL,
+  precoDe,
+  precoMensalizado,
   type PlanoKey,
+  type PlanoTier,
+  type PlanoCiclo,
   type ComissaoPorPlano,
 } from '@/lib/precos';
 
@@ -22,19 +25,102 @@ export const isTrialAtivo = (u: AppUser) => u.estado === 'trial_ativo';
 export const isTrialExpirado = (u: AppUser) => u.estado === 'trial_expirado';
 export const isChurn = (u: AppUser) => u.estado === 'churn';
 
-/** Plano do usuário. Sem ciclo definido (ainda não pagou), assume mensal. */
-export function planoDoUsuario(u: AppUser): PlanoKey {
+/**
+ * Tier + ciclo da assinatura da conta.
+ *
+ * As DUAS dimensões importam. Até 10/2026 isto olhava só o ciclo e devolvia
+ * sempre preço de Premium — com 6 dos 12 assinantes no Básico, o MRR saía
+ * R$ 30/mês inflado. Ciclo sozinho não diz preço nenhum.
+ *
+ * Sem tier definido assume Premium (o plano "cheio") e sem ciclo assume
+ * mensal: é o que a loja cobra com mais frequência, e errar pra baixo numa
+ * conta de receita é pior do que errar pra cima.
+ */
+export function tierDoUsuario(u: AppUser): PlanoTier {
+  return u.plan === 'basico' ? 'basico' : 'premium';
+}
+
+export function cicloDoUsuario(u: AppUser): PlanoCiclo {
   return u.plan_interval === 'anual' ? 'anual' : 'mensal';
 }
 
-/** Preço de tabela do plano do usuário. */
-export function priceForUser(u: AppUser): number {
-  return planoDoUsuario(u) === 'anual' ? PRECO_ANUAL : PRECO_MENSAL;
+export function planoDoUsuario(u: AppUser): PlanoKey {
+  return `${tierDoUsuario(u)}-${cicloDoUsuario(u)}` as PlanoKey;
 }
 
-/** Receita mensal do usuário. O anual entra rateado por 12 pra não inflar o mês da cobrança. */
+/** Rótulo da assinatura — "Premium anual", "Básico mensal". */
+export function planoLabel(u: AppUser): string {
+  return `${PLANO_LABEL[tierDoUsuario(u)]} ${cicloDoUsuario(u)}`;
+}
+
+/** Preço de tabela: o que a loja cobra POR COBRANÇA (anual = valor do ano). */
+export function priceForUser(u: AppUser): number {
+  return precoDe(tierDoUsuario(u), cicloDoUsuario(u));
+}
+
+/**
+ * Receita mensalizada (regime de COMPETÊNCIA): o anual entra rateado por 12.
+ *
+ * Serve pra MRR/ARPU/LTV, que precisam de um valor estável por mês. NÃO serve
+ * pra responder "quanto entrou no caixa em outubro" — pra isso use
+ * `receitaNoMes`, que é regime de caixa.
+ */
 export function monthlyRevenueForUser(u: AppUser): number {
-  return planoDoUsuario(u) === 'anual' ? PRECO_ANUAL / 12 : PRECO_MENSAL;
+  return precoMensalizado(tierDoUsuario(u), cicloDoUsuario(u));
+}
+
+// ── Receita de caixa ──────────────────────────────────────
+//
+// O dinheiro do anual entra DE UMA VEZ: a loja cobra R$ 129,90 num mês só, e
+// nos outros onze aquele assinante não gera nada. Ratear por 12 é útil pra
+// MRR, mas mente sobre o caixa — foi por isso que o faturamento passou a
+// contar cobrança, não mensalidade teórica.
+//
+// LIMITAÇÃO CONHECIDA: não existe log de cobrança no banco.
+// `purchase_verifications` é log de VERIFICAÇÃO do app (a mesma pessoa aparece
+// 4 vezes no mesmo dia), não de cobrança da loja. Então as datas são
+// derivadas: primeira compra verificada + um ciclo de cada vez. Para quem
+// nunca renovou — hoje, todo mundo — isso é exato. Quando os webhooks de
+// renovação (App Store Server Notifications / RTDN) gravarem cada cobrança,
+// troque esta derivação por aquela tabela.
+
+function chaveMes(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** Meses (yyyy-mm) em que esta assinatura foi cobrada, do início até hoje. */
+export function mesesComCobranca(u: AppUser, hoje: Date = new Date()): string[] {
+  if (!u.assinouEm) return [];
+
+  // Quem cancelou parou de ser cobrado: a última cobrança é anterior ao fim do
+  // período pago. Sem esse corte, um churn continuaria gerando receita todo mês.
+  const fim =
+    isPagante(u) || !u.current_period_end
+      ? hoje.getTime()
+      : Math.min(new Date(u.current_period_end).getTime() - 1, hoje.getTime());
+
+  const anual = cicloDoUsuario(u) === 'anual';
+  const out: string[] = [];
+  const d = new Date(u.assinouEm);
+
+  // Teto de segurança: 240 iterações = 20 anos de mensal.
+  for (let i = 0; i < 240 && d.getTime() <= fim; i++) {
+    out.push(chaveMes(d));
+    if (anual) d.setFullYear(d.getFullYear() + 1);
+    else d.setMonth(d.getMonth() + 1);
+  }
+  return out;
+}
+
+/** Quanto ESTA conta pôs no caixa no mês (yyyy-mm). Valor CHEIO da cobrança. */
+export function receitaNoMes(u: AppUser, mes: string, hoje: Date = new Date()): number {
+  const cobrancas = mesesComCobranca(u, hoje).filter((m) => m === mes).length;
+  return cobrancas * priceForUser(u);
+}
+
+/** Receita bruta de caixa do mês, somando todas as contas. */
+export function receitaBrutaDoMes(users: AppUser[], mes: string, hoje: Date = new Date()): number {
+  return users.reduce((s, u) => s + receitaNoMes(u, mes, hoje), 0);
 }
 
 // ── Comissão ──────────────────────────────────────────────

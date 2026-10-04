@@ -8,6 +8,7 @@ import {
   custosDoMes,
   formatBRL,
   isPagante,
+  receitaBrutaDoMes,
 } from '@/lib/metrics';
 import { DivergingBarChart, type DBar } from '@/components/admin/DivergingBarChart';
 import { AssinantesTable } from '@/components/admin/AssinantesTable';
@@ -42,24 +43,33 @@ export default async function FaturamentoPage({
 
   const m = buildOverview(users);
   const repasses = buildRepasses(perfis, users, outcomes);
-  const receitaBruta = m.receitaMensalEstimada;
+
+  // REGIME DE CAIXA: o que a loja cobrou NESTE mês. O anual entra inteiro no
+  // mês da compra e some nos onze seguintes — é assim que o dinheiro chega.
+  // Note que isto roda sobre `users`, não só sobre os pagantes de hoje: quem
+  // cancelou depois de pagar ainda pôs dinheiro no caixa naquele mês.
+  const receitaBruta = receitaBrutaDoMes(users, mes);
   const receitaLiquida = liquido(receitaBruta);
   const pnl = buildPnL(receitaLiquida, custos, repasses, mes);
+
+  // MRR continua existindo ao lado, como leitura de recorrência: é o que se
+  // esperaria receber num mês típico, com o anual diluído.
+  const mrrLiquido = liquido(m.receitaMensalEstimada);
 
   const pagantes = users.filter(isPagante);
   const mensais = pagantes.filter((u) => u.plan_interval !== 'anual').length;
   const anuais = pagantes.filter((u) => u.plan_interval === 'anual').length;
 
-  // Resultado dos últimos 6 meses. A receita é a de hoje aplicada a todos os
-  // meses — sem histórico de cobrança, não dá para reconstruir o passado. O
-  // que varia de fato mês a mês são os custos, que são lançados por data.
+  // Resultado dos últimos 6 meses — agora com receita REAL por mês, porque
+  // cada cobrança tem data. Antes isto repetia a receita de hoje em todos os
+  // meses, e só os custos variavam.
   const [anoRef, mesRef] = mes.split('-').map(Number);
   const seisMeses: DBar[] = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(anoRef, mesRef - 1 - i, 1);
     const chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     const c = custosDoMes(custos, chave);
-    const resultado = receitaLiquida - c.total;
+    const resultado = liquido(receitaBrutaDoMes(users, chave)) - c.total;
     seisMeses.push({
       label: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''),
       value: resultado,
@@ -71,7 +81,7 @@ export default async function FaturamentoPage({
     <>
       <PageHeader
         title="Faturamento e lucro"
-        subtitle={`A receita já entra líquida — descontados os ${Math.round(
+        subtitle={`Receita por caixa: conta o que a loja cobrou no mês. O anual entra inteiro no mês da compra e zera nos onze seguintes. Já descontados os ${Math.round(
           TAXA_LOJA * 100
         )}% que Apple e Google retêm.`}
         right={<MonthFilter value={mes} />}
@@ -89,7 +99,7 @@ export default async function FaturamentoPage({
         <StatCard
           label="Receita bruta"
           value={formatBRL(receitaBruta)}
-          hint="Preço cheio, anual rateado por 12"
+          hint={`Cobranças de ${mes}`}
           compactHint
           icon={<IconCash />}
         />
@@ -115,12 +125,24 @@ export default async function FaturamentoPage({
         />
       </div>
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard label="Assinantes" value={m.pagantes} />
         <StatCard label="Mensais" value={mensais} />
         <StatCard label="Anuais" value={anuais} />
+        <StatCard
+          label="MRR líquido"
+          value={formatBRL(mrrLiquido)}
+          hint="Recorrência, anual diluído por 12"
+          compactHint
+        />
         <StatCard label="Repasses do mês" value={formatBRL(pnl.repasses)} />
       </div>
+
+      <p className="mb-8 text-xs text-ninho-cinza">
+        <strong>Receita bruta</strong> é caixa: só entra no mês em que a loja cobrou.{' '}
+        <strong>MRR</strong> é recorrência: dilui o anual por 12 para mostrar o que se espera num mês
+        típico. Os dois são certos e respondem perguntas diferentes — por isso ficam lado a lado.
+      </p>
 
       <h2 className="mb-3 text-base font-bold text-ninho-grafite">
         Para onde vai o dinheiro — {mes}
@@ -147,7 +169,7 @@ export default async function FaturamentoPage({
         <DivergingBarChart bars={seisMeses} />
       </div>
 
-      <AssinantesTable rows={pagantes} />
+      <AssinantesTable rows={pagantes} mes={mes} />
     </>
   );
 }
