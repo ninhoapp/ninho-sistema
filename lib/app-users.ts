@@ -8,6 +8,7 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { appDb } from '@/lib/supabase/server';
+import { resolverOrigem, type Origem } from '@/lib/origem';
 
 /** Tag do cache de usuários do app — quem altera usuário chama revalidateTag. */
 export const APP_USERS_TAG = 'app-users';
@@ -50,6 +51,12 @@ export interface AppUser {
    *  pagou (ou pagou antes de `purchase_verifications` existir). NÃO confundir
    *  com `created_at`, que é a data do cadastro. */
   assinouEm: string | null;
+  /** De onde a conta veio: Apple Ads (confirmado pela Apple) > resposta do
+   *  onboarding > sem informação. Ver lib/origem.ts. */
+  origem: Origem;
+  /** Id da campanha do Apple Ads, quando `origem === 'apple_ads'`. O nome
+   *  da campanha está no painel do Apple Ads — a Apple só devolve o id. */
+  appleAdsCampaignId: number | null;
 }
 
 import { appDbConfigured, type StatusConta } from '@/lib/status-conta';
@@ -66,6 +73,7 @@ interface ProfileRow {
   phone: string | null;
   created_at: string;
   timezone: string | null;
+  como_conheceu: string | null;
 }
 
 interface EstadoRow {
@@ -196,16 +204,36 @@ async function fetchAssinouEm(): Promise<Map<string, string>> {
   return out;
 }
 
+interface AppleAdsRow {
+  profile_id: string;
+  atribuido: boolean;
+  campaign_id: number | null;
+}
+
+/** Atribuição do Apple Ads por conta (edge function atribuicao-apple-ads do
+ *  app grava). Falha não derruba o painel: todo mundo cai na resposta do
+ *  onboarding ou em "sem informação". */
+async function fetchAppleAds(): Promise<Map<string, AppleAdsRow>> {
+  const out = new Map<string, AppleAdsRow>();
+  const { data, error } = await appDb().from('atribuicao_apple_ads').select('profile_id,atribuido,campaign_id');
+  if (error) {
+    console.error('[painel] atribuicao_apple_ads falhou:', error.message);
+    return out;
+  }
+  for (const r of (data as AppleAdsRow[] | null) ?? []) out.set(r.profile_id, r);
+  return out;
+}
+
 async function fetchAppUsersRaw(): Promise<AppUser[]> {
   if (!appDbConfigured()) return [];
   const sb = appDb();
 
   // profiles e a view não têm FK declarada entre si, então PostgREST não faz o
   // embed — busca separado e junta aqui.
-  const [profilesRes, estadosRes, efetivosRes, nascimentos, assinouEm] = await Promise.all([
+  const [profilesRes, estadosRes, efetivosRes, nascimentos, assinouEm, appleAds] = await Promise.all([
     sb
       .from('profiles')
-      .select('id,full_name,phone,created_at,timezone')
+      .select('id,full_name,phone,created_at,timezone,como_conheceu')
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
     sb
@@ -214,6 +242,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
     fetchPlanoEfetivo(),
     fetchPrimeiroNascimento(),
     fetchAssinouEm(),
+    fetchAppleAds(),
   ]);
 
   // O e-mail vem de `usuarios_admin` (que lê auth.users). A API admin de auth
@@ -231,6 +260,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
     const e = estadoByProfile.get(p.id);
     const ef = efetivos.get(p.id);
     const estadoProprio = corrigirChurnPorData(e);
+    const apple = appleAds.get(p.id);
     return {
       id: p.id,
       name: p.full_name,
@@ -256,6 +286,8 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
       herdadoDe: ef?.coberto_por ?? null,
       birthDate: nascimentos.get(p.id) ?? null,
       assinouEm: assinouEm.get(p.id) ?? null,
+      origem: resolverOrigem(apple?.atribuido === true, p.como_conheceu),
+      appleAdsCampaignId: apple?.atribuido ? apple.campaign_id : null,
     };
   });
 }
@@ -272,7 +304,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
  *  - `cache` do React: dentro de uma mesma requisição não vai ao banco 2x.
  */
 export const fetchAppUsers = cache(
-  unstable_cache(fetchAppUsersRaw, ['app-users-v1'], { revalidate: 60, tags: [APP_USERS_TAG] })
+  unstable_cache(fetchAppUsersRaw, ['app-users-v2'], { revalidate: 60, tags: [APP_USERS_TAG] })
 );
 
 /**

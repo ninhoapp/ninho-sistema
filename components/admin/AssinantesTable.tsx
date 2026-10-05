@@ -15,14 +15,16 @@ import {
   receitaNoMes,
 } from '@/lib/metrics';
 import { liquido, TAXA_LOJA } from '@/lib/precos';
+import { ORIGEM_COR, ORIGEM_LABEL } from '@/lib/origem';
 
 // Toda coluna ordena e filtra — mesma regra da tela de Usuários ativos.
-type Col = 'nome' | 'email' | 'plano' | 'cobrado' | 'entrou' | 'assinou' | 'renova' | 'cadastro';
+type Col = 'nome' | 'email' | 'plano' | 'origem' | 'cobrado' | 'entrou' | 'assinou' | 'renova' | 'cadastro';
 
 const CABECALHOS: [Col, string][] = [
   ['nome', 'Nome'],
   ['email', 'E-mail'],
   ['plano', 'Plano'],
+  ['origem', 'Origem'],
   ['cobrado', 'Valor cobrado'],
   ['entrou', 'Entrou (líquido)'],
   ['assinou', 'Assinou em'],
@@ -63,6 +65,7 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
       case 'nome':     return u.name || '—';
       case 'email':    return u.email || '—';
       case 'plano':    return planoLabel(u);
+      case 'origem':   return ORIGEM_LABEL[u.origem];
       case 'cobrado':  return formatBRL(priceForUser(u));
       case 'entrou':   return formatBRL(entrouLiquido(u));
       case 'assinou':  return formatDate(u.assinouEm);
@@ -78,6 +81,7 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
       case 'nome':     return (u.name ?? '').toLowerCase();
       case 'email':    return (u.email ?? '').toLowerCase();
       case 'plano':    return planoLabel(u);
+      case 'origem':   return ORIGEM_LABEL[u.origem];
       case 'cobrado':  return priceForUser(u);
       case 'entrou':   return entrouLiquido(u);
       case 'assinou':  return u.assinouEm ? new Date(u.assinouEm).getTime() : -Infinity;
@@ -129,6 +133,8 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
     'E-mail': u.email || '',
     Plano: planoLabel(u),
     Ciclo: cicloDoUsuario(u),
+    Origem: ORIGEM_LABEL[u.origem],
+    'Campanha Apple Ads': u.appleAdsCampaignId ?? '',
     'Valor cobrado (bruto)': priceForUser(u),
     [`Entrou em ${mes} (bruto)`]: receitaNoMes(u, mes),
     [`Entrou em ${mes} (líquido)`]: entrouLiquido(u),
@@ -180,7 +186,7 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
         </div>
       ) : (
         <div className="admin-scroll overflow-x-auto rounded-2xl border border-ninho-borda bg-white">
-          <table className="w-full min-w-[920px] text-left text-sm">
+          <table className="w-full min-w-[1040px] text-left text-sm">
             <thead>
               <tr className="border-b-2 border-ninho-borda text-xs font-medium text-ninho-cinza">
                 {CABECALHOS.map(([col, label]) => (
@@ -223,6 +229,19 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
                         {planoLabel(u)}
                       </span>
                     </td>
+                    <td
+                      className="whitespace-nowrap px-4 py-3 text-ninho-grafite"
+                      title={u.appleAdsCampaignId ? `Campanha ${u.appleAdsCampaignId} no Apple Ads` : undefined}
+                    >
+                      <span
+                        className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle"
+                        style={{ background: ORIGEM_COR[u.origem] }}
+                      />
+                      {ORIGEM_LABEL[u.origem]}
+                      {u.appleAdsCampaignId && (
+                        <span className="ml-1 text-[11px] text-ninho-cinza">#{u.appleAdsCampaignId}</span>
+                      )}
+                    </td>
                     <td className="whitespace-nowrap px-4 py-3 text-ninho-grafite">
                       {formatBRL(priceForUser(u))}
                       <span className="ml-1 text-[11px] text-ninho-cinza">
@@ -256,7 +275,7 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-ninho-borda bg-ninho-nuvem">
-                <td colSpan={4} className="px-4 py-3 text-xs font-semibold uppercase text-ninho-cinza">
+                <td colSpan={5} className="px-4 py-3 text-xs font-semibold uppercase text-ninho-cinza">
                   Entrou em {mes}
                 </td>
                 <td colSpan={4} className="px-4 py-3 font-bold text-ninho-roxo-escuro">
@@ -276,7 +295,9 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
         <strong>Valor cobrado</strong> é o preço de tabela, o que sai do cartão do cliente — no
         anual, o ano inteiro. <strong>Entrou</strong> é o que caiu pra você no mês: a cobrança menos
         os {Math.round(TAXA_LOJA * 100)}% da loja, e R$ 0,00 nos meses sem cobrança.{' '}
-        <strong>Assinou em</strong> vem da primeira compra verificada, não da data de cadastro.
+        <strong>Assinou em</strong> vem da primeira compra verificada, não da data de cadastro.{' '}
+        <strong>Origem</strong>: Apple Ads é confirmado pela Apple (o número é a campanha); o resto é
+        o que a pessoa respondeu no cadastro.
       </p>
     </>
   );

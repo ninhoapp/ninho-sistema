@@ -21,8 +21,20 @@ import { Notice } from '@/components/admin/Notice';
 import { BarChart } from '@/components/admin/BarChart';
 import { MonthFilter } from '@/components/admin/MonthFilter';
 import { IconCash, IconCard, IconServer, IconScale } from '@/components/admin/icons';
+import { ORIGENS, ORIGEM_COR, ORIGEM_LABEL } from '@/lib/origem';
+import type { AppUser } from '@/lib/app-users';
 
 export const dynamic = 'force-dynamic';
+
+/** Contagem por origem, na ordem de ORIGENS. Origem sem ninguém some do
+ *  gráfico — exceto quando TODO mundo é zero, aí o BarChart mostra o vazio. */
+function porOrigem(lista: AppUser[]) {
+  return ORIGENS.map((o) => ({
+    label: ORIGEM_LABEL[o],
+    value: lista.filter((u) => u.origem === o).length,
+    color: ORIGEM_COR[o],
+  })).filter((d, _i, todos) => d.value > 0 || todos.every((t) => t.value === 0));
+}
 
 function mesValido(v: string | undefined): string {
   return v && /^\d{4}-\d{2}$/.test(v) ? v : new Date().toISOString().slice(0, 7);
@@ -68,6 +80,11 @@ export default async function FaturamentoPage({
   const pagantes = users.filter(isPagante);
   const mensais = pagantes.filter((u) => u.plan_interval !== 'anual').length;
   const anuais = pagantes.filter((u) => u.plan_interval === 'anual').length;
+
+  // Quem virou assinante NO MÊS selecionado (primeira compra verificada) —
+  // é o recorte que responde "qual anúncio está trazendo assinante agora".
+  const assinaramNoMes = pagantes.filter((u) => u.assinouEm?.slice(0, 7) === mes);
+  const semOrigem = pagantes.filter((u) => u.origem === 'sem_informacao').length;
 
   // Resultado dos últimos 6 meses — agora com receita REAL por mês, porque
   // cada cobrança tem data. Antes isto repetia a receita de hoje em todos os
@@ -190,6 +207,35 @@ export default async function FaturamentoPage({
         <strong>Receita bruta</strong> é caixa: só entra no mês em que a loja cobrou.{' '}
         <strong>MRR</strong> é recorrência: dilui o anual por 12 para mostrar o que se espera num mês
         típico. Os dois são certos e respondem perguntas diferentes — por isso ficam lado a lado.
+      </p>
+
+      <h2 className="mb-3 text-base font-bold text-ninho-grafite">De onde vêm os assinantes</h2>
+      <div className="mb-2 grid gap-4 lg:grid-cols-2">
+        <div>
+          <p className="mb-2 text-xs font-semibold text-ninho-cinza">
+            Assinaram em {mes} · {assinaramNoMes.length}
+          </p>
+          <BarChart data={porOrigem(assinaramNoMes)} />
+        </div>
+        <div>
+          <p className="mb-2 text-xs font-semibold text-ninho-cinza">
+            Todos os assinantes ativos · {pagantes.length}
+          </p>
+          <BarChart data={porOrigem(pagantes)} />
+        </div>
+      </div>
+      <p className="mb-8 text-xs text-ninho-cinza">
+        <strong>Apple Ads</strong> é confirmado pela própria Apple, assinante por assinante.{' '}
+        <strong>Instagram/Facebook</strong> e as demais são o que a pessoa respondeu no cadastro —
+        inclui anúncio e post orgânico. O resultado por campanha da Meta fica no Gerenciador de
+        Anúncios (coluna Assinaturas).
+        {semOrigem > 0 && (
+          <>
+            {' '}
+            <strong>Sem informação</strong> ({semOrigem}): quem assinou antes da medição existir ou
+            ainda não abriu a versão nova do app.
+          </>
+        )}
       </p>
 
       <h2 className="mb-3 text-base font-bold text-ninho-grafite">
