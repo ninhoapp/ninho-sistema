@@ -13,7 +13,8 @@ import { STATUS_ASSINANTE, STATUS_TRIAL_EDITAVEL, type StatusConta } from '@/lib
 import type { PreviaExclusao } from '@/lib/painel/store';
 import type { SeriesPoint } from '@/lib/dashboard-charts';
 import { PasswordInput } from '@/components/admin/PasswordInput';
-import { ColumnFilter, applyColumnFilters } from '@/components/admin/ColumnFilter';
+import { applyColumnFilters } from '@/components/admin/ColumnFilter';
+import { ThSort, nextSort, type SortDir } from '@/components/admin/ThSort';
 import { ExportExcelButton } from '@/components/admin/ExportExcelButton';
 import { CopyAll } from '@/components/admin/CopyAll';
 import { VerticalBarChart } from '@/components/admin/VerticalBarChart';
@@ -65,17 +66,16 @@ const STATUS_STYLE: Record<StatusConta, string> = {
 // Toda coluna ordena e filtra — as duas listas cobrem as 10, na mesma ordem
 // em que aparecem na tabela.
 type SortKey =
-  | 'nome' | 'created_at' | 'idade' | 'registros' | 'momentos' | 'status'
+  | 'nome' | 'created_at' | 'idade' | 'uso' | 'registros' | 'momentos' | 'status'
   | 'dias' | 'sistema' | 'versao' | 'email';
 
-type SortDir = 'asc' | 'desc';
 type FilterCol = SortKey;
 
 type StatKey = 'total' | 'hoje' | 'assinantes' | 'trial_ativo' | 'trial_expirado';
 
 // Larguras padrão em px, na ordem das células: a primeira é a caixinha de
 // seleção (que não ordena nem filtra), as outras seguem CABECALHOS.
-const DEFAULT_COL_WIDTHS = [40, 170, 90, 90, 100, 90, 130, 70, 80, 80, 200];
+const DEFAULT_COL_WIDTHS = [40, 170, 90, 90, 80, 100, 90, 130, 70, 80, 80, 200];
 
 // Fuso de quem opera o painel (Dubai), não o dos usuários: é daqui que os
 // anúncios rodam, e é essa virada de dia que precisa bater com "novos
@@ -198,6 +198,40 @@ function idadeSortValue(r: UsuarioRow): number {
   return (Date.now() - new Date(`${r.birthDate}T00:00:00`).getTime()) / 86400000;
 }
 
+// ─── DIAS DE USO ───────────────────────────────────────────────────────
+//
+// Dias distintos em que a conta ABRIU o app (evento `app_aberto`), não dias
+// com lançamento. É a medida mais completa das duas: 482 das 497 contas têm
+// abertura registrada contra 314 com lançamento, e em 272 casos a pessoa abre
+// mais dias do que lança — quem usa e não registra só aparece nesta coluna.
+//
+// Lida junto com Lançamentos, separa três perfis: muito uso e muito
+// lançamento (engajada), muito uso e pouco lançamento (gosta mas não virou
+// hábito), pouco uso (perdida).
+//
+// Histórico começa em 19/08/2026, quando `app_aberto` passou a ser gravado —
+// conta anterior a isso tem o número subestimado.
+
+/** Lançamentos por dia de uso: o quanto a pessoa aproveita cada abertura. */
+function intensidade(r: UsuarioRow): number | null {
+  if (r.diasAbertura <= 0) return null;
+  return r.registros / r.diasAbertura;
+}
+
+function usoTooltip(r: UsuarioRow): string {
+  const i = intensidade(r);
+  const base = `${r.diasAbertura} dia(s) abrindo o app · ${r.diasRegistro} dia(s) registrando`;
+  return i === null ? base : `${base} · ${i.toFixed(1)} lançamento(s) por dia de uso`;
+}
+
+/** Destaca quem usa bastante — candidata natural a assinar. */
+function usoClass(r: UsuarioRow): string {
+  if (r.diasAbertura >= 7) return 'font-semibold text-ninho-roxo-escuro';
+  if (r.diasAbertura >= 3) return 'font-medium text-ninho-grafite';
+  if (r.diasAbertura === 0) return 'text-ninho-cinza';
+  return 'text-ninho-grafite';
+}
+
 function sistemaLabel(r: UsuarioRow): string {
   if (r.sistema === 'ios') return 'iOS';
   if (r.sistema === 'android') return 'Android';
@@ -216,6 +250,7 @@ function colValue(r: UsuarioRow, col: FilterCol): string {
     case 'email':      return r.email || '—';
     case 'created_at': return fmt(r.created_at);
     case 'idade':      return idadeFilterValue(r);
+    case 'uso':        return String(r.diasAbertura);
     case 'status':     return r.status;
     case 'registros':  return String(r.registros);
     case 'momentos':   return String(r.momentos);
@@ -232,6 +267,7 @@ const CABECALHOS: [SortKey, string][] = [
   ['nome', 'Nome'],
   ['created_at', 'Criou em'],
   ['idade', 'Idade do bebê'],
+  ['uso', 'Dias de uso'],
   ['registros', 'Lançamentos'],
   ['momentos', 'Momentos'],
   ['status', 'Status'],
@@ -246,63 +282,11 @@ const COLUNAS: SortKey[] = CABECALHOS.map(([c]) => c);
 
 /** Colunas cujo filtro lista valores numéricos (ordena por número, não por
  *  texto — senão 10 vem antes de 2). */
-const COLUNAS_NUMERICAS: Set<FilterCol> = new Set(['registros', 'momentos']);
+const COLUNAS_NUMERICAS: Set<FilterCol> = new Set(['uso', 'registros', 'momentos']);
 
-function SortArrow({ col, sort }: { col: SortKey; sort: { key: SortKey; dir: SortDir } | null }) {
-  if (!sort || sort.key !== col) return <span className="ml-1 text-ninho-borda opacity-70">↕</span>;
-  return <span className="ml-1 text-ninho-roxo">{sort.dir === 'asc' ? '↑' : '↓'}</span>;
-}
-
-/** Cabeçalho de coluna com sort + filtro opcional.
- *  DEVE ficar fora do componente UsuariosTable — se ficar dentro, o React
- *  recria a referência da função a cada render e desmonta/remonta o th
- *  inteiro, fazendo o dropdown do ColumnFilter fechar ao marcar um item. */
-function ThSort({
-  col, label, className = '', onResize,
-  filterOptions, filterSelected, onFilterChange,
-  sort, onSort,
-}: {
-  col: SortKey; label: string; className?: string;
-  onResize?: (e: React.MouseEvent) => void;
-  filterOptions?: string[];
-  filterSelected?: Set<string> | null;
-  onFilterChange?: (v: Set<string> | null) => void;
-  sort: { key: SortKey; dir: SortDir } | null;
-  onSort: (key: SortKey) => void;
-}) {
-  return (
-    <th
-      className={`group relative cursor-pointer select-none border-r border-ninho-borda p-3 last:border-r-0 hover:text-ninho-roxo ${className}`}
-      onClick={() => onSort(col)}
-    >
-      <div className="flex min-w-0 items-start gap-0.5">
-        <span className="min-w-0 flex-1 break-words leading-snug">
-          {label}
-          <SortArrow col={col} sort={sort} />
-        </span>
-        {filterOptions && (
-          <ColumnFilter
-            options={filterOptions}
-            selected={filterSelected ?? null}
-            onChange={onFilterChange!}
-          />
-        )}
-      </div>
-      {onResize && <ResizeHandle onMouseDown={onResize} />}
-    </th>
-  );
-}
-
-/** Handle de redimensionamento no canto direito do th. */
-export function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => void }) {
-  return (
-    <div
-      onMouseDown={onMouseDown}
-      className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize opacity-0 transition-opacity hover:bg-ninho-roxo hover:opacity-40 group-hover:opacity-20"
-      style={{ zIndex: 1 }}
-    />
-  );
-}
+// ThSort, SortArrow e ResizeHandle vivem em components/admin/ThSort.tsx —
+// compartilhados com a tabela de Assinantes, pra ordenação e filtro se
+// comportarem igual nas duas telas.
 
 /** Scrollbar dupla sincronizada (topo + fundo) — a tabela é mais larga que
  *  a tela, e sem a de cima só dá pra rolar chegando ao fim da lista. */
@@ -487,10 +471,7 @@ export function UsuariosTable({
   }, [rows]);
 
   function toggleSort(key: SortKey) {
-    setSort((prev) => {
-      if (prev?.key === key) return prev.dir === 'asc' ? { key, dir: 'desc' } : null;
-      return { key, dir: 'asc' };
-    });
+    setSort((prev) => nextSort(prev, key));
   }
 
   function limpar() {
@@ -535,6 +516,7 @@ export function UsuariosTable({
           case 'email': cmp = (a.email ?? '').localeCompare(b.email ?? '', 'pt-BR'); break;
           case 'created_at': cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime(); break;
           case 'idade': cmp = idadeSortValue(a) - idadeSortValue(b); break;
+          case 'uso': cmp = a.diasAbertura - b.diasAbertura; break;
           case 'status': cmp = a.status.localeCompare(b.status, 'pt-BR'); break;
           case 'registros': cmp = a.registros - b.registros; break;
           case 'momentos': cmp = a.momentos - b.momentos; break;
@@ -590,7 +572,9 @@ export function UsuariosTable({
         Nome: r.name || '',
         'Criou em': fmt(r.created_at),
         'Idade do bebê': idadeLabel(r),
+        'Dias de uso': r.diasAbertura,
         Lançamentos: r.registros,
+        'Lançamentos por dia de uso': intensidade(r)?.toFixed(1) ?? '',
         Momentos: r.momentos,
         Status: r.status,
         'Herdado de': r.herdadoDe || '',
@@ -1014,6 +998,12 @@ export function UsuariosTable({
                     <div className="truncate">{idadeLabel(r)}</div>
                   </td>
                   <td
+                    className={`overflow-hidden p-3 text-right tabular-nums ${usoClass(r)}`}
+                    title={usoTooltip(r)}
+                  >
+                    {r.diasAbertura}
+                  </td>
+                  <td
                     className="overflow-hidden p-3 text-right font-medium tabular-nums text-ninho-grafite"
                     title={`${r.diasRegistro} dia(s) registrando · ${r.diasAbertura} dia(s) abrindo o app`}
                   >
@@ -1075,9 +1065,12 @@ export function UsuariosTable({
         (ex.: -2m) = data de nascimento no futuro. "—" = conta sem bebê cadastrado ainda. O filtro
         agrupa por mês completo de vida (5d/20d/28d caem em "0m", 1m/1m11d/1m28d caem em "1m") — é
         mais grosso de propósito que o texto da célula.{' '}
+        <strong>Dias de uso:</strong> dias distintos em que a conta abriu o app. Lida junto com
+        Lançamentos separa quem gosta mas não criou hábito (abre muito, registra pouco) de quem
+        engajou de verdade — o tooltip traz os lançamentos por dia de uso. Roxo = 7 dias ou mais.
+        Só há histórico a partir de 19/08/2026, quando o app começou a registrar abertura.{' '}
         <strong>Lançamentos:</strong> registros reais de ATIVIDADE do bebê — sono, mamada, fralda,
-        comida, remédio (regra da view <code>registros_reais</code>) — o tooltip mostra em quantos
-        dias distintos ele registrou e abriu o app. Não inclui momentos.{' '}
+        comida, remédio (regra da view <code>registros_reais</code>). Não inclui momentos.{' '}
         <strong>Momentos:</strong> fotos/álbum criados pela conta, contados à parte — as duas
         colunas juntas explicam de onde vem um pico de lançamentos (rotina de verdade vs. importar
         fotos de uma vez).{' '}

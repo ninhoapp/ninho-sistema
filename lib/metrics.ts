@@ -123,6 +123,29 @@ export function receitaBrutaDoMes(users: AppUser[], mes: string, hoje: Date = ne
   return users.reduce((s, u) => s + receitaNoMes(u, mes, hoje), 0);
 }
 
+/**
+ * Receita bruta de TODO o período: cada cobrança que já aconteceu, desde a
+ * primeira assinatura. Soma os mesmos eventos que `receitaBrutaDoMes` conta
+ * mês a mês — então o acumulado sempre bate com a soma dos meses.
+ */
+export function receitaBrutaTotal(users: AppUser[], hoje: Date = new Date()): number {
+  return users.reduce(
+    (s, u) => s + mesesComCobranca(u, hoje).length * priceForUser(u),
+    0
+  );
+}
+
+/** Primeiro mês (yyyy-mm) com alguma cobrança. Null = ninguém pagou ainda. */
+export function primeiroMesComReceita(users: AppUser[], hoje: Date = new Date()): string | null {
+  let min: string | null = null;
+  for (const u of users) {
+    for (const m of mesesComCobranca(u, hoje)) {
+      if (min === null || m < min) min = m;
+    }
+  }
+  return min;
+}
+
 // ── Comissão ──────────────────────────────────────────────
 /** Quanto a comissão vale em R$ para cada tipo de plano. */
 export function commissionPerPlan(p: Perfil): ComissaoPorPlano[] {

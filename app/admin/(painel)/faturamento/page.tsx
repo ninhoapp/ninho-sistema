@@ -9,6 +9,8 @@ import {
   formatBRL,
   isPagante,
   receitaBrutaDoMes,
+  receitaBrutaTotal,
+  primeiroMesComReceita,
 } from '@/lib/metrics';
 import { DivergingBarChart, type DBar } from '@/components/admin/DivergingBarChart';
 import { AssinantesTable } from '@/components/admin/AssinantesTable';
@@ -51,6 +53,13 @@ export default async function FaturamentoPage({
   const receitaBruta = receitaBrutaDoMes(users, mes);
   const receitaLiquida = liquido(receitaBruta);
   const pnl = buildPnL(receitaLiquida, custos, repasses, mes);
+
+  // Acumulado desde a primeira cobrança. `buildPnL` e `custosDoMes` sem mês
+  // somam tudo — é a mesma conta do bloco mensal, só sem o recorte.
+  const receitaBrutaAcum = receitaBrutaTotal(users);
+  const receitaLiquidaAcum = liquido(receitaBrutaAcum);
+  const pnlAcum = buildPnL(receitaLiquidaAcum, custos, repasses);
+  const desdeMes = primeiroMesComReceita(users);
 
   // MRR continua existindo ao lado, como leitura de recorrência: é o que se
   // esperaria receber num mês típico, com o anual diluído.
@@ -95,7 +104,45 @@ export default async function FaturamentoPage({
         </Notice>
       )}
 
-      <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <h2 className="mb-3 text-base font-bold text-ninho-grafite">
+        Todo o período{' '}
+        {desdeMes && (
+          <span className="font-normal text-ninho-cinza">· desde {desdeMes}</span>
+        )}
+      </h2>
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Receita bruta"
+          value={formatBRL(receitaBrutaAcum)}
+          hint="Tudo que a loja já cobrou"
+          compactHint
+          icon={<IconCash />}
+        />
+        <StatCard
+          label="Receita líquida"
+          value={formatBRL(receitaLiquidaAcum)}
+          hint={`Após ${Math.round(TAXA_LOJA * 100)}% da loja`}
+          accent
+          icon={<IconCard />}
+        />
+        <StatCard
+          label="Custo total"
+          value={formatBRL(pnlAcum.custoTotal)}
+          hint="Todas as despesas + repasses"
+          compactHint
+          icon={<IconServer />}
+        />
+        <StatCard
+          label="Lucro"
+          value={formatBRL(pnlAcum.lucro)}
+          hint={`Margem ${pnlAcum.margem.toFixed(1)}%`}
+          danger={pnlAcum.lucro < 0}
+          icon={<IconScale />}
+        />
+      </div>
+
+      <h2 className="mb-3 text-base font-bold text-ninho-grafite">Este mês · {mes}</h2>
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Receita bruta"
           value={formatBRL(receitaBruta)}
@@ -125,6 +172,7 @@ export default async function FaturamentoPage({
         />
       </div>
 
+      <h2 className="mb-3 text-base font-bold text-ninho-grafite">Assinantes</h2>
       <div className="mb-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard label="Assinantes" value={m.pagantes} />
         <StatCard label="Mensais" value={mensais} />
