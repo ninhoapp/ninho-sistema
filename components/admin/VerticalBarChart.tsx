@@ -22,11 +22,14 @@ export function VerticalBarChart({
   }
 
   return (
-    <div className="admin-scroll overflow-x-auto rounded-2xl border border-ninho-borda bg-white p-5">
-      <div className="flex min-w-fit items-end gap-4" style={{ height }}>
+    // Todas as barras cabem na largura do card, sem rolagem lateral: cada
+    // coluna encolhe (min-w-0) e o valor quebra em duas linhas se precisar
+    // ("R$" em cima, "493,50" embaixo) em vez de empurrar a largura.
+    <div className="rounded-2xl border border-ninho-borda bg-white p-3 sm:p-5">
+      <div className="flex items-end gap-1 sm:gap-3" style={{ height }}>
         {data.map((d) => (
-          <div key={d.label} className="flex h-full min-w-[52px] flex-1 flex-col items-center justify-end gap-2">
-            <span className="whitespace-nowrap text-[11px] font-semibold text-ninho-grafite">
+          <div key={d.label} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
+            <span className="w-full text-center text-[10px] font-semibold leading-tight text-ninho-grafite sm:text-[11px]">
               {fmt(d.value)}
             </span>
             <div
@@ -38,7 +41,7 @@ export function VerticalBarChart({
                 background: d.color || '#9F86E0',
               }}
             />
-            <span className="whitespace-nowrap text-[11px] text-ninho-cinza">{d.label}</span>
+            <span className="w-full truncate text-center text-[10px] text-ninho-cinza sm:text-[11px]">{d.label}</span>
           </div>
         ))}
       </div>

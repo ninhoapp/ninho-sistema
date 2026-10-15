@@ -104,6 +104,11 @@ export default async function FaturamentoPage({
     highlight: mm.atual,
   }));
 
+  // Valor curto pro gráfico ("R$ 494", "R$ 1,5 mil"): com 7 barras lado a
+  // lado no celular, "R$ 1.493,50" não cabe e quebraria no meio do número.
+  const brlCurto = (v: number) =>
+    v >= 1000 ? `R$ ${(v / 1000).toFixed(1).replace('.', ',')} mil` : `R$ ${Math.round(v)}`;
+
   // Resultado dos últimos 6 meses — agora com receita REAL por mês, porque
   // cada cobrança tem data. Antes isto repetia a receita de hoje em todos os
   // meses, e só os custos variavam.
@@ -228,7 +233,7 @@ export default async function FaturamentoPage({
           <VerticalBarChart
             data={receitaPorMes}
             height={140}
-            formatValue={formatBRL}
+            formatValue={brlCurto}
           />
         </section>
       </div>
