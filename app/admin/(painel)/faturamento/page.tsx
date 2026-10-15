@@ -22,6 +22,8 @@ import { StatCard } from '@/components/admin/StatCard';
 import { Notice } from '@/components/admin/Notice';
 import { BarChart } from '@/components/admin/BarChart';
 import { MonthFilter } from '@/components/admin/MonthFilter';
+import { VerticalBarChart } from '@/components/admin/VerticalBarChart';
+import { bucketByMonth, ultimosMeses } from '@/lib/dashboard-charts';
 import { IconCash, IconCard, IconServer, IconScale } from '@/components/admin/icons';
 import { ORIGENS, ORIGEM_COR, ORIGEM_LABEL } from '@/lib/origem';
 import type { AppUser } from '@/lib/app-users';
@@ -88,6 +90,19 @@ export default async function FaturamentoPage({
   // é o recorte que responde "qual anúncio está trazendo assinante agora".
   const assinaramNoMes = pagantes.filter((u) => u.assinouEm?.slice(0, 7) === mes);
   const semOrigem = pagantes.filter((u) => u.origem === 'sem_informacao').length;
+
+  // Gráficos por mês (últimos 7, igual ao de usuários novos): quantos
+  // assinaram em cada mês (primeira compra — inclui quem depois cancelou,
+  // porque naquele mês virou assinante) e quanto a loja cobrou no mês.
+  const assinantesPorMes = bucketByMonth(
+    users.filter((u) => u.assinouEm && (isPagante(u) || u.estado === 'churn')).map((u) => u.assinouEm as string),
+    7,
+  );
+  const receitaPorMes = ultimosMeses(7).map((mm) => ({
+    label: mm.label,
+    value: receitaBrutaDoMes(users, mm.key),
+    highlight: mm.atual,
+  }));
 
   // Resultado dos últimos 6 meses — agora com receita REAL por mês, porque
   // cada cobrança tem data. Antes isto repetia a receita de hoje em todos os
@@ -197,6 +212,25 @@ export default async function FaturamentoPage({
           danger={pnl.lucro < 0}
           icon={<IconScale />}
         />
+      </div>
+
+      <div className="mb-8 grid gap-6 lg:grid-cols-2">
+        <section className="rounded-2xl border border-ninho-borda bg-white p-6">
+          <h2 className="mb-4 text-base font-bold text-ninho-grafite">
+            Assinantes novos por mês (últimos 7 meses)
+          </h2>
+          <VerticalBarChart data={assinantesPorMes} height={140} />
+        </section>
+        <section className="rounded-2xl border border-ninho-borda bg-white p-6">
+          <h2 className="mb-4 text-base font-bold text-ninho-grafite">
+            Receita bruta por mês (últimos 7 meses)
+          </h2>
+          <VerticalBarChart
+            data={receitaPorMes}
+            height={140}
+            formatValue={formatBRL}
+          />
+        </section>
       </div>
 
       <h2 className="mb-3 text-base font-bold text-ninho-grafite">Assinantes</h2>

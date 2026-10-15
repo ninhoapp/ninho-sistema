@@ -69,6 +69,25 @@ export function bucketByMonth(dates: string[], months: number): SeriesPoint[] {
   return pontos;
 }
 
+/** Os últimos N meses (mês atual incluso) como chave yyyy-mm + rótulo, no
+ *  fuso do painel — mesma régua de `bucketByMonth`, pra séries que não são
+ *  contagem de datas (ex.: receita). */
+export function ultimosMeses(months: number): { key: string; label: string; atual: boolean }[] {
+  const [anoAtual, mesAtual] = tzDateString(new Date()).split('-').map(Number);
+  const out: { key: string; label: string; atual: boolean }[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const total = anoAtual * 12 + (mesAtual - 1) - i;
+    const y = Math.floor(total / 12);
+    const m0 = ((total % 12) + 12) % 12;
+    out.push({
+      key: `${y}-${String(m0 + 1).padStart(2, '0')}`,
+      label: `${MES_ABREV[m0]}/${String(y).slice(2)}`,
+      atual: i === 0,
+    });
+  }
+  return out;
+}
+
 export interface UsuariosCharts {
   usuariosPorDia: SeriesPoint[];
   usuariosPorMes: SeriesPoint[];
