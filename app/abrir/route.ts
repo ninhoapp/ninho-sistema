@@ -23,8 +23,8 @@
  * conhecidos, e assim ninguém monta um link do domínio do Ninho que joga a
  * pessoa em outro esquema.
  *
- * Quem manda estes links: supabase/functions/enviar-nudges (urlAbrirApp)
- * no repositório Ninho-expo.
+ * Quem manda estes links: supabase/functions/enviar-nudges (urlAbrirApp) e
+ * supabase/functions/send-caregiver-invite, no repositório Ninho-expo.
  */
 import { NextResponse } from 'next/server';
 
@@ -32,12 +32,20 @@ import { STORE_ANDROID_URL, STORE_IOS_URL, LANDING_URL } from '@/lib/config';
 
 const SCHEME = 'ninho://';
 
-/** Destinos aceitos em `?to=`. Vazio = abre o app onde ele abrir. */
-const ROTAS = new Set(['', 'baby-profile', 'settings/subscription-plans']);
+/** Destinos aceitos em `?to=`. Vazio = abre o app onde ele abrir.
+ *  `signup` é o botão do e-mail de convite de cuidador
+ *  (send-caregiver-invite): abre o cadastro com o e-mail já preenchido. */
+const ROTAS = new Set(['', 'baby-profile', 'settings/subscription-plans', 'signup']);
+
+/** Só repassa algo com cara de e-mail — nada de montar URL com texto livre. */
+const EMAIL_OK = /^[^\s@"'<>]+@[^\s@"'<>]+\.[^\s@"'<>]+$/;
 
 export async function GET(request: Request) {
-  const to = new URL(request.url).searchParams.get('to') ?? '';
-  const deep = SCHEME + (ROTAS.has(to) ? to : '');
+  const params = new URL(request.url).searchParams;
+  const to = params.get('to') ?? '';
+  const email = params.get('email') ?? '';
+  const query = to === 'signup' && EMAIL_OK.test(email) ? `?email=${encodeURIComponent(email)}` : '';
+  const deep = SCHEME + (ROTAS.has(to) ? to + query : '');
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -99,7 +107,8 @@ export async function GET(request: Request) {
       'Content-Type': 'text/html; charset=utf-8',
       // Seguro porque o HTML não depende mais do User-Agent — só de `to`,
       // que já está na URL (e portanto na chave de cache).
-      'Cache-Control': 'public, max-age=300',
+      // Com e-mail na URL, nada de cache na borda: é dado pessoal.
+      'Cache-Control': query ? 'private, no-store' : 'public, max-age=300',
       'X-Robots-Tag': 'noindex',
     },
   });
