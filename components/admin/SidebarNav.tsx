@@ -23,6 +23,7 @@ const NAV: Record<Role, NavItem[]> = {
     { href: '/admin/despesas', label: 'Despesas' },
     { href: '/admin/usuarios', label: 'Usuários ativos' },
     { href: '/admin/conversoes', label: 'Conversões' },
+    { href: '/admin/analise', label: 'Análise de dados' },
     { href: '/admin/kpi', label: 'KPI' },
     { href: '/admin/perfis', label: 'Gerenciar perfis' },
     { href: '/admin/leads', label: 'Leads' },
