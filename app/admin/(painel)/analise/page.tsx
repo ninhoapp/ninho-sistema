@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/auth/guard';
 import { montarAnalise, produtoLabel, type CampanhaResumo, type Canal } from '@/lib/analise';
-import { formatDate } from '@/lib/metrics';
+import { formatDate, taxaConversaoNascidos, taxaConversaoHint } from '@/lib/metrics';
+import { fetchAppUsers } from '@/lib/app-users';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
 import { Notice } from '@/components/admin/Notice';
@@ -124,7 +125,8 @@ function CardCampanha({ c, emailRastreado }: { c: CampanhaResumo; emailRastreado
 
 export default async function AnalisePage() {
   requireRole('admin');
-  const a = await montarAnalise();
+  const [a, users] = await Promise.all([montarAnalise(), fetchAppUsers()]);
+  const conversao = taxaConversaoNascidos(users);
 
   if (!a) {
     return (
@@ -168,8 +170,15 @@ export default async function AnalisePage() {
         </Notice>
       )}
 
-      <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Pessoas alcançadas" value={tot.pessoas} hint={`em ${campanhas.length} campanhas`} compactHint accent />
+      <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <StatCard
+          label="Taxa de conversão"
+          value={`${conversao.taxa.toFixed(1)}%`}
+          hint={taxaConversaoHint(conversao)}
+          compactHint
+          accent
+        />
+        <StatCard label="Pessoas alcançadas" value={tot.pessoas} hint={`em ${campanhas.length} campanhas`} compactHint />
         <StatCard label="Push abertas" value={pct(tot.pushAbr, tot.pushEnv)} hint={`${tot.pushAbr} de ${tot.pushEnv} enviadas`} compactHint />
         <StatCard label="Sininho lido" value={pct(tot.sinLido, tot.sinEnv)} hint={`${tot.sinLido} de ${tot.sinEnv} entregues`} compactHint />
         <StatCard label="Assinaram depois de uma campanha" value={tot.assinaram} hint="Primeira compra após receber" compactHint />

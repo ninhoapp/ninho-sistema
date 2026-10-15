@@ -203,6 +203,68 @@ export function buildOverview(users: AppUser[]): OverviewMetrics {
   };
 }
 
+// ── Taxa de conversão (bebês já nascidos) ─────────────────
+/** Bebê com até esta idade (em dias) não entra na taxa de conversão. */
+export const IDADE_MIN_CONVERSAO_DIAS = 3;
+
+export interface TaxaConversao {
+  /** 0–100. */
+  taxa: number;
+  assinantes: number;
+  /** Base: expirados + assinantes + churn que passaram no filtro do bebê. */
+  base: number;
+  expirados: number;
+  /** Contas fora da conta por causa do bebê (sem bebê, não nasceu ou ≤3 dias). */
+  foraPeloBebe: number;
+}
+
+/** Dias de vida do bebê hoje, no calendário de São Paulo. Negativo = ainda
+ *  não nasceu. Null = conta sem bebê cadastrado. */
+export function diasDeVida(birthDate: string | null, hoje: Date = new Date()): number | null {
+  if (!birthDate) return null;
+  const hojeBR = hoje.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  return Math.round((Date.parse(hojeBR) - Date.parse(birthDate.slice(0, 10))) / 86_400_000);
+}
+
+/**
+ * Taxa de conversão do trial contando SÓ bebês que já nasceram há mais de
+ * 3 dias. Regra do dono (15/10/2026): quem tem bebê a caminho (idade
+ * negativa) ou recém-nascido (até 3 dias) ainda não teve como usar o app
+ * de verdade — tratar como "não converteu" afunda a taxa sem motivo.
+ *
+ * Mesma lógica de base da taxa do KPI (só quem já decidiu: expirado +
+ * assinante + churn; trial ativo fica de fora), com o filtro do bebê
+ * aplicado à base INTEIRA — numerador e denominador — pra não comparar
+ * grupos diferentes. Idade é a de HOJE, a mesma que a tela de usuários
+ * mostra. Quem herda o plano de outra conta (cuidador coberto por quem
+ * paga) não entra: não foi uma decisão de compra dele.
+ */
+export function taxaConversaoNascidos(users: AppUser[], hoje: Date = new Date()): TaxaConversao {
+  let assinantes = 0;
+  let expirados = 0;
+  let churn = 0;
+  let foraPeloBebe = 0;
+  for (const u of users) {
+    if (!isPagante(u) && !isTrialExpirado(u) && !isChurn(u)) continue;
+    if (u.herdadoDe) continue;
+    const dias = diasDeVida(u.birthDate, hoje);
+    if (dias === null || dias <= IDADE_MIN_CONVERSAO_DIAS) {
+      foraPeloBebe++;
+      continue;
+    }
+    if (isPagante(u)) assinantes++;
+    else if (isChurn(u)) churn++;
+    else expirados++;
+  }
+  const base = assinantes + expirados + churn;
+  return { taxa: base > 0 ? (assinantes / base) * 100 : 0, assinantes, base, expirados, foraPeloBebe };
+}
+
+/** Texto do card — igual nas três telas que mostram a taxa. */
+export function taxaConversaoHint(t: TaxaConversao): string {
+  return `${t.assinantes} ÷ ${t.base} que terminaram o teste · só bebês com 4+ dias de vida`;
+}
+
 /**
  * Reconstrói a visão geral como estava numa data passada, para o comparativo
  * "vs período anterior".

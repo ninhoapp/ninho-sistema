@@ -11,6 +11,8 @@ import {
   receitaBrutaDoMes,
   receitaBrutaTotal,
   primeiroMesComReceita,
+  taxaConversaoNascidos,
+  taxaConversaoHint,
 } from '@/lib/metrics';
 import { DivergingBarChart, type DBar } from '@/components/admin/DivergingBarChart';
 import { AssinantesTable } from '@/components/admin/AssinantesTable';
@@ -56,6 +58,7 @@ export default async function FaturamentoPage({
   ]);
 
   const m = buildOverview(users);
+  const conversao = taxaConversaoNascidos(users);
   const repasses = buildRepasses(perfis, users, outcomes);
 
   // REGIME DE CAIXA: o que a loja cobrou NESTE mês. O anual entra inteiro no
@@ -127,7 +130,7 @@ export default async function FaturamentoPage({
           <span className="font-normal text-ninho-cinza">· desde {desdeMes}</span>
         )}
       </h2>
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
           label="Receita bruta"
           value={formatBRL(receitaBrutaAcum)}
@@ -155,6 +158,13 @@ export default async function FaturamentoPage({
           hint={`Margem ${pnlAcum.margem.toFixed(1)}%`}
           danger={pnlAcum.lucro < 0}
           icon={<IconScale />}
+        />
+        <StatCard
+          label="Taxa de conversão"
+          value={`${conversao.taxa.toFixed(1)}%`}
+          hint={taxaConversaoHint(conversao)}
+          compactHint
+          accent
         />
       </div>
 

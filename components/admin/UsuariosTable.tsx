@@ -381,10 +381,13 @@ export function UsuariosTable({
   rows,
   usuariosPorDia,
   usuariosPorMes,
+  conversao,
 }: {
   rows: UsuarioRow[];
   usuariosPorDia?: SeriesPoint[];
   usuariosPorMes?: SeriesPoint[];
+  /** Taxa de conversão (bebês já nascidos) — card informativo, não filtra. */
+  conversao?: { valor: string; hint: string };
 }) {
   const [busca, setBusca] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -616,7 +619,7 @@ export function UsuariosTable({
   return (
     <div>
       {/* ── Cards clicáveis (filtro rápido) ──────────────────────────── */}
-      <section className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-5">
+      <section className={`mb-4 grid grid-cols-2 gap-4 ${conversao ? 'md:grid-cols-3 xl:grid-cols-6' : 'md:grid-cols-5'}`}>
         {statCards.map(({ key, label, value }) => {
           const active = statFilter === key;
           return (
@@ -639,6 +642,13 @@ export function UsuariosTable({
             </button>
           );
         })}
+        {conversao && (
+          <div className="rounded-2xl border border-ninho-roxo bg-ninho-roxo-suave p-5">
+            <p className="text-xs uppercase tracking-wide text-ninho-cinza">Taxa de conversão</p>
+            <p className="mt-1 text-3xl font-bold text-ninho-roxo-escuro">{conversao.valor}</p>
+            <p className="mt-1 text-[10px] text-ninho-cinza">{conversao.hint}</p>
+          </div>
+        )}
       </section>
 
       {/* ── Novos usuários (dia/mês) ─────────────────────────────────── */}

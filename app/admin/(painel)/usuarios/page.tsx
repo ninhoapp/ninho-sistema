@@ -6,6 +6,7 @@ import {
   accountStatus,
 } from '@/lib/app-users';
 import { buildUsuariosCharts } from '@/lib/dashboard-charts';
+import { taxaConversaoNascidos, taxaConversaoHint } from '@/lib/metrics';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { Notice } from '@/components/admin/Notice';
 import { UsuariosTable, type UsuarioRow } from '@/components/admin/UsuariosTable';
@@ -17,6 +18,7 @@ export default async function UsuariosPage() {
 
   const [users, uso] = await Promise.all([fetchAppUsers(), fetchUsoPorUsuario()]);
   const charts = buildUsuariosCharts(users);
+  const conversao = taxaConversaoNascidos(users);
 
   const rows: UsuarioRow[] = users.map((u) => {
     const m = uso.get(u.id);
@@ -65,6 +67,7 @@ export default async function UsuariosPage() {
         rows={rows}
         usuariosPorDia={charts.usuariosPorDia}
         usuariosPorMes={charts.usuariosPorMes}
+        conversao={{ valor: `${conversao.taxa.toFixed(1)}%`, hint: taxaConversaoHint(conversao) }}
       />
     </div>
   );
