@@ -176,6 +176,7 @@ const bodyHtml = `
     <ul class="nav-links">
       <li><a href="/landing#features">Funcionalidades</a></li>
       <li><a href="/landing#planos">Planos</a></li>
+      <li><a href="/terms">Termos de Uso</a></li>
       <li><a href="/privacy">Privacidade</a></li>
     </ul>
   </div>
