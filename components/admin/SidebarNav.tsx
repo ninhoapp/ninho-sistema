@@ -16,6 +16,7 @@ interface NavItem {
  */
 const NAV: Record<Role, NavItem[]> = {
   admin: [
+    { href: '/admin/empresa', label: 'O prédio' },
     { href: '/admin/visao-geral', label: 'Visão geral' },
     { href: '/admin/conversores', label: 'Conversores' },
     { href: '/admin/repasses', label: 'Repasses' },

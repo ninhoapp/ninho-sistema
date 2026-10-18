@@ -1,0 +1,500 @@
+{
+  "versao": "2026-10-18",
+  "nota": "Fonte única da empresa virtual. O registro automático (scripts/empresa/registrar-atividade.mjs) e o prédio do /admin leem daqui. Skills do manual comum não acendem ninguém (estão em 'manual').",
+  "manual": [
+    "ninho-contexto",
+    "voz-da-marca",
+    "dados-do-ninho",
+    "regras-de-aprovacao",
+    "politica-de-saude"
+  ],
+  "setores": [
+    {
+      "id": "dir",
+      "nome": "Diretoria",
+      "andar": "Cobertura",
+      "abas": [
+        "Visão geral",
+        "KPI",
+        "Gerenciar perfis",
+        "Minha conta"
+      ],
+      "pessoas": [
+        {
+          "id": "valerio",
+          "nome": "Valério",
+          "cargo": "Chefe de gabinete",
+          "tipo": "sup",
+          "principal": true,
+          "skills": [
+            "diretoria-roteamento"
+          ]
+        },
+        {
+          "id": "joana",
+          "nome": "Joana",
+          "cargo": "BI",
+          "tipo": "agente",
+          "agente": "bi-diretoria"
+        },
+        {
+          "id": "darck",
+          "nome": "Darck",
+          "cargo": "Aprovações",
+          "tipo": "skill",
+          "skills": [
+            "mural-aprovacoes"
+          ]
+        },
+        {
+          "id": "laura",
+          "nome": "Laura",
+          "cargo": "Jurídico",
+          "tipo": "agente",
+          "agente": "juridico"
+        },
+        {
+          "id": "nando",
+          "nome": "Nando",
+          "cargo": "Regras",
+          "tipo": "skill",
+          "skills": [
+            "juridico-compliance"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cre",
+      "nome": "Crescimento",
+      "andar": "7º",
+      "abas": [
+        "Usuários ativos",
+        "Análise de dados"
+      ],
+      "pessoas": [
+        {
+          "id": "julia",
+          "nome": "Júlia",
+          "cargo": "Gerente de growth",
+          "tipo": "sup",
+          "skills": [
+            "setor-crescimento"
+          ]
+        },
+        {
+          "id": "pedro",
+          "nome": "Pedro",
+          "cargo": "Funil",
+          "tipo": "skill",
+          "skills": [
+            "funil-conversao"
+          ]
+        },
+        {
+          "id": "ana",
+          "nome": "Ana",
+          "cargo": "Réguas",
+          "tipo": "skill",
+          "skills": [
+            "reguas-automaticas"
+          ]
+        },
+        {
+          "id": "gabriel",
+          "nome": "Gabriel",
+          "cargo": "Remarketing",
+          "tipo": "agente",
+          "agente": "remarketing"
+        },
+        {
+          "id": "lia",
+          "nome": "Lia",
+          "cargo": "Comunicação",
+          "tipo": "skill",
+          "skills": [
+            "comunicacao-usuarios"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mkt",
+      "nome": "Marketing",
+      "andar": "6º",
+      "abas": [],
+      "pessoas": [
+        {
+          "id": "livia",
+          "nome": "Lívia",
+          "cargo": "Diretora de marketing",
+          "tipo": "sup",
+          "skills": [
+            "setor-marketing"
+          ]
+        },
+        {
+          "id": "rafa",
+          "nome": "Rafa",
+          "cargo": "Calendário",
+          "tipo": "skill",
+          "skills": [
+            "calendario-editorial"
+          ]
+        },
+        {
+          "id": "duda",
+          "nome": "Duda",
+          "cargo": "Roteiro e legenda",
+          "tipo": "skill",
+          "skills": [
+            "roteiro-e-legenda"
+          ]
+        },
+        {
+          "id": "theo",
+          "nome": "Théo",
+          "cargo": "Criador visual",
+          "tipo": "agente",
+          "agente": "criador-visual",
+          "skills": [
+            "producao-video-ia"
+          ]
+        },
+        {
+          "id": "nina",
+          "nome": "Nina",
+          "cargo": "Social media",
+          "tipo": "agente",
+          "agente": "social-media"
+        }
+      ]
+    },
+    {
+      "id": "aqu",
+      "nome": "Aquisição",
+      "andar": "5º",
+      "abas": [],
+      "pessoas": [
+        {
+          "id": "caio",
+          "nome": "Caio",
+          "cargo": "Gestor de tráfego",
+          "tipo": "sup",
+          "skills": [
+            "setor-aquisicao"
+          ]
+        },
+        {
+          "id": "lara",
+          "nome": "Lara",
+          "cargo": "Meta Ads",
+          "tipo": "skill",
+          "skills": [
+            "meta-ads"
+          ]
+        },
+        {
+          "id": "igor",
+          "nome": "Igor",
+          "cargo": "Apple Search Ads",
+          "tipo": "skill",
+          "skills": [
+            "apple-search-ads"
+          ]
+        },
+        {
+          "id": "mel",
+          "nome": "Mel",
+          "cargo": "Criativos",
+          "tipo": "skill",
+          "skills": [
+            "criativos-performance"
+          ]
+        },
+        {
+          "id": "davi",
+          "nome": "Davi",
+          "cargo": "Origem dos assinantes",
+          "tipo": "agente",
+          "agente": "origem-assinantes"
+        },
+        {
+          "id": "bia",
+          "nome": "Bia",
+          "cargo": "ASO e lojas",
+          "tipo": "skill",
+          "skills": [
+            "aso-lojas"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fin",
+      "nome": "Financeiro",
+      "andar": "4º",
+      "abas": [
+        "Faturamento e lucro",
+        "Despesas",
+        "Repasses"
+      ],
+      "pessoas": [
+        {
+          "id": "marta",
+          "nome": "Marta",
+          "cargo": "Diretora financeira",
+          "tipo": "sup",
+          "skills": [
+            "setor-financeiro"
+          ]
+        },
+        {
+          "id": "otavio",
+          "nome": "Otávio",
+          "cargo": "Receita",
+          "tipo": "skill",
+          "skills": [
+            "receita-assinaturas"
+          ]
+        },
+        {
+          "id": "vera",
+          "nome": "Vera",
+          "cargo": "Custos",
+          "tipo": "skill",
+          "skills": [
+            "custos-operacao"
+          ]
+        },
+        {
+          "id": "fabio",
+          "nome": "Fábio",
+          "cargo": "Fiscal",
+          "tipo": "skill",
+          "skills": [
+            "fiscal-contador"
+          ]
+        },
+        {
+          "id": "sara",
+          "nome": "Sara",
+          "cargo": "Projeções",
+          "tipo": "skill",
+          "skills": [
+            "projecoes-financeiras"
+          ]
+        },
+        {
+          "id": "leo",
+          "nome": "Léo",
+          "cargo": "Repasses",
+          "tipo": "skill",
+          "skills": [
+            "repasses-comissoes"
+          ]
+        },
+        {
+          "id": "nico",
+          "nome": "Nico",
+          "cargo": "Verba de marketing",
+          "tipo": "agente",
+          "agente": "verba-marketing"
+        }
+      ]
+    },
+    {
+      "id": "ate",
+      "nome": "Atendimento",
+      "andar": "3º",
+      "abas": [],
+      "pessoas": [
+        {
+          "id": "fernanda",
+          "nome": "Fernanda",
+          "cargo": "Sucesso do cliente",
+          "tipo": "sup",
+          "skills": [
+            "setor-atendimento"
+          ]
+        },
+        {
+          "id": "rodrigo",
+          "nome": "Rodrigo",
+          "cargo": "Caixa de suporte",
+          "tipo": "skill",
+          "skills": [
+            "caixa-suporte"
+          ]
+        },
+        {
+          "id": "elisa",
+          "nome": "Elisa",
+          "cargo": "Avaliações das lojas",
+          "tipo": "skill",
+          "skills": [
+            "avaliacoes-lojas"
+          ]
+        },
+        {
+          "id": "tomas",
+          "nome": "Tomás",
+          "cargo": "O que incomoda",
+          "tipo": "skill",
+          "skills": [
+            "voz-do-cliente"
+          ]
+        },
+        {
+          "id": "yasmin",
+          "nome": "Yasmin",
+          "cargo": "O que encanta",
+          "tipo": "agente",
+          "agente": "o-que-encanta"
+        },
+        {
+          "id": "ninha",
+          "nome": "Ninha",
+          "cargo": "Atendente do app",
+          "tipo": "produto"
+        }
+      ]
+    },
+    {
+      "id": "eng",
+      "nome": "Engenharia",
+      "andar": "2º",
+      "abas": [],
+      "pessoas": [
+        {
+          "id": "marcos",
+          "nome": "Marcos",
+          "cargo": "CTO",
+          "tipo": "sup",
+          "skills": [
+            "setor-engenharia"
+          ]
+        },
+        {
+          "id": "icaro",
+          "nome": "Ícaro",
+          "cargo": "Mobile",
+          "tipo": "agente",
+          "agente": "engenheiro-mobile"
+        },
+        {
+          "id": "vitor",
+          "nome": "Vitor",
+          "cargo": "Backend",
+          "tipo": "agente",
+          "agente": "engenheiro-backend",
+          "skills": [
+            "supabase",
+            "supabase-postgres-best-practices"
+          ]
+        },
+        {
+          "id": "lucas",
+          "nome": "Lucas",
+          "cargo": "Painel web",
+          "tipo": "skill",
+          "skills": [
+            "painel-web"
+          ]
+        },
+        {
+          "id": "paula",
+          "nome": "Paula",
+          "cargo": "QA e lançamento",
+          "tipo": "agente",
+          "agente": "qa-lancamento"
+        },
+        {
+          "id": "henrique",
+          "nome": "Henrique",
+          "cargo": "Segurança e LGPD",
+          "tipo": "agente",
+          "agente": "seguranca-lgpd"
+        },
+        {
+          "id": "rita",
+          "nome": "Rita",
+          "cargo": "Previsão de rotina",
+          "tipo": "skill",
+          "skills": [
+            "previsao-rotina"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "des",
+      "nome": "Design",
+      "andar": "1º",
+      "abas": [],
+      "pessoas": [
+        {
+          "id": "alice",
+          "nome": "Alice",
+          "cargo": "Diretora de design",
+          "tipo": "sup",
+          "skills": [
+            "setor-design"
+          ]
+        },
+        {
+          "id": "bruna",
+          "nome": "Bruna",
+          "cargo": "Design do app",
+          "tipo": "skill"
+        },
+        {
+          "id": "gil",
+          "nome": "Gil",
+          "cargo": "Design web",
+          "tipo": "skill"
+        },
+        {
+          "id": "cecilia",
+          "nome": "Cecília",
+          "cargo": "Guardiã da marca",
+          "tipo": "skill",
+          "skills": [
+            "identidade-visual"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ven",
+      "nome": "Vendas",
+      "andar": "Térreo",
+      "desativado": true,
+      "abas": [
+        "Leads",
+        "Conversores",
+        "Conversões"
+      ],
+      "pessoas": [
+        {
+          "id": "renato",
+          "nome": "Renato",
+          "cargo": "Coordenador de vendas",
+          "tipo": "sup"
+        },
+        {
+          "id": "conversores",
+          "nome": "Conversores",
+          "cargo": "Equipe humana",
+          "tipo": "humano"
+        },
+        {
+          "id": "tati",
+          "nome": "Tati",
+          "cargo": "Preparadora de leads",
+          "tipo": "skill"
+        }
+      ]
+    }
+  ]
+}
