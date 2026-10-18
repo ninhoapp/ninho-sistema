@@ -7,8 +7,8 @@
  * - Um prédio só, em corte, com a frente aberta: todos os andares de uma vez,
  *   e setores parecidos dividindo o andar (lib/empresa/menu.ts → ANDARES).
  * - Todo mundo fica parado na própria mesa; o estado aparece só na etiqueta
- *   em cima (verde trabalhando, amarela esperando o OK, cinza livre). Gente
- *   andando poluía a tela e o dono não sabia quem era quem.
+ *   em cima, que é o próprio nome (verde trabalhando, amarela esperando o OK,
+ *   cinza livre). Gente andando poluía a tela e o dono não sabia quem era quem.
  * - Clicar no setor mostra a equipe; clicar na pessoa mostra o que faz.
  * - Os contadores do topo abrem a lista do que contam.
  * - Central: o que espera o dono (com Aprovar / Já fiz / Recusar) e o que foi feito.
@@ -31,7 +31,8 @@ export interface Feito {
 const TIPO: Record<string, string> = { sup: 'Supervisor', agente: 'Agente', skill: 'Skill', humano: 'Humano', produto: 'Produto' };
 const PELE = ['#F1C7A6', '#D9A47E', '#B57A55', '#8A5A3B', '#5E3B26', '#E8B998'];
 const CABELO = ['#2B1B10', '#5A3A22', '#A0663A', '#1E1E1E', '#C9A15A', '#6B4A3A'];
-const ETIQUETA = { trabalhando: ['#4CAF74', '···', '#fff'], esperando: ['#FFB020', 'OK?', '#3A2600'], livre: ['#B4B2A9', 'livre', '#fff'] } as const;
+/** Etiqueta em cima da cabeça: o nome da pessoa na cor do estado [fundo, texto]. */
+const ETIQUETA = { trabalhando: ['#4CAF74', '#fff'], esperando: ['#FFB020', '#3A2600'], livre: ['#E6E4DE', '#55534D'], desativado: ['#E6E4DE', '#9A988F'] } as const;
 const W = 18, D = 4.6, FH = 3.2;
 
 const hsh = (s: string) => [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
@@ -125,7 +126,7 @@ export function Predio({
     c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, cw, ch);
     const nA = ANDARES.length;
     const T = Math.min(cw / (W + D * 0.55 + 0.8), (ch - 20) / (nA * FH + D * 0.34 + 1.4));
-    const OX = (cw - (W + D * 0.55) * T) / 2, OY = ch - 12;
+    const OX = (cw - (W + D * 0.55) * T) / 2, OY = ch - 12 - Math.max(0, (ch - 20 - (nA * FH + D * 0.34 + 1.4) * T) / 2);
     const P = (x: number, y: number, z: number): [number, number] => [OX + (x + y * 0.55) * T, OY - (z + y * 0.34) * T];
     const poly = (pts: [number, number][], f?: string | null, s?: string, lw = 1) => {
       c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath();
@@ -151,9 +152,14 @@ export function Predio({
         poly([P(x0, 0, z), P(x0 + larg, 0, z), P(x0 + larg, D, z), P(x0, D, z)], on ? '#E2D6FB' : off ? '#ECEBEF' : '#F4EFFB');
         poly([P(x0, D, z), P(x0 + larg, D, z), P(x0 + larg, D, z + FH - 0.25), P(x0, D, z + FH - 0.25)], off ? '#E2E1E6' : '#E9E1F7');
         poly([P(x0, D, z + FH - 0.7), P(x0 + larg, D, z + FH - 0.7), P(x0 + larg, D, z + FH - 0.25), P(x0, D, z + FH - 0.25)], off ? '#C9C8CF' : COR_SETOR[sid]);
-        const [lx, ly] = P(x0 + 0.3, D, z + FH - 0.48);
-        c.font = fonte(700, 12); c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillStyle = '#fff';
-        c.fillText(`${s.nome}${off ? ' · desativado' : ''}`, lx, ly);
+        // nome do setor como placa na viga da frente (a faixa do fundo fica escondida pelo piso de cima)
+        const [lx, ly] = P(x0 + 0.25, 0, z + FH - 0.12);
+        sobre.push(() => {
+          c.font = fonte(700, 12); c.textAlign = 'left'; c.textBaseline = 'middle';
+          const txt = `${s.nome}${off ? ' · desativado' : ''}`, tw = c.measureText(txt).width + 14;
+          c.fillStyle = off ? '#B4B2A9' : COR_SETOR[sid]; c.beginPath(); c.roundRect(lx, ly - 10, tw, 20, 6); c.fill();
+          c.fillStyle = '#fff'; c.fillText(txt, lx + 7, ly + 1);
+        });
         for (let w = 0; w < Math.floor(larg / 3); w++) {
           const wx = x0 + 1 + w * 3;
           poly([P(wx, D, z + 0.9), P(wx + 1.6, D, z + 0.9), P(wx + 1.6, D, z + 1.9), P(wx, D, z + 1.9)], 'rgba(160,200,255,.35)');
@@ -186,20 +192,18 @@ export function Predio({
           c.fillStyle = L.sk; c.beginPath(); c.arc(hx, hy, r, 0, Math.PI * 2); c.fill();
           c.fillStyle = L.hr; c.beginPath(); c.arc(hx, hy - r * 0.15, r * 1.02, Math.PI * 1.05, Math.PI * 1.95); c.fill();
           alvosP.current.push({ id: L.p.id, x: hx, y: hy + r, r: Math.max(14, T * 0.8) });
+          // uma etiqueta só, em cima da cabeça: o nome, na cor do estado
           sobre.push(() => {
-            if (est !== 'desativado') {
-              const [cor, txt, tc] = ETIQUETA[est];
-              const ex = hx + r, ey = hy - r * 2;
-              c.globalAlpha = est === 'trabalhando' && !reduz ? 0.75 + 0.25 * Math.sin(t * 5 + L.fase) : 1;
-              c.font = fonte(700, 10); const tw = Math.max(28, c.measureText(txt).width + 10);
-              c.fillStyle = cor; c.beginPath(); c.roundRect(ex - tw / 2, ey - 8, tw, 16, 8); c.fill();
-              c.fillStyle = tc; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(txt, ex, ey + 1);
-              c.globalAlpha = 1;
+            const [cor, tc] = ETIQUETA[est];
+            const on = selPessoa === L.p.id, ey = hy - r * 1.9;
+            c.font = fonte(700, 11); c.textAlign = 'center'; c.textBaseline = 'middle';
+            const tw = c.measureText(L.p.nome).width + 12;
+            c.fillStyle = cor; c.beginPath(); c.roundRect(hx - tw / 2, ey - 9, tw, 18, 9); c.fill();
+            if (est === 'trabalhando' && !reduz) {
+              c.strokeStyle = `rgba(76,175,116,${0.35 + 0.35 * Math.sin(t * 4 + L.fase)})`; c.lineWidth = 3; c.stroke();
             }
-            c.font = fonte(600, 10.5); c.textAlign = 'center'; c.textBaseline = 'top';
-            const wv = c.measureText(L.p.nome).width + 8, on = selPessoa === L.p.id;
-            c.fillStyle = on ? '#9F86E0' : 'rgba(255,255,255,.9)'; c.beginPath(); c.roundRect(sx - wv / 2, sy + 3, wv, 15, 5); c.fill();
-            c.fillStyle = on ? '#fff' : '#1E1F25'; c.fillText(L.p.nome, sx, sy + 5);
+            if (on) { c.strokeStyle = '#7C5CD6'; c.lineWidth = 2.5; c.stroke(); }
+            c.fillStyle = tc; c.fillText(L.p.nome, hx, ey + 1);
           });
         } });
       }
@@ -307,16 +311,17 @@ export function Predio({
         </div>
       )}
 
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
-        <div className="min-w-0 rounded-2xl border border-ninho-borda bg-white p-3">
-          <canvas ref={cvRef} onClick={clique} className="block h-[640px] w-full cursor-pointer" aria-label="Prédio em corte com todos os andares: clique num setor ou numa pessoa" />
-          <div className="flex flex-wrap gap-4 px-1 pt-2 text-xs text-ninho-cinza">
-            <span>{dot('#4CAF74')}Trabalhando</span>
-            <span>{dot('#FFB020')}Esperando seu OK</span>
-            <span>{dot('#B4B2A9')}Livre</span>
-          </div>
+      <div className="min-w-0 rounded-2xl border border-ninho-borda bg-white p-3">
+        <canvas ref={cvRef} onClick={clique} className="block aspect-[1.15/1] max-h-[880px] w-full cursor-pointer" aria-label="Prédio em corte com todos os andares: clique num setor ou numa pessoa" />
+        <div className="flex flex-wrap gap-4 px-1 pt-2 text-xs text-ninho-cinza">
+          <span>{dot('#4CAF74')}Trabalhando</span>
+          <span>{dot('#FFB020')}Esperando seu OK</span>
+          <span>{dot('#D3D1CA')}Livre</span>
+          <span className="ml-auto">Clique num setor ou em alguém</span>
         </div>
+      </div>
 
+      <div className="grid items-start gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-ninho-borda bg-white p-3">
           <h3 className="mb-2 px-1 text-sm font-semibold">Central</h3>
           <div className="mb-3 flex gap-1.5">
@@ -357,7 +362,6 @@ export function Predio({
             </ul>
           )}
         </div>
-      </div>
 
       <div className="rounded-2xl border border-ninho-borda bg-white p-4">
         {sp && est ? (
@@ -421,6 +425,7 @@ export function Predio({
         ) : (
           vazio('Clique num setor do prédio para ver quem está lá, ou direto em alguém para ver o que está fazendo.')
         )}
+      </div>
       </div>
     </div>
   );
