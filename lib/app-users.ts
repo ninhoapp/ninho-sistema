@@ -8,6 +8,7 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { appDb } from '@/lib/supabase/server';
+import { lerTudo } from '@/lib/supabase/paginar';
 import { resolverOrigem, type Origem } from '@/lib/origem';
 
 /** Tag do cache de usuários do app — quem altera usuário chama revalidateTag. */
@@ -128,11 +129,15 @@ interface EfetivoRow {
 async function fetchPlanoEfetivo(): Promise<Map<string, EfetivoRow> | null> {
   const sb = appDb();
   const out = new Map<string, EfetivoRow>();
-  const { data, error } = await sb
-    .from('usuarios_admin')
-    .select(
-      'id,email,estado_efetivo,plano_efetivo,plan_interval_efetivo,trial_ends_at_efetivo,current_period_end_efetivo,coberto_por',
-    );
+  const { data, error } = await lerTudo<EfetivoRow>('usuarios_admin', (de, ate) =>
+    sb
+      .from('usuarios_admin')
+      .select(
+        'id,email,estado_efetivo,plano_efetivo,plan_interval_efetivo,trial_ends_at_efetivo,current_period_end_efetivo,coberto_por',
+      )
+      .order('id')
+      .range(de, ate),
+  );
   if (error) {
     // Falhar calado faria toda conta herdada mostrar "Free trial" de novo —
     // exatamente o bug que isto corrige. Melhor logar e cair no próprio
@@ -159,11 +164,15 @@ interface BabyRow {
 async function fetchPrimeiroNascimento(): Promise<Map<string, string>> {
   const sb = appDb();
   const out = new Map<string, string>();
-  const { data } = await sb
-    .from('babies')
-    .select('created_by,birth_date')
-    .is('deleted_at', null)
-    .order('created_at', { ascending: true });
+  const { data } = await lerTudo<BabyRow>('babies', (de, ate) =>
+    sb
+      .from('babies')
+      .select('created_by,birth_date')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .order('id')
+      .range(de, ate),
+  );
   for (const b of (data as BabyRow[] | null) ?? []) {
     if (!out.has(b.created_by)) out.set(b.created_by, b.birth_date);
   }
@@ -188,11 +197,15 @@ interface CompraRow {
 async function fetchAssinouEm(): Promise<Map<string, string>> {
   const sb = appDb();
   const out = new Map<string, string>();
-  const { data, error } = await sb
-    .from('purchase_verifications')
-    .select('profile_id,created_at')
-    .eq('status', 'verificado')
-    .order('created_at', { ascending: true });
+  const { data, error } = await lerTudo<CompraRow>('purchase_verifications', (de, ate) =>
+    sb
+      .from('purchase_verifications')
+      .select('profile_id,created_at')
+      .eq('status', 'verificado')
+      .order('created_at', { ascending: true })
+      .order('id')
+      .range(de, ate),
+  );
   if (error) {
     console.error('[painel] purchase_verifications falhou:', error.message);
     return out;
@@ -215,7 +228,9 @@ interface AppleAdsRow {
  *  onboarding ou em "sem informação". */
 async function fetchAppleAds(): Promise<Map<string, AppleAdsRow>> {
   const out = new Map<string, AppleAdsRow>();
-  const { data, error } = await appDb().from('atribuicao_apple_ads').select('profile_id,atribuido,campaign_id');
+  const { data, error } = await lerTudo<AppleAdsRow>('atribuicao_apple_ads', (de, ate) =>
+    appDb().from('atribuicao_apple_ads').select('profile_id,atribuido,campaign_id').order('profile_id').range(de, ate),
+  );
   if (error) {
     console.error('[painel] atribuicao_apple_ads falhou:', error.message);
     return out;
@@ -231,14 +246,22 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
   // profiles e a view não têm FK declarada entre si, então PostgREST não faz o
   // embed — busca separado e junta aqui.
   const [profilesRes, estadosRes, efetivosRes, nascimentos, assinouEm, appleAds] = await Promise.all([
-    sb
-      .from('profiles')
-      .select('id,full_name,phone,created_at,timezone,como_conheceu')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false }),
-    sb
-      .from('assinatura_estado')
-      .select('profile_id,plan,plan_interval,trial_ends_at,current_period_end,estado'),
+    lerTudo<ProfileRow>('profiles', (de, ate) =>
+      sb
+        .from('profiles')
+        .select('id,full_name,phone,created_at,timezone,como_conheceu')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .order('id')
+        .range(de, ate),
+    ),
+    lerTudo<EstadoRow>('assinatura_estado', (de, ate) =>
+      sb
+        .from('assinatura_estado')
+        .select('profile_id,plan,plan_interval,trial_ends_at,current_period_end,estado')
+        .order('profile_id')
+        .range(de, ate),
+    ),
     fetchPlanoEfetivo(),
     fetchPrimeiroNascimento(),
     fetchAssinouEm(),
@@ -436,7 +459,10 @@ export async function fetchUsoPorUsuario(): Promise<Map<string, UsoUsuario>> {
   const map = new Map<string, UsoUsuario>();
   if (!appDbConfigured()) return map;
 
-  const { data, error } = await appDb().rpc('get_uso_por_usuario');
+  // RPC que devolve tabela também para em 1.000 linhas: pagina igual às outras.
+  const { data, error } = await lerTudo<UsoRow>('get_uso_por_usuario', (de, ate) =>
+    appDb().rpc('get_uso_por_usuario').order('profile_id').range(de, ate),
+  );
   if (error) {
     // Falhar calado aqui viraria uma tabela inteira de zeros passando por
     // "ninguém usa o app" — o tipo de número que muda decisão de produto.

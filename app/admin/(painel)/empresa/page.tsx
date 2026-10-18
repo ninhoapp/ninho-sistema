@@ -1,60 +1,75 @@
 import { requireRole } from '@/lib/auth/guard';
-import { SETORES, estadosPorPessoa, lerAtividade, lerAprovacoesAbertas, type Aprovacao, type Atividade } from '@/lib/empresa';
+import {
+  SETORES, estadosPorPessoa, lerAtividade, lerAprovacoesAbertas, lerAprovacoesResolvidas,
+  type Aprovacao, type Atividade,
+} from '@/lib/empresa';
 import { PageHeader } from '@/components/admin/PageHeader';
-import { StatCard } from '@/components/admin/StatCard';
 import { Notice } from '@/components/admin/Notice';
-import { Predio } from '@/components/admin/Predio';
+import { Predio, type Feito } from '@/components/admin/Predio';
 
 export const dynamic = 'force-dynamic';
 
+const STATUS_MURAL: Record<string, string> = { aprovado: 'aprovou', feito: 'fez', recusado: 'recusou' };
+
 /**
- * O prédio da empresa virtual (etapa 3c). Mostra quem está trabalhando agora,
- * a partir do que os hooks do Claude Code registram em painel.empresa_atividade.
- * O componente faz router.refresh() a cada 15s, então a página relê sozinha.
+ * O prédio da empresa virtual. Mostra quem está trabalhando agora, a partir
+ * do que os hooks do Claude Code registram em painel.empresa_atividade, e o
+ * mural (painel.aprovacoes). O componente faz router.refresh() a cada 15s.
  */
 export default async function EmpresaPage() {
   requireRole('admin');
 
   let atividade: Atividade[] = [];
   let aprovacoes: Aprovacao[] = [];
+  let resolvidas: Awaited<ReturnType<typeof lerAprovacoesResolvidas>> = [];
   let erro: string | null = null;
   try {
-    [atividade, aprovacoes] = await Promise.all([lerAtividade(), lerAprovacoesAbertas()]);
+    [atividade, aprovacoes, resolvidas] = await Promise.all([lerAtividade(), lerAprovacoesAbertas(), lerAprovacoesResolvidas()]);
   } catch (e) {
     erro = e instanceof Error ? e.message : String(e);
   }
 
   const estados = estadosPorPessoa(atividade, aprovacoes);
-  const ativos = SETORES.filter((s) => !s.desativado);
-  const funcoes = ativos.reduce((n, s) => n + s.pessoas.length, 0);
-  const trabalhando = Object.values(estados).filter((e) => e.estado === 'trabalhando').length;
-  const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
-  const tarefasHoje = atividade.filter(
-    (a) => new Date(a.inicio).toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' }) === hoje,
-  ).length;
+  const nome = new Map(SETORES.flatMap((s) => s.pessoas.map((p) => [p.id, p.nome] as const)));
+  const dia = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
+  const hojeDubai = dia(new Date().toISOString());
 
-  // Começa no andar onde tem gente trabalhando; senão, na diretoria.
-  const inicial =
-    ativos.find((s) => s.pessoas.some((p) => estados[p.id]?.estado === 'trabalhando'))?.id ?? 'dir';
+  const deAtividade: Feito[] = atividade
+    .filter((a) => a.status !== 'trabalhando')
+    .map((a) => ({
+      quando: a.fim ?? a.inicio,
+      quem: nome.get(a.funcionario) ?? a.funcionario,
+      setor: a.setor,
+      oque: `${a.tarefa ?? '(sem descrição)'}${a.status === 'erro' ? ' (erro)' : ''}`,
+    }));
+  const doMural: Feito[] = resolvidas.map((m) => ({
+    quando: m.atualizado_em,
+    quem: 'Você',
+    setor: m.setor,
+    oque: `${STATUS_MURAL[m.status] ?? m.status}: ${m.titulo}`,
+  }));
+  const feitos = [...deAtividade, ...doMural].sort((a, b) => b.quando.localeCompare(a.quando)).slice(0, 80);
+  const hoje: Feito[] = atividade
+    .filter((a) => dia(a.inicio) === hojeDubai)
+    .map((a) => ({
+      quando: a.inicio,
+      quem: nome.get(a.funcionario) ?? a.funcionario,
+      setor: a.setor,
+      oque: `${a.tarefa ?? '(sem descrição)'}${a.status === 'trabalhando' ? ' (em andamento)' : a.status === 'erro' ? ' (erro)' : ''}`,
+    }));
 
   return (
     <>
       <PageHeader
         title="O prédio"
-        subtitle="Quem está trabalhando agora em cada setor. Escolha o andar na torre e clique em alguém para ver o que está fazendo. Atualiza sozinho."
+        subtitle="Frente aberta: todos os andares de uma vez. Clique num setor para ver quem está lá, ou em alguém para ver o que está fazendo. Atualiza sozinho."
       />
       {erro && (
         <Notice tone="warn">
           Não consegui ler a atividade da empresa: {erro}. Confira se a migration 00083 está aplicada.
         </Notice>
       )}
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Trabalhando agora" value={trabalhando} accent />
-        <StatCard label="Esperando você" value={aprovacoes.length} hint="itens no mural" danger={aprovacoes.length > 0} />
-        <StatCard label="Tarefas hoje" value={tarefasHoje} hint="no fuso de Dubai" />
-        <StatCard label="Funções" value={funcoes} hint={`${ativos.length} setores ativos`} />
-      </div>
-      <Predio setores={SETORES} estados={estados} inicial={inicial} />
+      <Predio setores={SETORES} estados={estados} esperando={aprovacoes} feitos={feitos} hoje={hoje} />
     </>
   );
 }

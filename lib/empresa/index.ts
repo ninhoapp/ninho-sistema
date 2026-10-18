@@ -150,3 +150,29 @@ export function estadosPorPessoa(
   }
   return out;
 }
+
+/** Itens do mural resolvidos nos últimos dias (vão para "O que foi feito"). */
+export async function lerAprovacoesResolvidas(dias = 7): Promise<(Aprovacao & { atualizado_em: string })[]> {
+  const desde = new Date(Date.now() - dias * 86_400_000).toISOString();
+  const { data, error } = await painelDb()
+    .from('aprovacoes')
+    .select('id, titulo, setor, pedido_por, status, criado_em, atualizado_em')
+    .neq('status', 'esperando')
+    .gte('atualizado_em', desde)
+    .order('atualizado_em', { ascending: false })
+    .limit(50);
+  if (error) throw new Error(`Falha ao ler o mural de aprovações: ${error.message}`);
+  return (data ?? []) as (Aprovacao & { atualizado_em: string })[];
+}
+
+export type StatusAprovacao = 'aprovado' | 'feito' | 'recusado';
+
+/** O dono decide um item do mural direto no prédio. */
+export async function decidirAprovacao(id: number, status: StatusAprovacao): Promise<void> {
+  const { error } = await painelDb()
+    .from('aprovacoes')
+    .update({ status, atualizado_em: new Date().toISOString() })
+    .eq('id', id)
+    .eq('status', 'esperando');
+  if (error) throw new Error(`Falha ao atualizar o mural: ${error.message}`);
+}

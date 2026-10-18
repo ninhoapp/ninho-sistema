@@ -2,6 +2,7 @@ import { requireSession } from '@/lib/auth/guard';
 import { signOut } from '@/app/admin/actions';
 import { AdminLogo } from '@/components/admin/AdminLogo';
 import { SidebarNav } from '@/components/admin/SidebarNav';
+import { SetorTabs } from '@/components/admin/SetorTabs';
 import '../admin.css';
 
 export const dynamic = 'force-dynamic';
@@ -50,10 +51,12 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
 
         {/* Conteúdo */}
         <main className="min-w-0 flex-1">
-          {/* Nav horizontal no mobile */}
-          <div className="admin-scroll mb-4 overflow-x-auto rounded-2xl bg-white p-2 md:hidden">
+          {/* Menu recolhido no celular */}
+          <details className="mb-4 rounded-2xl bg-white p-2 md:hidden">
+            <summary className="cursor-pointer px-2 py-1 text-sm font-semibold">Menu</summary>
             <SidebarNav role={session.role} />
-          </div>
+          </details>
+          {session.role === 'admin' && <SetorTabs />}
           {children}
         </main>
       </div>

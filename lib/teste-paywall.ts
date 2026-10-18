@@ -1,0 +1,151 @@
+/**
+ * Ninho · Teste A/B de paywall (migration 00083 do Ninho-expo). Server-only.
+ *
+ * Lê as views prontas do banco — a conta de cada número mora lá, não aqui:
+ *   teste_paywall_resumo        → uma linha por grupo (só sorteados)
+ *   teste_paywall_diario        → dia × grupo (só sorteados; dia no fuso de São Paulo)
+ *   teste_paywall_participantes → uma linha por pessoa (inclui quem ficou fora do sorteio)
+ *   teste_paywall_config        → sorteio ligado/desligado e fração do grupo B
+ *
+ * Grupo A: 7 dias de teste do app, sem cartão.
+ * Grupo B: tela de planos obrigatória, 7 dias grátis da loja (com cartão).
+ * Quem cadastrou bebê que ainda não nasceu vai direto para o A, fora do
+ * sorteio (sorteado = false), e não entra na comparação.
+ */
+import { appDb } from '@/lib/supabase/server';
+
+export type Grupo = 'A' | 'B';
+
+export interface ResumoGrupo {
+  grupo: Grupo;
+  cadastros: number;
+  viram_oferta: number;
+  comecaram_teste_loja: number;
+  em_teste_loja_agora: number;
+  cancelaram_no_teste: number;
+  pagaram: number;
+  pagantes_hoje: number;
+  convidaram_cuidador: number;
+  media_registros: number | null;
+  pct_pagou: number | null;
+}
+
+export interface DiaGrupo {
+  dia: string; // yyyy-mm-dd, fuso de São Paulo (definido na view)
+  grupo: Grupo;
+  cadastros: number;
+  comecaram_teste_loja: number;
+  pagaram: number;
+}
+
+export interface TestePaywall {
+  config: { ativo: boolean; fracao_b: number } | null;
+  resumo: Record<Grupo, ResumoGrupo>;
+  diario: DiaGrupo[];
+  foraDoSorteio: number;
+}
+
+function vazio(grupo: Grupo): ResumoGrupo {
+  return {
+    grupo,
+    cadastros: 0,
+    viram_oferta: 0,
+    comecaram_teste_loja: 0,
+    em_teste_loja_agora: 0,
+    cancelaram_no_teste: 0,
+    pagaram: 0,
+    pagantes_hoje: 0,
+    convidaram_cuidador: 0,
+    media_registros: null,
+    pct_pagou: null,
+  };
+}
+
+// bigint/numeric chegam como string do PostgREST em alguns casos.
+const n = (v: unknown) => (v == null ? 0 : Number(v));
+const nOuNull = (v: unknown) => (v == null ? null : Number(v));
+
+export async function fetchTestePaywall(): Promise<TestePaywall> {
+  const sb = appDb();
+  const [cfg, res, dia, fora] = await Promise.all([
+    sb.from('teste_paywall_config').select('ativo,fracao_b').limit(1).maybeSingle(),
+    sb.from('teste_paywall_resumo').select('*'),
+    sb.from('teste_paywall_diario').select('*').order('dia', { ascending: true }),
+    sb
+      .from('teste_paywall_participantes')
+      .select('profile_id', { count: 'exact', head: true })
+      .eq('sorteado', false),
+  ]);
+  for (const r of [cfg, res, dia, fora]) {
+    if (r.error) throw new Error(`Teste de paywall: ${r.error.message}`);
+  }
+
+  const resumo: Record<Grupo, ResumoGrupo> = { A: vazio('A'), B: vazio('B') };
+  for (const r of res.data ?? []) {
+    const g = r.grupo as Grupo;
+    if (g !== 'A' && g !== 'B') continue;
+    resumo[g] = {
+      grupo: g,
+      cadastros: n(r.cadastros),
+      viram_oferta: n(r.viram_oferta),
+      comecaram_teste_loja: n(r.comecaram_teste_loja),
+      em_teste_loja_agora: n(r.em_teste_loja_agora),
+      cancelaram_no_teste: n(r.cancelaram_no_teste),
+      pagaram: n(r.pagaram),
+      pagantes_hoje: n(r.pagantes_hoje),
+      convidaram_cuidador: n(r.convidaram_cuidador),
+      media_registros: nOuNull(r.media_registros),
+      pct_pagou: nOuNull(r.pct_pagou),
+    };
+  }
+
+  const diario: DiaGrupo[] = (dia.data ?? [])
+    .filter((r) => r.grupo === 'A' || r.grupo === 'B')
+    .map((r) => ({
+      dia: String(r.dia),
+      grupo: r.grupo as Grupo,
+      cadastros: n(r.cadastros),
+      comecaram_teste_loja: n(r.comecaram_teste_loja),
+      pagaram: n(r.pagaram),
+    }));
+
+  return {
+    config: cfg.data ? { ativo: !!cfg.data.ativo, fracao_b: n(cfg.data.fracao_b) } : null,
+    resumo,
+    diario,
+    foraDoSorteio: fora.count ?? 0,
+  };
+}
+
+/** Hoje (yyyy-mm-dd) no fuso de São Paulo — o mesmo que a view usa para `dia`. */
+export function hojeSaoPaulo(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+}
+
+/** Últimos N dias (hoje incluso) com cadastros por grupo, preenchendo dias sem ninguém com zero. */
+export function cadastrosPorDia(diario: DiaGrupo[], dias: number) {
+  const hoje = hojeSaoPaulo();
+  const mapa = new Map<string, { A: number; B: number }>();
+  for (const d of diario) {
+    const m = mapa.get(d.dia) ?? { A: 0, B: 0 };
+    m[d.grupo] += d.cadastros;
+    mapa.set(d.dia, m);
+  }
+  // Meio-dia UTC: subtrair dias inteiros nunca troca a data por fuso.
+  const base = new Date(`${hoje}T12:00:00Z`).getTime();
+  const pontos: { dia: string; label: string; A: number; B: number; hoje: boolean }[] = [];
+  for (let i = dias - 1; i >= 0; i--) {
+    const key = new Date(base - i * 86400000).toISOString().slice(0, 10);
+    const [, mm, dd] = key.split('-');
+    const v = mapa.get(key) ?? { A: 0, B: 0 };
+    pontos.push({ dia: key, label: `${dd}/${mm}`, A: v.A, B: v.B, hoje: key === hoje });
+  }
+  return pontos;
+}
+
+/** Porcentagem com uma casa, ou "—" quando não há base. */
+export function pct(parte: number, base: number): string {
+  return base > 0 ? `${((parte / base) * 100).toFixed(1)}%` : '—';
+}
