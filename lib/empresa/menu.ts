@@ -67,7 +67,10 @@ export const MENU_ADMIN: GrupoMenu[] = [
       { href: '/admin/repasses', label: 'Repasses' },
     ],
   },
-  { id: 'ate', nome: 'Atendimento', cor: COR_SETOR.ate, equipe: '/admin/empresa/ate', abas: [] },
+  {
+    id: 'ate', nome: 'Atendimento', cor: COR_SETOR.ate, equipe: '/admin/empresa/ate',
+    abas: [{ href: '/admin/atendimento', label: 'Atendimento no app' }],
+  },
   { id: 'eng', nome: 'Engenharia', cor: COR_SETOR.eng, equipe: '/admin/empresa/eng', abas: [] },
   { id: 'des', nome: 'Design', cor: COR_SETOR.des, equipe: '/admin/empresa/des', abas: [] },
   {
