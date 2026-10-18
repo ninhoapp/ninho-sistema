@@ -36,3 +36,6 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# skills vivem no Ninho-expo (atalho de pasta)
+.claude/skills
