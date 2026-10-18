@@ -455,22 +455,41 @@ interface UsoRow {
   app_version: string | null;
 }
 
+/**
+ * Linhas cruas do RPC, com o mesmo cache curto de fetchAppUsers (60s). O RPC
+ * é a leitura mais pesada do painel e roda uma vez por página de 1.000
+ * linhas; sem cache, cada visita a Usuários ativos esperava por ele inteiro.
+ * Guarda o array (não o Map: o cache serializa em JSON). Erro sobe como
+ * exceção para não ficar 60s em cache uma tabela vazia.
+ */
+const lerUsoRows = unstable_cache(
+  async (): Promise<UsoRow[]> => {
+    // RPC que devolve tabela também para em 1.000 linhas: pagina igual às outras.
+    const { data, error } = await lerTudo<UsoRow>('get_uso_por_usuario', (de, ate) =>
+      appDb().rpc('get_uso_por_usuario').order('profile_id').range(de, ate),
+    );
+    if (error) throw new Error(error.message);
+    return data;
+  },
+  ['uso-por-usuario-v1'],
+  { revalidate: 60 },
+);
+
 export async function fetchUsoPorUsuario(): Promise<Map<string, UsoUsuario>> {
   const map = new Map<string, UsoUsuario>();
   if (!appDbConfigured()) return map;
 
-  // RPC que devolve tabela também para em 1.000 linhas: pagina igual às outras.
-  const { data, error } = await lerTudo<UsoRow>('get_uso_por_usuario', (de, ate) =>
-    appDb().rpc('get_uso_por_usuario').order('profile_id').range(de, ate),
-  );
-  if (error) {
+  let data: UsoRow[];
+  try {
+    data = await lerUsoRows();
+  } catch (e) {
     // Falhar calado aqui viraria uma tabela inteira de zeros passando por
     // "ninguém usa o app" — o tipo de número que muda decisão de produto.
-    console.error('[painel] get_uso_por_usuario falhou:', error.message);
+    console.error('[painel] get_uso_por_usuario falhou:', e instanceof Error ? e.message : e);
     return map;
   }
 
-  for (const r of (data as UsoRow[] | null) ?? []) {
+  for (const r of data) {
     map.set(r.profile_id, {
       registros: Number(r.registros) || 0,
       diasRegistro: Number(r.dias_registro) || 0,
