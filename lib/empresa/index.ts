@@ -25,6 +25,8 @@ export interface Pessoa {
   agente?: string;
   skills?: string[];
   principal?: boolean;
+  /** Ids antigos que esta pessoa absorveu (enxugamento de 19/10/2026): o histórico deles aparece nela. */
+  antes?: string[];
 }
 
 export interface Setor {
@@ -74,6 +76,9 @@ export const ABA_HREF: Record<string, string> = {
   'Minha conta': '/admin/conta',
   'Usuários ativos': '/admin/usuarios',
   'Análise de dados': '/admin/analise',
+  'Teste de paywall': '/admin/teste-paywall',
+  'Atendimento no app': '/admin/atendimento',
+  Versões: '/admin/versoes',
   'Faturamento e lucro': '/admin/faturamento',
   Despesas: '/admin/despesas',
   Repasses: '/admin/repasses',
@@ -81,6 +86,18 @@ export const ABA_HREF: Record<string, string> = {
   Conversores: '/admin/conversores',
   Conversões: '/admin/conversoes',
 };
+
+/**
+ * Enxugamento de 19/10/2026: quem saiu conta para quem absorveu a função
+ * (campo `antes` do organograma) e os setores extintos para o setor novo.
+ * Aplicado na leitura, para todas as telas do prédio verem o histórico antigo.
+ */
+const PESSOA_ATUAL = new Map<string, string>(
+  SETORES.flatMap((s) => s.pessoas.flatMap((p) => (p.antes ?? []).map((id) => [id, p.id] as const))),
+);
+const SETOR_ATUAL: Record<string, string> = { mkt: 'cre', aqu: 'cre', des: 'eng' };
+const pessoaAtual = (id: string | null) => (id ? PESSOA_ATUAL.get(id) ?? id : id);
+const setorAtual = (id: string | null) => (id ? SETOR_ATUAL[id] ?? id : id);
 
 /** Registro "trabalhando" mais velho que isto é sessão que fechou sem o fim: conta como livre. */
 const ABERTO_MAX_MS = 2 * 60 * 60 * 1000;
@@ -94,7 +111,9 @@ export async function lerAtividade(dias = 7): Promise<Atividade[]> {
     .order('inicio', { ascending: false })
     .limit(500);
   if (error) throw new Error(`Falha ao ler a atividade da empresa: ${error.message}`);
-  return (data ?? []) as Atividade[];
+  return ((data ?? []) as Atividade[]).map((a) => ({
+    ...a, funcionario: pessoaAtual(a.funcionario) as string, setor: setorAtual(a.setor) as string,
+  }));
 }
 
 export async function lerAprovacoesAbertas(): Promise<Aprovacao[]> {
@@ -104,7 +123,7 @@ export async function lerAprovacoesAbertas(): Promise<Aprovacao[]> {
     .eq('status', 'esperando')
     .order('criado_em', { ascending: true });
   if (error) throw new Error(`Falha ao ler o mural de aprovações: ${error.message}`);
-  return (data ?? []) as Aprovacao[];
+  return ((data ?? []) as Aprovacao[]).map((a) => ({ ...a, pedido_por: pessoaAtual(a.pedido_por), setor: setorAtual(a.setor) }));
 }
 
 /** Estado de cada pessoa a partir da atividade (mais recente primeiro). */
@@ -162,7 +181,9 @@ export async function lerAprovacoesResolvidas(dias = 7): Promise<(Aprovacao & { 
     .order('atualizado_em', { ascending: false })
     .limit(50);
   if (error) throw new Error(`Falha ao ler o mural de aprovações: ${error.message}`);
-  return (data ?? []) as (Aprovacao & { atualizado_em: string })[];
+  return ((data ?? []) as (Aprovacao & { atualizado_em: string })[]).map((a) => ({
+    ...a, pedido_por: pessoaAtual(a.pedido_por), setor: setorAtual(a.setor),
+  }));
 }
 
 export type StatusAprovacao = 'aprovado' | 'feito' | 'recusado';

@@ -165,7 +165,9 @@
       "id": "eng",
       "nome": "Produto",
       "andar": "1º andar",
-      "abas": [],
+      "abas": [
+        "Versões"
+      ],
       "pessoas": [
         {
           "id": "marcos",

@@ -24,17 +24,20 @@ export interface GrupoMenu {
 }
 
 export const COR_SETOR: Record<string, string> = {
-  dir: '#7C5CD6', cre: '#4CAF74', mkt: '#E85D6B', aqu: '#3D8BFF', fin: '#F7A83C',
-  ate: '#3FB5AC', eng: '#655C7A', des: '#D98BC9', ven: '#A3A3AC', conta: '#9F86E0',
+  dir: '#7C5CD6', cre: '#4CAF74', fin: '#F7A83C',
+  ate: '#3FB5AC', eng: '#655C7A', ven: '#A3A3AC', conta: '#9F86E0',
 };
 
-/** De baixo para cima. Setores relacionados dividem o andar. */
+/**
+ * De baixo para cima. Setores relacionados dividem o andar. Em 19/10/2026 a
+ * empresa foi enxugada: Crescimento juntou Marketing e Aquisição, e Produto
+ * (id 'eng', para o histórico continuar) juntou Engenharia e Design.
+ */
 export const ANDARES: { nome: string; setores: string[] }[] = [
   { nome: 'Térreo', setores: ['ate', 'ven'] },
-  { nome: '2º andar', setores: ['eng', 'des'] },
-  { nome: '3º andar', setores: ['aqu', 'fin'] },
-  { nome: '4º andar', setores: ['cre', 'mkt'] },
-  { nome: 'Cobertura', setores: ['dir'] },
+  { nome: '1º andar', setores: ['eng'] },
+  { nome: '2º andar', setores: ['cre'] },
+  { nome: 'Cobertura', setores: ['dir', 'fin'] },
 ];
 
 export function andarDe(setorId: string): string {
@@ -47,18 +50,12 @@ export const MENU_ADMIN: GrupoMenu[] = [
     abas: [
       { href: '/admin/visao-geral', label: 'Visão geral' },
       { href: '/admin/kpi', label: 'KPI' },
-    ],
-  },
-  {
-    id: 'cre', nome: 'Crescimento', cor: COR_SETOR.cre, equipe: '/admin/empresa/cre',
-    abas: [
-      { href: '/admin/usuarios', label: 'Usuários ativos' },
       { href: '/admin/analise', label: 'Análise de dados' },
       { href: '/admin/teste-paywall', label: 'Teste de paywall' },
+      { href: '/admin/usuarios', label: 'Usuários ativos' },
     ],
   },
-  { id: 'mkt', nome: 'Marketing', cor: COR_SETOR.mkt, equipe: '/admin/empresa/mkt', abas: [] },
-  { id: 'aqu', nome: 'Aquisição', cor: COR_SETOR.aqu, equipe: '/admin/empresa/aqu', abas: [] },
+  { id: 'cre', nome: 'Crescimento', cor: COR_SETOR.cre, equipe: '/admin/empresa/cre', abas: [] },
   {
     id: 'fin', nome: 'Financeiro', cor: COR_SETOR.fin, equipe: '/admin/empresa/fin',
     abas: [
@@ -71,8 +68,10 @@ export const MENU_ADMIN: GrupoMenu[] = [
     id: 'ate', nome: 'Atendimento', cor: COR_SETOR.ate, equipe: '/admin/empresa/ate',
     abas: [{ href: '/admin/atendimento', label: 'Atendimento no app' }],
   },
-  { id: 'eng', nome: 'Engenharia', cor: COR_SETOR.eng, equipe: '/admin/empresa/eng', abas: [] },
-  { id: 'des', nome: 'Design', cor: COR_SETOR.des, equipe: '/admin/empresa/des', abas: [] },
+  {
+    id: 'eng', nome: 'Produto', cor: COR_SETOR.eng, equipe: '/admin/empresa/eng',
+    abas: [{ href: '/admin/versoes', label: 'Versões' }],
+  },
   {
     id: 'ven', nome: 'Vendas', cor: COR_SETOR.ven, equipe: '/admin/empresa/ven',
     abas: [

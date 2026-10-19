@@ -1,0 +1,291 @@
+{
+  "nota": "Diário de versões do Ninho, mantido pela Clara (skill controle-de-versoes). Fonte única: o painel (/admin/versoes, setor Produto) lê uma cópia feita por scripts/empresa/copiar-organograma.mjs. Builds e commits conferidos no EAS (eas build:list) em 19/10/2026.",
+  "atualizado_em": "2026-10-19",
+  "ultimo_aviso": {
+    "data": "2026-10-15",
+    "commit": "858b3e4",
+    "nota": "Corte da 1.0.5 do iPhone. No próximo aviso de build, a Clara junta tudo o que mudou depois deste commit."
+  },
+  "alertas": [
+    "O app.json já foi para 1.0.6 em 19/10, mas ainda sem commit. Confira que essa mudança entra no build.",
+    "A 1.0.6 troca o SDK do Expo (57) e o React Native (0.86): é a maior mudança desde o lançamento. Teste o app inteiro no TestFlight antes de mandar para revisão.",
+    "Android: não há aparelho Android com versão registrada no banco. A confirmar qual build está no Google Play (o 8, de 15/10, ou o 10, de 18/10)."
+  ],
+  "versoes": [
+    {
+      "versao": "1.0.6",
+      "situacao": "proximo",
+      "resumo": "Tudo o que foi feito depois do build da 1.0.5 do iPhone (15/10/2026, 19h em Dubai). Ainda sem build.",
+      "builds": [],
+      "itens": [
+        {
+          "t": "App inteiro em inglês, seguindo o idioma do celular, com troca no menu",
+          "estado": "terminado",
+          "teste": "Expo Go",
+          "onde": "app",
+          "ref": "8092c16 · 16/10"
+        },
+        {
+          "t": "Foto do bebê privada (link temporário, não mais pública)",
+          "estado": "testado",
+          "teste": "Expo Go",
+          "onde": "app",
+          "ref": "8092c16 · 16/10",
+          "obs": "Testado pelo dono na conta de teste em 16/10"
+        },
+        {
+          "t": "Termos de Uso v2.0 e nova Política de Privacidade, com aceite obrigatório a partir de 15/11/2026",
+          "estado": "testado",
+          "teste": "Expo Go",
+          "onde": "app",
+          "ref": "8092c16, 57dddcb · 16/10",
+          "obs": "Aceite testado pelo dono em 16/10"
+        },
+        {
+          "t": "Atualização do Expo SDK 57 e React Native 0.86",
+          "estado": "terminado",
+          "teste": "só no build",
+          "onde": "app",
+          "ref": "8092c16 · 16/10",
+          "obs": "Pede teste geral no TestFlight"
+        },
+        {
+          "t": "Volume em onça (oz) no inglês, seletor de volume novo, lembretes reagendados ao trocar o idioma e atalhos da Siri em inglês",
+          "estado": "terminado",
+          "teste": "Expo Go (Siri só no build)",
+          "onde": "app",
+          "ref": "c363c43 · 18/10"
+        },
+        {
+          "t": "Teste A/B: 1 de cada 3 contas novas entra pela tela de planos, com 7 dias grátis da loja",
+          "estado": "terminado",
+          "teste": "tela no Expo Go; compra só no build",
+          "onde": "app",
+          "ref": "73c1931 · 18/10",
+          "obs": "SKUs _7d da Apple em revisão; falta o Google Play. Antes de enviar: permitir_forcar = false, ativo = true, fracao_b = 1 e lançamento manual (docs/teste-paywall.md)"
+        },
+        {
+          "t": "Tela de planos mais leve (um módulo só, planos em linhas)",
+          "estado": "testado",
+          "teste": "Expo Go",
+          "onde": "app",
+          "ref": "d6cab07, e60fb04 · 18 e 19/10",
+          "obs": "Ajuste de espaço pedido em 19/10"
+        },
+        {
+          "t": "Botão Ajuda (preto, com fone) e a Nina, atendente dentro do app",
+          "estado": "testado",
+          "teste": "Expo Go",
+          "onde": "app",
+          "ref": "d6cab07, e60fb04 · 18 e 19/10"
+        },
+        {
+          "t": "Aviso de privacidade antes da primeira conversa com a Nina",
+          "estado": "comecado",
+          "teste": "Expo Go",
+          "onde": "app",
+          "ref": "e60fb04 + arquivos sem commit (consent.ts, privacidade.ts, AtendimentoRepository.ts)",
+          "obs": "Ainda em andamento em 19/10"
+        },
+        {
+          "t": "Ajuda e Funções do app sem o item Saúde",
+          "estado": "terminado",
+          "teste": "Expo Go",
+          "onde": "app",
+          "ref": "d6cab07 · 18/10"
+        },
+        {
+          "t": "Fecha o vazamento de fotos e registros de bebês (bucket e view)",
+          "estado": "no_ar",
+          "teste": "servidor",
+          "onde": "servidor",
+          "ref": "b6201ed, migrations 00078 e 00080 · 16/10"
+        },
+        {
+          "t": "Assinatura e limite do Chat IA só pelo servidor",
+          "estado": "no_ar",
+          "teste": "servidor",
+          "onde": "servidor",
+          "ref": "0fc607b, migration 00082, ai-chat publicada em 16/10"
+        },
+        {
+          "t": "Lembretes, comunicados e e-mails em inglês para quem usa o app em inglês",
+          "estado": "no_ar",
+          "teste": "servidor",
+          "onde": "servidor",
+          "ref": "enviar-nudges e enviar-comunicado publicadas em 16/10",
+          "obs": "Só chegam em inglês para quem estiver na 1.0.6, que é a versão com o app em inglês"
+        },
+        {
+          "t": "Renovações das assinaturas conferidas na loja de hora em hora e aviso de 2 dias do grupo B",
+          "estado": "no_ar",
+          "teste": "servidor",
+          "onde": "servidor",
+          "ref": "sincronizar-assinaturas publicada em 18/10, cron de hora em hora"
+        },
+        {
+          "t": "Nina com o modelo Haiku 5.5 (mais barata)",
+          "estado": "no_ar",
+          "teste": "servidor",
+          "onde": "servidor",
+          "ref": "atendimento v4 · 19/10"
+        }
+      ]
+    },
+    {
+      "versao": "1.0.5",
+      "situacao": "na_loja",
+      "resumo": "Na App Store desde out/2026. 149 iPhones nela em 19/10 (564 ainda na 1.0.4).",
+      "builds": [
+        {
+          "plataforma": "iOS",
+          "build": "24",
+          "data": "2026-10-15 19:12 (Dubai)",
+          "commit": "858b3e4"
+        },
+        {
+          "plataforma": "Android",
+          "build": "8",
+          "data": "2026-10-15 19:36 (Dubai)",
+          "commit": "858b3e4"
+        },
+        {
+          "plataforma": "Android",
+          "build": "10",
+          "data": "2026-10-18 11:31 (Dubai)",
+          "commit": "efc519d",
+          "obs": "Já tem o inglês, a foto privada, os Termos v2 e o SDK 57. A confirmar se foi para o Google Play"
+        }
+      ],
+      "itens": [
+        {
+          "t": "Sininho novo: vermelho, com anel pulsante, notificações com 1 ou 2 botões e aviso de notificação não lida",
+          "estado": "testado",
+          "teste": "build",
+          "onde": "app",
+          "ref": "cc8840e, 8f6cf81 · 15/10"
+        },
+        {
+          "t": "Banner para convidar cuidador nos dias 2 e 4 de uso (e no dia seguinte a atualizar, para quem já usava)",
+          "estado": "testado",
+          "teste": "build",
+          "onde": "app",
+          "ref": "8f6cf81, 858b3e4 · 15/10"
+        },
+        {
+          "t": "Tela de cuidadores com nome, e-mail e relação; tocar edita e remove; o convite abre o app ou a loja",
+          "estado": "testado",
+          "teste": "build",
+          "onde": "app",
+          "ref": "8f6cf81, 0cab06a · 15/10"
+        },
+        {
+          "t": "Tela de planos abre sozinha no momento de valor (3 dias com registro e 10 registros), e não mais depois do tour",
+          "estado": "testado",
+          "teste": "build",
+          "onde": "app",
+          "ref": "3d87312 · 04/10"
+        },
+        {
+          "t": "Toque na push leva direto à loja ou à oferta",
+          "estado": "testado",
+          "teste": "build",
+          "onde": "app",
+          "ref": "cc8840e · 15/10"
+        },
+        {
+          "t": "Origem do assinante: Apple Search Ads por pessoa (AdServices) e evento Subscribe da Meta",
+          "estado": "testado",
+          "teste": "build",
+          "onde": "app",
+          "ref": "cc8840e · 15/10"
+        },
+        {
+          "t": "Preço riscado preparado para a oferta introdutória (desligado até existir a oferta na loja)",
+          "estado": "testado",
+          "teste": "build",
+          "onde": "app",
+          "ref": "8f09258 · 15/10"
+        }
+      ]
+    },
+    {
+      "versao": "1.0.4",
+      "situacao": "antiga",
+      "resumo": "Disponível desde 29/09/2026. Ainda é a versão da maioria (564 iPhones em 19/10).",
+      "builds": [
+        {
+          "plataforma": "iOS",
+          "build": "23",
+          "data": "2026-09-28 16:59 (Dubai)",
+          "commit": "6cef784"
+        }
+      ],
+      "itens": [
+        {
+          "t": "Live Activity do sono e do peito na tela travada e na Ilha Dinâmica",
+          "estado": "testado",
+          "teste": "build",
+          "onde": "app",
+          "ref": "6cef784 · 28/09"
+        },
+        {
+          "t": "Sininho dentro do app como canal de avisos, com editar e apagar",
+          "estado": "testado",
+          "teste": "build",
+          "onde": "app",
+          "ref": "6cef784 · 28/09"
+        },
+        {
+          "t": "Card Ritmo do bebê na Home, com \"dados insuficientes\" quando falta dado",
+          "estado": "testado",
+          "teste": "build",
+          "onde": "app",
+          "ref": "6cef784 · 28/09"
+        },
+        {
+          "t": "Retomar um sono encerrado por engano e tempo pausado à parte",
+          "estado": "testado",
+          "teste": "build",
+          "onde": "app",
+          "ref": "a9e34f2 · 26/09"
+        },
+        {
+          "t": "Avisos de fim de teste e bloqueio no dia certo (resolvedor único de plano)",
+          "estado": "testado",
+          "teste": "build",
+          "onde": "app",
+          "ref": "a9e34f2 · 26/09"
+        }
+      ]
+    },
+    {
+      "versao": "1.0.3",
+      "situacao": "antiga",
+      "resumo": "Build de 23/09/2026.",
+      "builds": [
+        {
+          "plataforma": "iOS",
+          "build": "16",
+          "data": "2026-09-23 14:57 (Dubai)",
+          "commit": "a04579c"
+        },
+        {
+          "plataforma": "Android",
+          "build": "7",
+          "data": "2026-09-23 14:56 (Dubai)",
+          "commit": "a04579c"
+        }
+      ],
+      "itens": [
+        {
+          "t": "Pausar e retomar o sono, sem contar o tempo pausado",
+          "estado": "testado",
+          "teste": "build",
+          "onde": "app",
+          "ref": "a04579c · 21/09"
+        }
+      ]
+    }
+  ]
+}
