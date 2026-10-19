@@ -153,12 +153,24 @@ export async function fetchResumoAtendimento(): Promise<ResumoAtendimento> {
 }
 
 /**
- * Preço da API da Anthropic para o modelo da Nina (claude-sonnet-5), em US$
- * por milhão de tokens — tabela oficial, conferida em 18/10/2026. Se o
- * modelo mudar na função `atendimento`, mude aqui junto.
- * Cache: escrita custa 1,25× a entrada; leitura, 0,1×.
+ * Preço da API da Anthropic por modelo, em US$ por milhão de tokens — tabela
+ * oficial, conferida em 19/10/2026. Cada resposta grava o modelo que a gerou
+ * (coluna `modelo`, ex. "claude-haiku-5-5 · atendimento-…"), então o custo
+ * antigo continua certo depois de uma troca. Modelo novo na função
+ * `atendimento`: acrescente aqui.
+ * Cache: leitura custa 0,1× a entrada; escrita, 1,25× (cache de 5 min, o do
+ * Sonnet) ou 2× (cache de 1 hora, o do Haiku).
  */
-export const PRECO_NINA_USD_POR_MILHAO = { entrada: 2, saida: 10, cacheLido: 0.2, cacheCriado: 2.5 } as const;
+const PRECOS_USD_POR_MILHAO: Record<string, { entrada: number; saida: number; cacheLido: number; cacheCriado: number }> = {
+  'claude-haiku-5-5': { entrada: 0.1, saida: 0.5, cacheLido: 0.01, cacheCriado: 0.2 },
+  'claude-sonnet-5': { entrada: 2, saida: 10, cacheLido: 0.2, cacheCriado: 2.5 },
+};
+
+function precoDo(modelo: string | null) {
+  const id = (modelo ?? '').split(' ')[0];
+  // Sem modelo (respostas da primeira versão) = Sonnet, o único usado antes.
+  return PRECOS_USD_POR_MILHAO[id] ?? PRECOS_USD_POR_MILHAO['claude-sonnet-5'];
+}
 
 export interface CustoAtendimento {
   dias: number;
@@ -179,21 +191,22 @@ export async function fetchCustoAtendimento(dias: number): Promise<CustoAtendime
     tokens_saida: number;
     tokens_cache_lido: number;
     tokens_cache_criado: number;
+    modelo: string | null;
   };
   const { data, error } = await lerTudo<Linha>('custo atendimento', (de, ate) =>
     appDb()
       .from('atendimento_mensagens')
-      .select('id, profile_id, tokens_entrada, tokens_saida, tokens_cache_lido, tokens_cache_criado')
+      .select('id, profile_id, tokens_entrada, tokens_saida, tokens_cache_lido, tokens_cache_criado, modelo')
       .neq('role', 'user')
       .gte('created_at', desde)
       .order('id')
       .range(de, ate),
   );
   if (error) throw new Error(error.message);
-  const p = PRECO_NINA_USD_POR_MILHAO;
   let usd = 0;
   let respostas = 0;
   for (const l of data) {
+    const p = precoDo(l.modelo);
     const custo =
       (l.tokens_entrada * p.entrada + l.tokens_saida * p.saida + l.tokens_cache_lido * p.cacheLido + l.tokens_cache_criado * p.cacheCriado) /
       1_000_000;
