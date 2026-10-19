@@ -21,13 +21,13 @@ function Enviar({ rotulo, enviando }: { rotulo: string; enviando: string }) {
 }
 
 /** Resposta do dono a uma pendência. "Ensinar a Nina" vem marcado: o
- *  normal é a resposta servir para a próxima pessoa também. Quando a
- *  resposta é pessoal ("confirmei seu pagamento"), dá para desmarcar ou
- *  escrever a versão geral. */
-export function ResponderForm({ pendenciaId, resumo }: { pendenciaId: string; resumo: string }) {
+ *  normal é a resposta servir para a próxima pessoa também. Mas o que ela
+ *  aprende entra na conversa de TODO MUNDO, então só vale a versão geral,
+ *  escrita aqui, sem nome, e-mail ou dado do bebê — nunca o resumo ou a
+ *  resposta do caso (jurídico, 19/10/2026; a função também recusa). */
+export function ResponderForm({ pendenciaId }: { pendenciaId: string; resumo?: string }) {
   const [state, action] = useFormState<RespostaState, FormData>(responder, {});
   const [ensinarMarcado, setEnsinar] = useState(true);
-  const [geral, setGeral] = useState(false);
 
   if (state.ok) {
     return (
@@ -55,16 +55,11 @@ export function ResponderForm({ pendenciaId, resumo }: { pendenciaId: string; re
       </label>
       {ensinarMarcado && (
         <div className="ml-6 flex flex-col gap-2">
-          {!geral ? (
-            <button type="button" onClick={() => setGeral(true)} className="self-start text-xs font-semibold text-ninho-roxo hover:underline">
-              A resposta é pessoal? Escrever a versão geral para ela aprender
-            </button>
-          ) : (
-            <>
-              <input name="pergunta_geral" defaultValue={resumo} placeholder="Pergunta, de forma geral" className={campo} />
-              <textarea name="resposta_geral" rows={2} placeholder="Como responder da próxima vez (para qualquer pessoa)" className={campo} />
-            </>
-          )}
+          <p className="text-xs text-ninho-cinza">
+            Escreva para qualquer pessoa: <strong>sem nome, e-mail ou dado do bebê</strong>. É isto que a Nina vai repetir.
+          </p>
+          <input name="pergunta_geral" required placeholder="Pergunta, de forma geral (ex.: Dá para trocar o e-mail da conta?)" className={campo} />
+          <textarea name="resposta_geral" required rows={2} placeholder="Como responder da próxima vez" className={campo} />
         </div>
       )}
       <div>
