@@ -9,7 +9,7 @@ import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { appDb } from '@/lib/supabase/server';
 import { lerTudo } from '@/lib/supabase/paginar';
-import { resolverOrigem, type Origem } from '@/lib/origem';
+import { resolverOrigem, appleAdsValido, type Origem } from '@/lib/origem';
 
 /** Tag do cache de usuários do app — quem altera usuário chama revalidateTag. */
 export const APP_USERS_TAG = 'app-users';
@@ -309,8 +309,11 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
       herdadoDe: ef?.coberto_por ?? null,
       birthDate: nascimentos.get(p.id) ?? null,
       assinouEm: assinouEm.get(p.id) ?? null,
-      origem: resolverOrigem(apple?.atribuido === true, p.como_conheceu),
-      appleAdsCampaignId: apple?.atribuido ? apple.campaign_id : null,
+      origem: resolverOrigem(apple?.atribuido === true, p.como_conheceu, apple?.campaign_id ?? null),
+      // Só expõe a campanha quando ela é real — o id de TestFlight não é campanha.
+      appleAdsCampaignId: appleAdsValido(apple?.atribuido === true, apple?.campaign_id ?? null)
+        ? apple!.campaign_id
+        : null,
     };
   });
 }

@@ -15,6 +15,7 @@ import type { SeriesPoint } from '@/lib/dashboard-charts';
 import { PasswordInput } from '@/components/admin/PasswordInput';
 import { applyColumnFilters } from '@/components/admin/ColumnFilter';
 import { ThSort, nextSort, type SortDir } from '@/components/admin/ThSort';
+import { ORIGENS, ORIGEM_LABEL, ORIGEM_COR, type Origem } from '@/lib/origem';
 import { ExportExcelButton } from '@/components/admin/ExportExcelButton';
 import { CopyAll } from '@/components/admin/CopyAll';
 import { VerticalBarChart } from '@/components/admin/VerticalBarChart';
@@ -50,6 +51,9 @@ export interface UsuarioRow {
   diasAbertura: number;
   sistema: 'ios' | 'android' | 'web' | null;
   appVersion: string | null;
+  /** De onde a conta veio. Apple Ads é confirmado pela Apple, conta a conta;
+   *  o resto é o que a pessoa respondeu no cadastro. Ver lib/origem.ts. */
+  origem: Origem;
 }
 
 const STATUS_STYLE: Record<StatusConta, string> = {
@@ -67,7 +71,7 @@ const STATUS_STYLE: Record<StatusConta, string> = {
 // em que aparecem na tabela.
 type SortKey =
   | 'nome' | 'created_at' | 'idade' | 'uso' | 'registros' | 'momentos' | 'status'
-  | 'dias' | 'sistema' | 'versao' | 'email';
+  | 'dias' | 'origem' | 'versao' | 'email';
 
 type FilterCol = SortKey;
 
@@ -232,6 +236,28 @@ function usoClass(r: UsuarioRow): string {
   return 'text-ninho-grafite';
 }
 
+// ─── ORIGEM ────────────────────────────────────────────────────────────
+//
+// Por que NÃO é um campo "Meta ou Apple": só o Apple Ads é determinístico. A
+// Apple confirma a instalação conta a conta (AdServices). A Meta, no iPhone
+// sem permissão de rastreamento, não diz QUEM veio do anúncio — o número dela
+// existe só agregado, no Gerenciador (evento Subscribe). Marcar "veio da Meta"
+// por eliminação seria inventar: quem não veio do Apple Ads pode ter vindo de
+// busca na loja, indicação ou post orgânico.
+//
+// O que resta por pessoa: Apple Ads (provado) > o que ela respondeu no
+// cadastro > sem informação.
+
+function origemTooltip(r: UsuarioRow): string {
+  if (r.origem === 'apple_ads') {
+    return 'Apple Ads — confirmado pela Apple (AdServices), conta a conta';
+  }
+  if (r.origem === 'sem_informacao') {
+    return 'Sem informação: não veio do Apple Ads e não respondeu a pergunta no cadastro. Não significa que veio da Meta.';
+  }
+  return `${ORIGEM_LABEL[r.origem]} — respondido pela pessoa no cadastro (mistura anúncio e orgânico)`;
+}
+
 function sistemaLabel(r: UsuarioRow): string {
   if (r.sistema === 'ios') return 'iOS';
   if (r.sistema === 'android') return 'Android';
@@ -255,7 +281,7 @@ function colValue(r: UsuarioRow, col: FilterCol): string {
     case 'registros':  return String(r.registros);
     case 'momentos':   return String(r.momentos);
     case 'dias':       return diasLabel(dias(r));
-    case 'sistema':    return sistemaLabel(r);
+    case 'origem':     return ORIGEM_LABEL[r.origem];
     case 'versao':     return r.appVersion || '—';
   }
 }
@@ -272,7 +298,7 @@ const CABECALHOS: [SortKey, string][] = [
   ['momentos', 'Momentos'],
   ['status', 'Status'],
   ['dias', 'Dias'],
-  ['sistema', 'Sistema'],
+  ['origem', 'Origem'],
   ['versao', 'Versão'],
   ['email', 'E-mail'],
 ];
@@ -524,7 +550,9 @@ export function UsuariosTable({
           case 'registros': cmp = a.registros - b.registros; break;
           case 'momentos': cmp = a.momentos - b.momentos; break;
           case 'dias': cmp = (dias(a) ?? Infinity) - (dias(b) ?? Infinity); break;
-          case 'sistema': cmp = sistemaLabel(a).localeCompare(sistemaLabel(b), 'pt-BR'); break;
+          // Ordena pela ordem de ORIGENS (pagos primeiro, "sem informação" por
+          // último), não alfabética — é a leitura útil do canal.
+          case 'origem': cmp = ORIGENS.indexOf(a.origem) - ORIGENS.indexOf(b.origem); break;
           case 'versao': cmp = (a.appVersion ?? '').localeCompare(b.appVersion ?? '', 'pt-BR'); break;
         }
         return sort.dir === 'asc' ? cmp : -cmp;
@@ -582,6 +610,7 @@ export function UsuariosTable({
         Status: r.status,
         'Herdado de': r.herdadoDe || '',
         Dias: diasLabel(dias(r)),
+        Origem: ORIGEM_LABEL[r.origem],
         Sistema: r.sistema ? sistemaLabel(r) : '',
         Versão: r.appVersion || '',
         'E-mail': r.email || '',
@@ -1047,15 +1076,21 @@ export function UsuariosTable({
                     )}
                   </td>
                   <td className="overflow-hidden p-3">
-                    {r.sistema ? (
-                      <span className="rounded-pill bg-ninho-nuvem px-2 py-0.5 text-xs font-medium text-ninho-grafite">
-                        {sistemaLabel(r)}
-                      </span>
-                    ) : (
-                      <span className="text-ninho-cinza">—</span>
-                    )}
+                    <span
+                      className="inline-flex max-w-full items-center gap-1.5 rounded-pill bg-ninho-nuvem px-2 py-0.5 text-xs font-medium text-ninho-grafite"
+                      title={origemTooltip(r)}
+                    >
+                      <i
+                        className="inline-block h-2 w-2 shrink-0 rounded-full"
+                        style={{ background: ORIGEM_COR[r.origem] }}
+                      />
+                      <span className="truncate">{ORIGEM_LABEL[r.origem]}</span>
+                    </span>
                   </td>
-                  <td className="overflow-hidden p-3 text-ninho-cinza">
+                  <td
+                    className="overflow-hidden p-3 text-ninho-cinza"
+                    title={r.sistema ? sistemaLabel(r) : undefined}
+                  >
                     <div className="truncate font-mono text-xs">{r.appVersion || '—'}</div>
                   </td>
                   <td className="p-3">
@@ -1084,8 +1119,12 @@ export function UsuariosTable({
         <strong>Momentos:</strong> fotos/álbum criados pela conta, contados à parte — as duas
         colunas juntas explicam de onde vem um pico de lançamentos (rotina de verdade vs. importar
         fotos de uma vez).{' '}
-        <strong>Versão/Sistema</strong> vêm do aparelho mais recente com push token: ficam vazios
-        pra quem recusou notificações.
+        <strong>Origem:</strong> só <em>Apple Ads</em> é provado — a Apple confirma a instalação
+        conta a conta. As demais são o que a pessoa respondeu no cadastro e misturam anúncio com
+        orgânico. <em>Sem informação</em> não quer dizer "veio da Meta": no iPhone sem permissão de
+        rastreamento a Meta não informa quem veio do anúncio, só o total no Gerenciador.{' '}
+        <strong>Versão</strong> vem do aparelho mais recente com push token (o sistema está no
+        tooltip): fica vazia pra quem recusou notificações.
       </p>
     </div>
   );
