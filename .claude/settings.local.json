@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Read(//c/Dev/Ninho-expo/supabase/migrations/**)",
+      "mcp__02dc2ae9-d2a5-486e-bcb5-7b59f8b4b2ff__execute_sql",
+      "mcp__02dc2ae9-d2a5-486e-bcb5-7b59f8b4b2ff__apply_migration",
+      "PowerShell(Set-Location \"C:\\\\Dev\\\\Ninho-sistema\"; Remove-Item -Recurse -Force \".next\" -ErrorAction SilentlyContinue; $out = npx next build 2>&1 | Out-String; \\($out | Select-String -Pattern \"Compiled successfully\"\\).Matches.Count; $out | Select-String -Pattern \"Error|error|Failed|warn\" | Select-Object -First 10)",
+      "PowerShell(Set-Location \"C:\\\\Dev\\\\Ninho-sistema\"; Remove-Item -Recurse -Force \".next\" -ErrorAction SilentlyContinue; $out = npx next build 2>&1 | Out-String; \"Compiled: \" + \\($out | Select-String -Pattern \"Compiled successfully\"\\).Matches.Count; $out | Select-String -Pattern \"error|Error|Failed|warn\" | Select-Object -First 8)"
+    ]
+  }
+}
