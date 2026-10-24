@@ -15,7 +15,6 @@
       "andar": "Cobertura",
       "abas": [
         "Visão geral",
-        "KPI",
         "Análise de dados",
         "Teste de paywall",
         "Usuários ativos"
@@ -95,7 +94,9 @@
       "id": "cre",
       "nome": "Crescimento",
       "andar": "2º andar",
-      "abas": [],
+      "abas": [
+        "KPI de crescimento"
+      ],
       "pessoas": [
         {
           "id": "julia",

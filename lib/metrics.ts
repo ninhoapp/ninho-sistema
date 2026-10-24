@@ -13,11 +13,13 @@ import {
   PLANO_LABEL,
   precoDe,
   precoMensalizado,
+  liquido,
   type PlanoKey,
   type PlanoTier,
   type PlanoCiclo,
   type ComissaoPorPlano,
 } from '@/lib/precos';
+import { mesNoPainel } from '@/lib/dashboard-charts';
 
 // ── Predicados ────────────────────────────────────────────
 export const isPagante = (u: AppUser) => u.estado === 'pagante';
@@ -387,6 +389,124 @@ export function buildPnL(
     custoTotal,
     lucro,
     margem: receita > 0 ? (lucro / receita) * 100 : 0,
+  };
+}
+
+// ── Custo de aquisição ────────────────────────────────────
+/**
+ * Canal de um custo de marketing, pelo nome lançado em Despesas. Não existe
+ * campo de canal: "Apple ads" e "Meta ads" são escritos à mão, então a regra
+ * é pelo texto. O que não é Apple nem Meta (vídeo, criativo...) entra só no
+ * total.
+ */
+export function canalDoCusto(c: Cost): 'apple' | 'meta' | 'outros' {
+  if (/apple/i.test(c.label)) return 'apple';
+  if (/meta|instagram|facebook/i.test(c.label)) return 'meta';
+  return 'outros';
+}
+
+/** Quem virou assinante (primeira compra verificada), inclusive quem cancelou depois. */
+export function assinantesNovos(users: AppUser[], mes?: string): AppUser[] {
+  return users.filter(
+    (u) => u.assinouEm && (isPagante(u) || isChurn(u)) && (!mes || mesNoPainel(u.assinouEm) === mes)
+  );
+}
+
+export interface CustoAquisicao {
+  gasto: number;
+  gastoApple: number;
+  gastoMeta: number;
+  gastoOutros: number;
+  assinantes: number;
+  /** Confirmados pela Apple (AdServices), um a um. */
+  assinantesApple: number;
+  /** Todos os que NÃO vieram confirmados da Apple. A Meta não diz quem veio
+   *  do anúncio (iPhone sem ATT), então o custo da Meta é o MELHOR CASO: como
+   *  se todos esses tivessem vindo dela. O real é mais alto. */
+  assinantesNaoApple: number;
+  /** AED por assinante. Null = ninguém assinou (não dá para dividir). `meta` é o melhor caso. */
+  total: number | null;
+  apple: number | null;
+  meta: number | null;
+}
+
+/**
+ * Custo de aquisição = gasto de marketing ÷ assinantes novos. Sem mês, todo o
+ * período. Valores em AED, como estão em Despesas (regra do dono, 24/10/2026:
+ * Despesas é tudo em AED).
+ */
+export function custoAquisicao(costs: Cost[], users: AppUser[], mes?: string): CustoAquisicao {
+  const mk = costs.filter((c) => c.category === 'marketing' && (!mes || c.ref_month.slice(0, 7) === mes));
+  const soma = (canal: 'apple' | 'meta' | 'outros') =>
+    mk.filter((c) => canalDoCusto(c) === canal).reduce((s, c) => s + Number(c.amount), 0);
+  const gastoApple = soma('apple');
+  const gastoMeta = soma('meta');
+  const gastoOutros = soma('outros');
+  const gasto = gastoApple + gastoMeta + gastoOutros;
+  const novos = assinantesNovos(users, mes);
+  const assinantesApple = novos.filter((u) => u.origem === 'apple_ads').length;
+  const assinantesNaoApple = novos.length - assinantesApple;
+  const div = (a: number, b: number) => (b > 0 ? a / b : null);
+  return {
+    gasto, gastoApple, gastoMeta, gastoOutros,
+    assinantes: novos.length, assinantesApple, assinantesNaoApple,
+    total: div(gasto, novos.length),
+    apple: div(gastoApple, assinantesApple),
+    meta: div(gastoMeta, assinantesNaoApple),
+  };
+}
+
+// ── Plano × realizado ─────────────────────────────────────
+export interface MesRealizado {
+  mes: string;
+  novos: number;
+  /** Assinantes pagando no fim do mês (ou hoje, no mês corrente). */
+  ativos: number;
+  /** MRR bruto em R$ desses assinantes. */
+  mrr: number;
+  /** Receita líquida de caixa do mês (R$). */
+  faturamentoLiq: number;
+  /** Gasto de marketing lançado em Despesas (AED: Despesas é tudo em AED). */
+  gastoMarketing: number;
+  gastoApple: number;
+  gastoMeta: number;
+}
+
+/**
+ * O que aconteceu de verdade num mês (yyyy-mm). Mês futuro = null.
+ *
+ * ⚠️ "Ativos no fim do mês" de meses passados usa o estado de hoje: quem
+ * cancelou conta até o fim do período pago (`current_period_end`). Não há log
+ * de cobrança, então é a melhor leitura possível (mesma limitação de
+ * `mesesComCobranca`).
+ */
+export function realizadoDoMes(
+  users: AppUser[],
+  costs: Cost[],
+  mes: string,
+  hoje: Date = new Date()
+): MesRealizado | null {
+  const atual = mesNoPainel(hoje);
+  if (mes > atual) return null;
+  const [y, m] = mes.split('-').map(Number);
+  // Fim do mês em Dubai (UTC+4, sem horário de verão).
+  const fimMes = Date.UTC(y, m, 1) - 4 * 3600 * 1000;
+  const fim = mes === atual ? hoje.getTime() : fimMes;
+  const ativosArr = users.filter((u) => {
+    if (!u.assinouEm || new Date(u.assinouEm).getTime() > fim) return false;
+    if (isPagante(u)) return true;
+    return isChurn(u) && !!u.current_period_end && new Date(u.current_period_end).getTime() > fim;
+  });
+  const ca = custoAquisicao(costs, users, mes);
+  return {
+    mes,
+    novos: ca.assinantes,
+    ativos: ativosArr.length,
+    mrr: ativosArr.reduce((s, u) => s + monthlyRevenueForUser(u), 0),
+    faturamentoLiq: liquido(receitaBrutaDoMes(users, mes, hoje)),
+    gastoMarketing: ca.gasto,
+    gastoApple: ca.gastoApple,
+    gastoMeta: ca.gastoMeta,
   };
 }
 

@@ -101,3 +101,27 @@ export function buildUsuariosCharts(users: { created_at: string }[]): UsuariosCh
     usuariosPorMes: bucketByMonth(userDates, 7),
   };
 }
+
+/** Mês (yyyy-mm) de um instante, no fuso do painel. */
+export function mesNoPainel(iso: string | Date): string {
+  return tzDateString(typeof iso === 'string' ? new Date(iso) : iso).slice(0, 7);
+}
+
+/** Rótulo curto de um mês yyyy-mm ("nov/26"). */
+export function rotuloMes(mes: string): string {
+  const [y, m] = mes.split('-').map(Number);
+  return `${MES_ABREV[m - 1]}/${String(y).slice(2)}`;
+}
+
+/** Meses yyyy-mm de `de` até `ate`, inclusive. */
+export function mesesEntre(de: string, ate: string): string[] {
+  const out: string[] = [];
+  let [y, m] = de.split('-').map(Number);
+  const [y2, m2] = ate.split('-').map(Number);
+  while (y < y2 || (y === y2 && m <= m2)) {
+    out.push(`${y}-${String(m).padStart(2, '0')}`);
+    m++;
+    if (m > 12) { m = 1; y++; }
+  }
+  return out;
+}

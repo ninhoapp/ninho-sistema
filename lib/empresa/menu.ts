@@ -49,13 +49,15 @@ export const MENU_ADMIN: GrupoMenu[] = [
     id: 'dir', nome: 'Diretoria', cor: COR_SETOR.dir, equipe: '/admin/empresa/dir',
     abas: [
       { href: '/admin/visao-geral', label: 'Visão geral' },
-      { href: '/admin/kpi', label: 'KPI' },
       { href: '/admin/analise', label: 'Análise de dados' },
       { href: '/admin/teste-paywall', label: 'Teste de paywall' },
       { href: '/admin/usuarios', label: 'Usuários ativos' },
     ],
   },
-  { id: 'cre', nome: 'Crescimento', cor: COR_SETOR.cre, equipe: '/admin/empresa/cre', abas: [] },
+  {
+    id: 'cre', nome: 'Crescimento', cor: COR_SETOR.cre, equipe: '/admin/empresa/cre',
+    abas: [{ href: '/admin/crescimento', label: 'KPI de crescimento' }],
+  },
   {
     id: 'fin', nome: 'Financeiro', cor: COR_SETOR.fin, equipe: '/admin/empresa/fin',
     abas: [

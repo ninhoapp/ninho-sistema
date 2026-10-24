@@ -5,6 +5,8 @@ import {
   buildOverview,
   buildPnL,
   buildRepasses,
+  custoAquisicao,
+  type CustoAquisicao,
   custosDoMes,
   formatBRL,
   isPagante,
@@ -29,6 +31,10 @@ import { ORIGENS, ORIGEM_COR, ORIGEM_LABEL } from '@/lib/origem';
 import type { AppUser } from '@/lib/app-users';
 
 export const dynamic = 'force-dynamic';
+
+/** Despesas é tudo em AED (regra do dono, 24/10/2026). */
+const formatAED = (v: number) =>
+  `${v.toLocaleString('pt-BR', { maximumFractionDigits: v < 100 ? 2 : 0 })} AED`;
 
 /** Contagem por origem, na ordem de ORIGENS. Origem sem ninguém some do
  *  gráfico — exceto quando TODO mundo é zero, aí o BarChart mostra o vazio. */
@@ -60,6 +66,8 @@ export default async function FaturamentoPage({
   ]);
 
   const m = buildOverview(users);
+  const cacMes = custoAquisicao(custos, users, mes);
+  const cacTodo = custoAquisicao(custos, users);
   const conversao = taxaConversaoNascidos(users);
   const repasses = buildRepasses(perfis, users, outcomes);
 
@@ -237,6 +245,46 @@ export default async function FaturamentoPage({
           />
         </section>
       </div>
+
+      <h2 className="mb-3 text-base font-bold text-ninho-grafite">Custo de aquisição (AED por assinante novo)</h2>
+      <div className="mb-2 grid gap-4 lg:grid-cols-2">
+        {([
+          ['Todo o período', cacTodo],
+          [`Este mês · ${mes}`, cacMes],
+        ] as [string, CustoAquisicao][]).map(([titulo, c]) => (
+          <div key={titulo}>
+            <p className="mb-2 text-xs font-semibold text-ninho-cinza">{titulo}</p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <StatCard
+                label="Total"
+                value={c.total != null ? formatAED(c.total) : '—'}
+                hint={`${formatAED(c.gasto)} em marketing ÷ ${c.assinantes} assinantes`}
+                compactHint
+                accent
+              />
+              <StatCard
+                label="Apple Ads"
+                value={c.apple != null ? formatAED(c.apple) : '—'}
+                hint={`${formatAED(c.gastoApple)} ÷ ${c.assinantesApple} confirmados pela Apple`}
+                compactHint
+              />
+              <StatCard
+                label="Meta (melhor caso)"
+                value={c.meta != null ? formatAED(c.meta) : '—'}
+                hint={`${formatAED(c.gastoMeta)} ÷ ${c.assinantesNaoApple} que não vieram da Apple`}
+                compactHint
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="mb-8 text-xs text-ninho-cinza">
+        Gasto = custos de <strong>marketing</strong> lançados em Despesas (tudo em AED) (pelo nome: "Apple…" vai para a Apple; "Meta",
+        "Instagram" ou "Facebook" vai para a Meta; o resto, como vídeo, só entra no total). <strong>Total</strong> divide por
+        todos os assinantes novos, inclusive orgânicos. <strong>Meta</strong> é o melhor caso: a Meta não diz quem veio do
+        anúncio, então divide por todos que não vieram da Apple (inclui orgânicos). O custo real da Meta é maior. Despesa lançada atrasada
+        muda o número do mês.
+      </p>
 
       <h2 className="mb-3 text-base font-bold text-ninho-grafite">Assinantes</h2>
       <div className="mb-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">

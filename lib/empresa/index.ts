@@ -71,7 +71,7 @@ export const SETORES: Setor[] = (organograma as { setores: Setor[] }).setores;
 /** Abas atuais do painel → endereço. Usado nos andares para levar à aba. */
 export const ABA_HREF: Record<string, string> = {
   'Visão geral': '/admin/visao-geral',
-  KPI: '/admin/kpi',
+  'KPI de crescimento': '/admin/crescimento',
   'Gerenciar perfis': '/admin/perfis',
   'Minha conta': '/admin/conta',
   'Usuários ativos': '/admin/usuarios',
