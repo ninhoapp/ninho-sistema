@@ -5,7 +5,8 @@
  *   teste_paywall_resumo        → uma linha por grupo (só sorteados)
  *   teste_paywall_diario        → dia × grupo (só sorteados; dia no fuso de São Paulo)
  *   teste_paywall_participantes → uma linha por pessoa (inclui quem ficou fora do sorteio)
- *   teste_paywall_config        → sorteio ligado/desligado e fração do grupo B
+ *   teste_paywall_config        → rodízio ligado/desligado e fração do grupo B
+ *   teste_paywall_liberados     → B sem cartão em 2h, liberado e passado para o A (00089)
  *
  * Grupo A: 7 dias de teste do app, sem cartão.
  * Grupo B: tela de planos obrigatória, 7 dias grátis da loja (com cartão).
@@ -30,6 +31,22 @@ export interface ResumoGrupo {
   pct_pagou: number | null;
 }
 
+/** Grupo B sem cartão por 2h, liberado com 7 dias sem cartão e passado
+ *  para o A (migration 00089). Uma linha por pessoa. */
+export interface Liberado {
+  profile_id: string;
+  primeiro_nome: string | null;
+  entrou_no_b_em: string;
+  liberado_em: string;
+  avisado_em: string | null;
+  push_aberta_em: string | null;
+  voltou_em: string | null;
+  registrou_em: string | null;
+  registros_depois: number;
+  estado: string | null;
+  assinou: boolean;
+}
+
 export interface DiaGrupo {
   dia: string; // yyyy-mm-dd, fuso de São Paulo (definido na view)
   grupo: Grupo;
@@ -43,6 +60,8 @@ export interface TestePaywall {
   resumo: Record<Grupo, ResumoGrupo>;
   diario: DiaGrupo[];
   foraDoSorteio: number;
+  /** null = a view ainda não existe (migration 00089 não aplicada). */
+  liberados: Liberado[] | null;
 }
 
 function vazio(grupo: Grupo): ResumoGrupo {
@@ -67,7 +86,7 @@ const nOuNull = (v: unknown) => (v == null ? null : Number(v));
 
 export async function fetchTestePaywall(): Promise<TestePaywall> {
   const sb = appDb();
-  const [cfg, res, dia, fora] = await Promise.all([
+  const [cfg, res, dia, fora, lib] = await Promise.all([
     sb.from('teste_paywall_config').select('ativo,fracao_b').limit(1).maybeSingle(),
     sb.from('teste_paywall_resumo').select('*'),
     sb.from('teste_paywall_diario').select('*').order('dia', { ascending: true }),
@@ -75,6 +94,7 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
       .from('teste_paywall_participantes')
       .select('profile_id', { count: 'exact', head: true })
       .eq('sorteado', false),
+    sb.from('teste_paywall_liberados').select('*').order('liberado_em', { ascending: false }),
   ]);
   for (const r of [cfg, res, dia, fora]) {
     if (r.error) throw new Error(`Teste de paywall: ${r.error.message}`);
@@ -109,11 +129,29 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
       pagaram: n(r.pagaram),
     }));
 
+  // Antes da 00089 a view não existe: a tela mostra o aviso em vez de quebrar.
+  const liberados: Liberado[] | null = lib.error
+    ? null
+    : (lib.data ?? []).map((r) => ({
+        profile_id: String(r.profile_id),
+        primeiro_nome: r.primeiro_nome ?? null,
+        entrou_no_b_em: String(r.entrou_no_b_em),
+        liberado_em: String(r.liberado_em),
+        avisado_em: r.avisado_em ?? null,
+        push_aberta_em: r.push_aberta_em ?? null,
+        voltou_em: r.voltou_em ?? null,
+        registrou_em: r.registrou_em ?? null,
+        registros_depois: n(r.registros_depois),
+        estado: r.estado ?? null,
+        assinou: !!r.assinou,
+      }));
+
   return {
     config: cfg.data ? { ativo: !!cfg.data.ativo, fracao_b: n(cfg.data.fracao_b) } : null,
     resumo,
     diario,
     foraDoSorteio: fora.count ?? 0,
+    liberados,
   };
 }
 

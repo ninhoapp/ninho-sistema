@@ -5,6 +5,7 @@ import {
   hojeSaoPaulo,
   pct,
   type Grupo,
+  type Liberado,
   type ResumoGrupo,
 } from '@/lib/teste-paywall';
 import { PageHeader } from '@/components/admin/PageHeader';
@@ -17,10 +18,23 @@ export const dynamic = 'force-dynamic';
 const DIAS_GRAFICO = 28;
 
 const COR: Record<Grupo, string> = { A: '#9F86E0', B: '#F7A83C' };
+const COR_LIBERADO = '#4CAF8E';
 const NOME: Record<Grupo, string> = {
   A: 'Grupo A · teste do app sem cartão',
   B: 'Grupo B · planos obrigatórios, 7 dias grátis da loja',
 };
+
+/** fracao_b vira "3 para o A, 1 para o B" quando o rodízio é redondo
+ *  (0.25, 0.5, 1); senão, a porcentagem. A ordem sai da migration 00088. */
+function proporcao(fracaoB: number): string {
+  if (fracaoB >= 1) return 'todas as contas novas vão para o grupo B';
+  if (fracaoB <= 0) return 'todas as contas novas vão para o grupo A';
+  const ciclo = 1 / fracaoB;
+  if (Math.abs(ciclo - Math.round(ciclo)) < 1e-6) {
+    return `${Math.round(ciclo) - 1} para o A, 1 para o B`;
+  }
+  return `${Math.round(fracaoB * 100)}% das contas novas vão para o grupo B`;
+}
 
 function Linha({
   label,
@@ -52,27 +66,48 @@ function Linha({
   );
 }
 
-function CartaoGrupo({ r }: { r: ResumoGrupo }) {
+function CartaoGrupo({ r, totalSorteado }: { r: ResumoGrupo; totalSorteado: number }) {
   const c = r.cadastros;
+  const cartao = r.comecaram_teste_loja;
+  // Só o B passa pela tela obrigatória; no A, "sem cartão" é o fluxo normal.
+  const semCartao = r.grupo === 'B' ? Math.max(c - cartao, 0) : null;
   return (
     <div className="rounded-2xl border border-ninho-borda bg-white p-5">
       <div className="mb-3 flex items-center gap-2">
         <span className="inline-block h-3 w-3 rounded-sm" style={{ background: COR[r.grupo] }} />
         <h3 className="text-sm font-bold text-ninho-grafite">{NOME[r.grupo]}</h3>
       </div>
-      <Linha label="Cadastros" valor={c} />
+      <Linha label="Cadastros" valor={c} detalhe={`${pct(c, totalSorteado)} do total sorteado`} />
       <Linha label="Viram a oferta" valor={r.viram_oferta} detalhe={pct(r.viram_oferta, c)} />
       <Linha
         label="Puseram o cartão (teste da loja)"
-        valor={r.comecaram_teste_loja}
-        detalhe={pct(r.comecaram_teste_loja, c)}
+        valor={cartao}
+        detalhe={`${pct(cartao, c)} dos cadastros`}
       />
-      <Linha label="Em teste da loja agora" valor={r.em_teste_loja_agora} />
+      {semCartao != null && (
+        <Linha
+          label="Não puseram o cartão"
+          valor={semCartao}
+          detalhe={`${pct(semCartao, c)} dos cadastros`}
+        />
+      )}
+      <Linha label="Em teste da loja agora" valor={r.em_teste_loja_agora} detalhe={cartao > 0 ? 'ainda nos 7 dias grátis' : undefined} />
       <Linha
         label="Cancelaram no teste"
         valor={r.cancelaram_no_teste}
-        detalhe={r.comecaram_teste_loja > 0 ? `${pct(r.cancelaram_no_teste, r.comecaram_teste_loja)} de quem pôs o cartão` : undefined}
+        detalhe={
+          cartao > 0
+            ? `${pct(r.cancelaram_no_teste, cartao)} de quem pôs o cartão · ${pct(r.cancelaram_no_teste, c)} dos cadastros`
+            : undefined
+        }
       />
+      {cartao > 0 && (
+        <Linha
+          label="Pagaram ÷ quem pôs o cartão"
+          valor={pct(r.pagaram, cartao)}
+          detalhe={`${r.pagaram} de ${cartao}${r.em_teste_loja_agora > 0 ? ` · ${r.em_teste_loja_agora} ainda nos 7 dias` : ''}`}
+        />
+      )}
       <Linha
         label="Pagaram ÷ cadastros"
         valor={r.pct_pagou != null ? `${r.pct_pagou.toFixed(1)}%` : '—'}
@@ -83,6 +118,101 @@ function CartaoGrupo({ r }: { r: ResumoGrupo }) {
       <Linha label="Convidaram cuidador" valor={r.convidaram_cuidador} detalhe={pct(r.convidaram_cuidador, c)} />
       <Linha label="Média de registros por pessoa" valor={r.media_registros != null ? r.media_registros.toFixed(1) : '—'} />
       <Linha label="Receita por cadastro aos 60 dias" valor="—" detalhe="ainda não medida" />
+    </div>
+  );
+}
+
+/** "24/10 07:22" no fuso de Dubai (regra do painel para datas). */
+function quando(iso: string | null): string {
+  if (!iso) return '—';
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'Asia/Dubai', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).format(new Date(iso));
+}
+
+/** Terceira coluna: quem caiu no B, ficou 2h sem cartão e foi liberado com
+ *  7 dias sem cartão (migration 00089). Continua contando no B ao lado; aqui
+ *  é o caminho de volta de cada um. */
+function CartaoLiberados({ lista }: { lista: Liberado[] | null }) {
+  if (lista == null) {
+    return (
+      <div className="rounded-2xl border border-dashed border-ninho-borda bg-white p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="inline-block h-3 w-3 rounded-sm" style={{ background: COR_LIBERADO }} />
+          <h3 className="text-sm font-bold text-ninho-grafite">B liberado · sem cartão em 2h</h3>
+        </div>
+        <p className="text-sm text-ninho-cinza">
+          Aparece quando a migration <strong>00089</strong> for aplicada no Supabase.
+        </p>
+      </div>
+    );
+  }
+  const total = lista.length;
+  const avisados = lista.filter((l) => l.avisado_em).length;
+  const abriram = lista.filter((l) => l.push_aberta_em).length;
+  const voltaram = lista.filter((l) => l.voltou_em).length;
+  const registraram = lista.filter((l) => l.registrou_em).length;
+  const assinaram = lista.filter((l) => l.assinou).length;
+  return (
+    <div className="rounded-2xl border border-ninho-borda bg-white p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="inline-block h-3 w-3 rounded-sm" style={{ background: COR_LIBERADO }} />
+        <h3 className="text-sm font-bold text-ninho-grafite">B liberado · sem cartão em 2h</h3>
+      </div>
+      <Linha label="Liberados (7 dias sem cartão)" valor={total} detalhe="passaram para o A" />
+      <Linha label="Receberam o aviso" valor={avisados} detalhe={`${pct(avisados, total)} dos liberados`} />
+      <Linha label="Abriram a push" valor={abriram} detalhe={`${pct(abriram, total)} dos liberados`} />
+      <Linha label="Voltaram ao app" valor={voltaram} detalhe={`${pct(voltaram, total)} dos liberados`} />
+      <Linha
+        label="Voltaram e fizeram 1 registro"
+        valor={pct(registraram, total)}
+        detalhe={`${registraram} de ${total}`}
+        destaque
+      />
+      <Linha label="Assinaram depois" valor={assinaram} detalhe={`${pct(assinaram, total)} dos liberados`} />
+    </div>
+  );
+}
+
+function TabelaLiberados({ lista }: { lista: Liberado[] }) {
+  if (lista.length === 0) {
+    return (
+      <p className="mb-8 rounded-2xl border border-ninho-borda bg-white p-5 text-sm text-ninho-cinza">
+        Ninguém liberado ainda. A cada 15 minutos o servidor libera quem está no B há 2h sem cartão.
+      </p>
+    );
+  }
+  const celula = 'px-3 py-2 text-left';
+  return (
+    <div className="mb-8 overflow-x-auto rounded-2xl border border-ninho-borda bg-white">
+      <table className="w-full min-w-[640px] text-sm text-ninho-grafite">
+        <thead className="border-b border-ninho-borda text-xs text-ninho-cinza">
+          <tr>
+            <th className={celula}>Pessoa</th>
+            <th className={celula}>Liberada</th>
+            <th className={celula}>Aviso</th>
+            <th className={celula}>Abriu a push</th>
+            <th className={celula}>Voltou</th>
+            <th className={celula}>1º registro</th>
+            <th className={celula}>Registros</th>
+            <th className={celula}>Assinou</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lista.map((l) => (
+            <tr key={l.profile_id} className="border-b border-ninho-borda last:border-b-0">
+              <td className={celula}>{l.primeiro_nome ?? <span className="text-ninho-cinza">sem nome</span>}</td>
+              <td className={celula}>{quando(l.liberado_em)}</td>
+              <td className={celula}>{quando(l.avisado_em)}</td>
+              <td className={celula}>{quando(l.push_aberta_em)}</td>
+              <td className={celula}>{quando(l.voltou_em)}</td>
+              <td className={celula}>{quando(l.registrou_em)}</td>
+              <td className={celula}>{l.registros_depois}</td>
+              <td className={celula}>{l.assinou ? 'sim' : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -100,8 +230,8 @@ export default async function TestePaywallPage() {
   const status = !t.config
     ? 'Configuração do teste não encontrada'
     : t.config.ativo
-    ? `Sorteio ligado · ${Math.round(t.config.fracao_b * 100)}% das contas novas vão para o grupo B`
-    : 'Sorteio desligado';
+    ? `Rodízio ligado · ${proporcao(t.config.fracao_b)}`
+    : 'Rodízio desligado';
 
   return (
     <>
@@ -131,15 +261,20 @@ export default async function TestePaywallPage() {
           <p className="text-base font-semibold text-ninho-grafite">Teste ainda não começou — nenhum participante</p>
           <p className="mt-1 text-sm text-ninho-cinza">
             {t.config?.ativo
-              ? 'O sorteio está ligado; os números aparecem aqui assim que a primeira conta nova for sorteada.'
-              : 'O sorteio está desligado. Quando for ligado, cada conta nova cai no grupo A ou B e os números aparecem aqui.'}
+              ? 'O rodízio está ligado; os números aparecem aqui assim que a primeira conta nova entrar no teste.'
+              : 'O rodízio está desligado. Quando for ligado, cada conta nova cai no grupo A ou B e os números aparecem aqui.'}
           </p>
         </div>
       ) : (
         <>
           <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard label="Cadastros hoje · A" value={hojeA} hint={`${A.cadastros} desde o início`} compactHint />
-            <StatCard label="Cadastros hoje · B" value={hojeB} hint={`${B.cadastros} desde o início`} compactHint />
+            <StatCard
+              label="Cadastros hoje · B"
+              value={hojeB}
+              hint={`${B.cadastros} desde o início · ${pct(B.cadastros, total)} do total`}
+              compactHint
+            />
             <StatCard
               label="Pagaram ÷ cadastros · A"
               value={A.pct_pagou != null ? `${A.pct_pagou.toFixed(1)}%` : '—'}
@@ -156,17 +291,31 @@ export default async function TestePaywallPage() {
             />
           </div>
 
-          <h2 className="mb-3 text-base font-bold text-ninho-grafite">A × B</h2>
-          <div className="mb-2 grid gap-4 lg:grid-cols-2">
-            <CartaoGrupo r={A} />
-            <CartaoGrupo r={B} />
+          <h2 className="mb-3 text-base font-bold text-ninho-grafite">A × B × B liberado</h2>
+          <div className="mb-2 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <CartaoGrupo r={A} totalSorteado={total} />
+            <CartaoGrupo r={B} totalSorteado={total} />
+            <CartaoLiberados lista={t.liberados} />
           </div>
           <p className="mb-8 text-xs text-ninho-cinza">
             <strong>Pagou</strong> = compra verificada e cobrança real (no B, só depois que os 7 dias
             grátis da loja acabaram). <strong>Viram a oferta</strong> conta todo o grupo B, que já
-            abre na tela de planos. Receita por cadastro aos 60 dias entra quando a primeira turma
-            completar 60 dias.
+            abre na tela de planos. <strong>B liberado</strong>: quem ficou 2h no B sem pôr o cartão
+            ganha 7 dias sem cartão e passa para o fluxo do A; continua contando no B, e aqui aparece
+            se voltou ao app (qualquer abertura depois da liberação) e se fez pelo menos 1 registro.
+            Receita por cadastro aos 60 dias entra quando a primeira turma completar 60 dias.
           </p>
+
+          {t.liberados != null && (
+            <>
+              <h2 className="mb-1 text-base font-bold text-ninho-grafite">Quem foi liberado</h2>
+              <p className="mb-3 text-xs text-ninho-cinza">
+                Horários no fuso de Dubai. O aviso (push, sininho e e-mail) só sai entre 7h e 21h no
+                horário da pessoa.
+              </p>
+              <TabelaLiberados lista={t.liberados} />
+            </>
+          )}
 
           <h2 className="mb-1 text-base font-bold text-ninho-grafite">Novos usuários por dia, por grupo</h2>
           <p className="mb-3 text-xs text-ninho-cinza">
@@ -186,7 +335,7 @@ export default async function TestePaywallPage() {
       )}
 
       <p className="text-xs text-ninho-cinza">
-        Fora do sorteio (bebê ainda não nasceu): <strong>{t.foraDoSorteio}</strong>{' '}
+        Fora do rodízio (bebê ainda não nasceu): <strong>{t.foraDoSorteio}</strong>{' '}
         {t.foraDoSorteio === 1 ? 'conta' : 'contas'}. Essas pessoas vão direto para o grupo A e
         ficam fora da comparação.
       </p>
