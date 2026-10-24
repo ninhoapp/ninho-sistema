@@ -31,10 +31,8 @@ export interface MesPlano {
   bolsoAcumAed: number;
 }
 
-/** Câmbio usado na projeção (24/10/2026). */
-export const CAMBIO = { data: '24/10/2026', aedPorUsd: 3.6725, brlPorUsd: 5.45 };
-/** Quantos R$ vale 1 AED nesse câmbio (≈ 1,484). */
-export const BRL_POR_AED = CAMBIO.brlPorUsd / CAMBIO.aedPorUsd;
+/** Câmbio usado na projeção: o mesmo do painel (lib/cambio.ts). */
+export { CAMBIO, BRL_POR_AED } from '@/lib/cambio';
 
 export const BOLSO_AED = 1500;
 export const FIM_DO_BOLSO = '2027-07';

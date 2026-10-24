@@ -20,6 +20,7 @@ import {
   type ComissaoPorPlano,
 } from '@/lib/precos';
 import { mesNoPainel } from '@/lib/dashboard-charts';
+import { aedParaBrl } from '@/lib/cambio';
 
 // ── Predicados ────────────────────────────────────────────
 export const isPagante = (u: AppUser) => u.estado === 'pagante';
@@ -361,7 +362,7 @@ export interface PnL {
   margem: number; // %
 }
 
-/** Soma os custos de um mês (yyyy-mm). Sem mês, soma tudo. */
+/** Soma os custos de um mês (yyyy-mm). Sem mês, soma tudo. Em AED, como Despesas. */
 export function custosDoMes(costs: Cost[], mes?: string) {
   const alvo = costs.filter((c) => !mes || c.ref_month.slice(0, 7) === mes);
   const fixos = alvo.filter((c) => c.kind === 'fixo').reduce((s, c) => s + Number(c.amount), 0);
@@ -377,7 +378,9 @@ export function buildPnL(
   repasses: RepassePerfil[],
   mes?: string
 ): PnL {
-  const c = custosDoMes(costs, mes);
+  // Receita e repasses são em R$; Despesas é em AED. Converte antes de somar.
+  const aed = custosDoMes(costs, mes);
+  const c = { fixos: aedParaBrl(aed.fixos), variaveis: aedParaBrl(aed.variaveis), total: aedParaBrl(aed.total) };
   const totalRepasses = repasses.reduce((s, r) => s + r.consolidado, 0);
   const custoTotal = c.total + totalRepasses;
   const lucro = receita - custoTotal;

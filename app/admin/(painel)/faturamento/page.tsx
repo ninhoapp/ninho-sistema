@@ -19,6 +19,7 @@ import {
 import { DivergingBarChart, type DBar } from '@/components/admin/DivergingBarChart';
 import { AssinantesTable } from '@/components/admin/AssinantesTable';
 import { TAXA_LOJA, liquido } from '@/lib/precos';
+import { aedParaBrl, formatAED, TEXTO_CAMBIO } from '@/lib/cambio';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
 import { Notice } from '@/components/admin/Notice';
@@ -32,9 +33,7 @@ import type { AppUser } from '@/lib/app-users';
 
 export const dynamic = 'force-dynamic';
 
-/** Despesas é tudo em AED (regra do dono, 24/10/2026). */
-const formatAED = (v: number) =>
-  `${v.toLocaleString('pt-BR', { maximumFractionDigits: v < 100 ? 2 : 0 })} AED`;
+
 
 /** Contagem por origem, na ordem de ORIGENS. Origem sem ninguém some do
  *  gráfico — exceto quando TODO mundo é zero, aí o BarChart mostra o vazio. */
@@ -126,7 +125,8 @@ export default async function FaturamentoPage({
     const d = new Date(anoRef, mesRef - 1 - i, 1);
     const chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     const c = custosDoMes(custos, chave);
-    const resultado = liquido(receitaBrutaDoMes(users, chave)) - c.total;
+    // Despesas em AED → R$ antes de tirar da receita.
+    const resultado = liquido(receitaBrutaDoMes(users, chave)) - aedParaBrl(c.total);
     seisMeses.push({
       label: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''),
       value: resultado,
@@ -140,7 +140,7 @@ export default async function FaturamentoPage({
         title="Faturamento e lucro"
         subtitle={`Receita por caixa: conta o que a loja cobrou no mês. O anual entra inteiro no mês da compra e zera nos onze seguintes. Já descontados os ${Math.round(
           TAXA_LOJA * 100
-        )}% que Apple e Google retêm.`}
+        )}% que Apple e Google retêm. Despesas são lançadas em AED e convertidas para R$: ${TEXTO_CAMBIO}.`}
         right={<MonthFilter value={mes} />}
       />
 
@@ -176,7 +176,7 @@ export default async function FaturamentoPage({
         <StatCard
           label="Custo total"
           value={formatBRL(pnlAcum.custoTotal)}
-          hint="Todas as despesas + repasses"
+          hint="Despesas (AED → R$) + repasses"
           compactHint
           icon={<IconServer />}
         />
@@ -215,7 +215,7 @@ export default async function FaturamentoPage({
         <StatCard
           label="Custo total"
           value={formatBRL(pnl.custoTotal)}
-          hint="Despesas + repasses"
+          hint={`Despesas ${formatAED(custosDoMes(custos, mes).total)} em R$ + repasses`}
           icon={<IconServer />}
         />
         <StatCard

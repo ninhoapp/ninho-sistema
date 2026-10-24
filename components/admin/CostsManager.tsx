@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { criarCusto, removerCusto, type ActionState } from '@/app/admin/(painel)/admin-actions';
 import type { Cost } from '@/lib/painel/store';
-import { formatBRL } from '@/lib/metrics';
+import { formatAED } from '@/lib/cambio';
 import { Tabela, Td } from '@/components/admin/Tabela';
 import { ExportExcelButton } from '@/components/admin/ExportExcelButton';
 
@@ -49,7 +49,7 @@ export function CostsManager({
     Categoria: c.category === 'marketing' ? 'Marketing' : 'App',
     Tipo: c.kind === 'fixo' ? 'Fixo' : 'Variável',
     Mês: c.ref_month.slice(0, 7),
-    Valor: Number(c.amount),
+    'Valor (AED)': Number(c.amount),
   }));
 
   return (
@@ -71,7 +71,7 @@ export function CostsManager({
             <input name="label" className={`${inputCls} mt-1`} placeholder="Supabase, OpenAI, anúncios..." />
           </label>
           <label className="text-xs text-ninho-cinza">
-            Valor (R$)
+            Valor (AED)
             <input name="amount" type="number" step="0.01" min="0" className={`${inputCls} mt-1`} />
           </label>
           <label className="text-xs text-ninho-cinza">
@@ -148,7 +148,7 @@ export function CostsManager({
             </Td>
             <Td className="text-ninho-cinza">{c.kind === 'fixo' ? 'Fixo' : 'Variável'}</Td>
             <Td className="whitespace-nowrap text-ninho-cinza">{c.ref_month.slice(0, 7)}</Td>
-            <Td className="whitespace-nowrap font-semibold">{formatBRL(Number(c.amount))}</Td>
+            <Td className="whitespace-nowrap font-semibold">{formatAED(Number(c.amount))}</Td>
             <Td>
               <div className="flex gap-2">
                 <form action={removerCusto}>

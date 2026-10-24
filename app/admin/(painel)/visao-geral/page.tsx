@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/auth/guard';
 import { fetchAppUsers, appDbConfigured } from '@/lib/app-users';
 import { listCosts } from '@/lib/painel/store';
+import { aedParaBrl, formatAED } from '@/lib/cambio';
 import {
   buildOverview,
   buildOverviewAt,
@@ -134,16 +135,16 @@ export default async function VisaoGeralPage() {
           <h2 className="mb-4 text-base font-bold text-ninho-grafite">Resumo do mês</h2>
           <div className="grid grid-cols-2 gap-3">
             <Mini label="Receita líquida" value={formatBRL(receitaLiquida)} hint="Após 15% da loja" />
-            <Mini label="Custos" value={formatBRL(c.total)} hint={mes} />
-            <Mini label="Fixos" value={formatBRL(c.fixos)} />
-            <Mini label="Variáveis" value={formatBRL(c.variaveis)} />
+            <Mini label="Custos" value={formatAED(c.total)} hint={`${mes} · ≈ ${formatBRL(aedParaBrl(c.total))}`} />
+            <Mini label="Fixos" value={formatAED(c.fixos)} />
+            <Mini label="Variáveis" value={formatAED(c.variaveis)} />
           </div>
           <p className="mt-4 text-sm text-ninho-cinza">
             Resultado do mês:{' '}
             <strong
-              className={receitaLiquida - c.total >= 0 ? 'text-state-success' : 'text-red-600'}
+              className={receitaLiquida - aedParaBrl(c.total) >= 0 ? 'text-state-success' : 'text-red-600'}
             >
-              {formatBRL(receitaLiquida - c.total)}
+              {formatBRL(receitaLiquida - aedParaBrl(c.total))}
             </strong>{' '}
             <span className="text-xs">(sem repasses — o número completo está em Faturamento)</span>
           </p>

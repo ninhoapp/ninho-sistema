@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/auth/guard';
 import { listCosts } from '@/lib/painel/store';
-import { custosDoMes, formatBRL } from '@/lib/metrics';
+import { custosDoMes } from '@/lib/metrics';
+import { formatAED } from '@/lib/cambio';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
 import { CostsManager } from '@/components/admin/CostsManager';
@@ -36,20 +37,20 @@ export default async function DespesasPage({
     <>
       <PageHeader
         title="Despesas"
-        subtitle="Custos de operar o Ninho. Marketing fica separado de App porque é ele que vira CAC."
+        subtitle="Custos de operar o Ninho, todos em AED (custo em US$ ou R$ entra convertido para AED). Marketing fica separado de App porque é ele que vira CAC."
         right={<MonthFilter value={mes} />}
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total do mês" value={formatBRL(doMes.total)} hint={mes} accent icon={<IconCash />} />
-        <StatCard label="Fixos" value={formatBRL(doMes.fixos)} icon={<IconServer />} />
-        <StatCard label="Variáveis" value={formatBRL(doMes.variaveis)} icon={<IconExchange />} />
-        <StatCard label="Marketing" value={formatBRL(marketing)} hint="Base do CAC" icon={<IconMegaphone />} />
+        <StatCard label="Total do mês" value={formatAED(doMes.total)} hint={mes} accent icon={<IconCash />} />
+        <StatCard label="Fixos" value={formatAED(doMes.fixos)} icon={<IconServer />} />
+        <StatCard label="Variáveis" value={formatAED(doMes.variaveis)} icon={<IconExchange />} />
+        <StatCard label="Marketing" value={formatAED(marketing)} hint="Base do CAC" icon={<IconMegaphone />} />
       </div>
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-ninho-cinza">
-          Acumulado de todos os meses lançados: <strong>{formatBRL(tudo.total)}</strong>
+          Acumulado de todos os meses lançados: <strong>{formatAED(tudo.total)}</strong>
         </p>
         {doMesLista.length > 0 && (
           <ConfirmButton
