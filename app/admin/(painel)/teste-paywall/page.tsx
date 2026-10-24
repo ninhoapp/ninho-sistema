@@ -327,7 +327,7 @@ export default async function TestePaywallPage() {
             <>
               <h2 className="mb-1 text-base font-bold text-ninho-grafite">Quem foi liberado</h2>
               <p className="mb-3 text-xs text-ninho-cinza">
-                Horários no fuso de Dubai. O aviso (push, sininho e e-mail) só sai entre 7h e 21h no
+                Horários no fuso de Dubai. O aviso (push, sininho e e-mail) só sai das 5h à meia-noite no
                 horário da pessoa.
               </p>
               <TabelaLiberados lista={t.liberados} />
