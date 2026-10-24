@@ -3,8 +3,8 @@
  *
  * Lê as views prontas do banco — a conta de cada número mora lá, não aqui:
  *   teste_paywall_resumo        → uma linha por grupo (só sorteados)
- *   teste_paywall_diario        → dia × grupo (só sorteados; dia no fuso de São Paulo)
- *   teste_paywall_participantes → uma linha por pessoa (inclui quem ficou fora do sorteio)
+ *   teste_paywall_participantes → uma linha por pessoa (inclui quem ficou fora do sorteio);
+ *                                 também vira o "dia × grupo", contado aqui no fuso de Dubai
  *   teste_paywall_config        → rodízio ligado/desligado e fração do grupo B
  *   teste_paywall_liberados     → B sem cartão em 2h, liberado e passado para o A (00089)
  *
@@ -14,6 +14,13 @@
  * sorteio (sorteado = false), e não entra na comparação.
  */
 import { appDb } from '@/lib/supabase/server';
+import { lerTudo } from '@/lib/supabase/paginar';
+
+/** Fuso do painel inteiro (ver lib/dashboard-charts.ts). A view
+ *  teste_paywall_diario conta o dia em São Paulo: quem se cadastrava de
+ *  madrugada em Dubai caía "ontem" e o "Cadastros hoje" mostrava menos gente
+ *  do que entrou hoje. Por isso o dia é contado aqui, a partir de entrou_em. */
+const TZ = 'Asia/Dubai';
 
 export type Grupo = 'A' | 'B';
 
@@ -48,7 +55,7 @@ export interface Liberado {
 }
 
 export interface DiaGrupo {
-  dia: string; // yyyy-mm-dd, fuso de São Paulo (definido na view)
+  dia: string; // yyyy-mm-dd, fuso de Dubai
   grupo: Grupo;
   cadastros: number;
   comecaram_teste_loja: number;
@@ -56,7 +63,9 @@ export interface DiaGrupo {
 }
 
 export interface TestePaywall {
-  config: { ativo: boolean; fracao_b: number } | null;
+  /** sorteios = quantas contas já entraram pelo rodízio (00088). Quem
+   *  entrou antes dele foi pelo sorteio aleatório da 00083. */
+  config: { ativo: boolean; fracao_b: number; sorteios: number } | null;
   resumo: Record<Grupo, ResumoGrupo>;
   diario: DiaGrupo[];
   foraDoSorteio: number;
@@ -87,9 +96,16 @@ const nOuNull = (v: unknown) => (v == null ? null : Number(v));
 export async function fetchTestePaywall(): Promise<TestePaywall> {
   const sb = appDb();
   const [cfg, res, dia, fora, lib] = await Promise.all([
-    sb.from('teste_paywall_config').select('ativo,fracao_b').limit(1).maybeSingle(),
+    sb.from('teste_paywall_config').select('ativo,fracao_b,sorteios').limit(1).maybeSingle(),
     sb.from('teste_paywall_resumo').select('*'),
-    sb.from('teste_paywall_diario').select('*').order('dia', { ascending: true }),
+    lerTudo<ParticipanteDia>('teste_paywall_participantes', (de, ate) =>
+      sb
+        .from('teste_paywall_participantes')
+        .select('profile_id,grupo,entrou_em,comecou_teste_loja,pagou')
+        .eq('sorteado', true)
+        .order('profile_id')
+        .range(de, ate),
+    ),
     sb
       .from('teste_paywall_participantes')
       .select('profile_id', { count: 'exact', head: true })
@@ -119,15 +135,18 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
     };
   }
 
-  const diario: DiaGrupo[] = (dia.data ?? [])
-    .filter((r) => r.grupo === 'A' || r.grupo === 'B')
-    .map((r) => ({
-      dia: String(r.dia),
-      grupo: r.grupo as Grupo,
-      cadastros: n(r.cadastros),
-      comecaram_teste_loja: n(r.comecaram_teste_loja),
-      pagaram: n(r.pagaram),
-    }));
+  const porDia = new Map<string, DiaGrupo>();
+  for (const r of dia.data) {
+    if (r.grupo !== 'A' && r.grupo !== 'B') continue;
+    const d = diaDubai(new Date(r.entrou_em));
+    const chave = `${d}|${r.grupo}`;
+    const linha = porDia.get(chave) ?? { dia: d, grupo: r.grupo, cadastros: 0, comecaram_teste_loja: 0, pagaram: 0 };
+    linha.cadastros += 1;
+    if (r.comecou_teste_loja) linha.comecaram_teste_loja += 1;
+    if (r.pagou) linha.pagaram += 1;
+    porDia.set(chave, linha);
+  }
+  const diario = [...porDia.values()].sort((x, y) => x.dia.localeCompare(y.dia));
 
   // Antes da 00089 a view não existe: a tela mostra o aviso em vez de quebrar.
   const liberados: Liberado[] | null = lib.error
@@ -147,7 +166,9 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
       }));
 
   return {
-    config: cfg.data ? { ativo: !!cfg.data.ativo, fracao_b: n(cfg.data.fracao_b) } : null,
+    config: cfg.data
+      ? { ativo: !!cfg.data.ativo, fracao_b: n(cfg.data.fracao_b), sorteios: n(cfg.data.sorteios) }
+      : null,
     resumo,
     diario,
     foraDoSorteio: fora.count ?? 0,
@@ -155,16 +176,27 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
   };
 }
 
-/** Hoje (yyyy-mm-dd) no fuso de São Paulo — o mesmo que a view usa para `dia`. */
-export function hojeSaoPaulo(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date());
+interface ParticipanteDia {
+  profile_id: string;
+  grupo: string;
+  entrou_em: string;
+  comecou_teste_loja: boolean | null;
+  pagou: boolean | null;
+}
+
+/** Data (yyyy-mm-dd) no fuso de Dubai. */
+function diaDubai(d: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
+
+/** Hoje (yyyy-mm-dd) no fuso de Dubai — o mesmo do `dia` do diário. */
+export function hojeDubai(): string {
+  return diaDubai(new Date());
 }
 
 /** Últimos N dias (hoje incluso) com cadastros por grupo, preenchendo dias sem ninguém com zero. */
 export function cadastrosPorDia(diario: DiaGrupo[], dias: number) {
-  const hoje = hojeSaoPaulo();
+  const hoje = hojeDubai();
   const mapa = new Map<string, { A: number; B: number }>();
   for (const d of diario) {
     const m = mapa.get(d.dia) ?? { A: 0, B: 0 };

@@ -2,7 +2,7 @@ import { requireRole } from '@/lib/auth/guard';
 import {
   fetchTestePaywall,
   cadastrosPorDia,
-  hojeSaoPaulo,
+  hojeDubai,
   pct,
   type Grupo,
   type Liberado,
@@ -222,7 +222,7 @@ export default async function TestePaywallPage() {
   const t = await fetchTestePaywall();
   const { A, B } = t.resumo;
   const total = A.cadastros + B.cadastros;
-  const hoje = hojeSaoPaulo();
+  const hoje = hojeDubai();
   const hojeA = t.diario.find((d) => d.dia === hoje && d.grupo === 'A')?.cadastros ?? 0;
   const hojeB = t.diario.find((d) => d.dia === hoje && d.grupo === 'B')?.cadastros ?? 0;
   const serie = cadastrosPorDia(t.diario, DIAS_GRAFICO);
@@ -232,6 +232,10 @@ export default async function TestePaywallPage() {
     : t.config.ativo
     ? `Rodízio ligado · ${proporcao(t.config.fracao_b)}`
     : 'Rodízio desligado';
+  // Quem entrou antes da 00088 foi pelo sorteio aleatório (1 em 3 para o B),
+  // não pelo rodízio: sem este aviso, "3 para o A, 1 para o B" no selo e
+  // 1 A × 3 B nos números pareciam erro.
+  const antesDoRodizio = t.config ? Math.max(0, total - t.config.sorteios) : 0;
 
   return (
     <>
@@ -255,6 +259,19 @@ export default async function TestePaywallPage() {
         <strong>pagaram ÷ cadastros</strong> (e, depois, a receita por cadastro aos 60 dias) — nunca
         &ldquo;puseram o cartão&rdquo;.
       </Notice>
+
+      {antesDoRodizio > 0 && (
+        <Notice tone="info">
+          <strong>
+            {antesDoRodizio === total ? 'Todas as' : 'As primeiras'} {antesDoRodizio}{' '}
+            {antesDoRodizio === 1 ? 'conta entrou' : 'contas entraram'} pelo sorteio antigo
+          </strong>
+          , antes de o rodízio ser ligado (era aleatório, 1 chance em 3 de cair no B). Por isso a
+          divisão ainda não é {t.config ? proporcao(t.config.fracao_b) : 'a do rodízio'}. Pelo rodízio:{' '}
+          <strong>{t.config?.sorteios ?? 0}</strong> {t.config?.sorteios === 1 ? 'conta' : 'contas'}.
+          Dias contados no fuso de Dubai.
+        </Notice>
+      )}
 
       {total === 0 ? (
         <div className="mb-8 rounded-2xl border border-ninho-borda bg-white p-10 text-center">
