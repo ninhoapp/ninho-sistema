@@ -65,6 +65,15 @@ export const ORIGENS: Origem[] = [
 
 const AUTODECLARADAS = new Set<string>(ORIGENS);
 
+/** Campanha falsa que a Apple devolve no TestFlight e em desenvolvimento. */
+export const APPLE_ADS_CAMPANHA_TESTE = 1234567890;
+
+/** Atribuição do Apple Ads que vale: a Apple confirmou e não é a de teste. */
+export function appleAdsReal(atribuido: boolean | undefined, campaignId: number | null | undefined): boolean {
+  return atribuido === true && campaignId !== APPLE_ADS_CAMPANHA_TESTE;
+}
+
+/** Apple Ads confirmado pela Apple vence qualquer resposta do onboarding. */
 export function resolverOrigem(appleAdsAtribuido: boolean, comoConheceu: string | null): Origem {
   if (appleAdsAtribuido) return 'apple_ads';
   if (comoConheceu && AUTODECLARADAS.has(comoConheceu)) return comoConheceu as Origem;

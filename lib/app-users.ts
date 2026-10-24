@@ -9,7 +9,7 @@ import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { appDb } from '@/lib/supabase/server';
 import { lerTudo } from '@/lib/supabase/paginar';
-import { resolverOrigem, type Origem } from '@/lib/origem';
+import { appleAdsReal, resolverOrigem, type Origem } from '@/lib/origem';
 
 /** Tag do cache de usuários do app — quem altera usuário chama revalidateTag. */
 export const APP_USERS_TAG = 'app-users';
@@ -284,6 +284,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
     const ef = efetivos.get(p.id);
     const estadoProprio = corrigirChurnPorData(e);
     const apple = appleAds.get(p.id);
+    const viaAppleAds = appleAdsReal(apple?.atribuido, apple?.campaign_id);
     return {
       id: p.id,
       name: p.full_name,
@@ -309,8 +310,8 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
       herdadoDe: ef?.coberto_por ?? null,
       birthDate: nascimentos.get(p.id) ?? null,
       assinouEm: assinouEm.get(p.id) ?? null,
-      origem: resolverOrigem(apple?.atribuido === true, p.como_conheceu),
-      appleAdsCampaignId: apple?.atribuido ? apple.campaign_id : null,
+      origem: resolverOrigem(viaAppleAds, p.como_conheceu),
+      appleAdsCampaignId: viaAppleAds ? apple!.campaign_id : null,
     };
   });
 }
