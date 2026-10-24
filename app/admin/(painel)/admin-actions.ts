@@ -141,15 +141,26 @@ export async function criarCusto(_prev: ActionState, fd: FormData): Promise<Acti
 export async function salvarCusto(_prev: ActionState, fd: FormData): Promise<ActionState> {
   requireRole('admin');
   const id = String(fd.get('id') || '');
+  const label = String(fd.get('label') || '').trim();
+  const amount = num(fd.get('amount'));
+  const ref = String(fd.get('ref_month') || '');
+  if (!id) return { error: 'Lançamento não encontrado.' };
+  if (!label) return { error: 'Descrição é obrigatória.' };
+  if (amount <= 0) return { error: 'Valor precisa ser maior que zero.' };
+  if (!/^\d{4}-\d{2}/.test(ref)) return { error: 'Mês de referência é obrigatório.' };
+  // Edita só esta linha. Numa série de custo fixo, as outras parcelas ficam como estão.
   const res = await updateCost(id, {
-    label: String(fd.get('label') || '').trim(),
+    label,
     kind: String(fd.get('kind') || 'fixo') as 'fixo' | 'variavel',
     category: String(fd.get('category') || 'app') as 'app' | 'marketing',
-    amount: num(fd.get('amount')),
-    ref_month: String(fd.get('ref_month') || ''),
+    amount,
+    ref_month: ref.slice(0, 7),
   });
   if (!res.ok) return { error: res.error || 'Falha ao salvar.' };
   revalidatePath('/admin/despesas');
+  revalidatePath('/admin/faturamento');
+  revalidatePath('/admin/crescimento');
+  revalidatePath('/admin/visao-geral');
   return { ok: true };
 }
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
-import { criarCusto, removerCusto, type ActionState } from '@/app/admin/(painel)/admin-actions';
+import { criarCusto, removerCusto, salvarCusto, type ActionState } from '@/app/admin/(painel)/admin-actions';
 import type { Cost } from '@/lib/painel/store';
 import { formatAED } from '@/lib/cambio';
 import { Tabela, Td } from '@/components/admin/Tabela';
@@ -125,7 +125,7 @@ export function CostsManager({
       </div>
 
       <Tabela
-        headers={['Descrição', 'Categoria', 'Tipo', 'Mês', 'Valor', '']}
+        headers={['Descrição', 'Categoria', 'Tipo', 'Mês', 'Valor (AED)', '']}
         vazio={
           mesFiltro
             ? `Nenhuma despesa lançada em ${mesFiltro}.`
@@ -133,45 +133,131 @@ export function CostsManager({
         }
       >
         {visiveis.map((c) => (
-          <tr key={c.id}>
-            <Td className="font-medium">{c.label}</Td>
-            <Td>
-              <span
-                className={`rounded-pill px-2.5 py-1 text-[11px] font-semibold ${
-                  c.category === 'marketing'
-                    ? 'bg-[#FDF0E4] text-[#9A5B1E]'
-                    : 'bg-ninho-roxo-suave text-ninho-roxo-escuro'
-                }`}
-              >
-                {c.category === 'marketing' ? 'Marketing' : 'App'}
-              </span>
-            </Td>
-            <Td className="text-ninho-cinza">{c.kind === 'fixo' ? 'Fixo' : 'Variável'}</Td>
-            <Td className="whitespace-nowrap text-ninho-cinza">{c.ref_month.slice(0, 7)}</Td>
-            <Td className="whitespace-nowrap font-semibold">{formatAED(Number(c.amount))}</Td>
-            <Td>
-              <div className="flex gap-2">
-                <form action={removerCusto}>
-                  <input type="hidden" name="id" value={c.id} />
-                  <button className="text-xs font-medium text-red-600 hover:underline">
-                    Excluir
-                  </button>
-                </form>
-                {c.series_id && (
-                  <form action={removerCusto}>
-                    <input type="hidden" name="id" value={c.id} />
-                    <input type="hidden" name="series_id" value={c.series_id} />
-                    <input type="hidden" name="todaSerie" value="1" />
-                    <button className="whitespace-nowrap text-xs font-medium text-ninho-cinza hover:underline">
-                      Excluir série
-                    </button>
-                  </form>
-                )}
-              </div>
-            </Td>
-          </tr>
+          <LinhaCusto key={c.id} c={c} />
         ))}
       </Tabela>
     </div>
+  );
+}
+
+function BadgeCategoria({ category }: { category: Cost['category'] }) {
+  return (
+    <span
+      className={`rounded-pill px-2.5 py-1 text-[11px] font-semibold ${
+        category === 'marketing' ? 'bg-[#FDF0E4] text-[#9A5B1E]' : 'bg-ninho-roxo-suave text-ninho-roxo-escuro'
+      }`}
+    >
+      {category === 'marketing' ? 'Marketing' : 'App'}
+    </span>
+  );
+}
+
+function Salvar() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="rounded-pill bg-ninho-roxo px-3 py-1 text-xs font-semibold text-white hover:bg-ninho-roxo-escuro disabled:opacity-50"
+    >
+      {pending ? 'Salvando...' : 'Salvar'}
+    </button>
+  );
+}
+
+/**
+ * Uma linha de despesa. "Editar" troca as células por campos; os campos ficam
+ * ligados ao formulário da última célula pelo atributo `form`, porque um
+ * <form> não pode envolver uma linha de tabela.
+ */
+function LinhaCusto({ c }: { c: Cost }) {
+  const [editando, setEditando] = useState(false);
+  const [state, action] = useFormState<ActionState, FormData>(async (prev, fd) => {
+    const res = await salvarCusto(prev, fd);
+    if (res.ok) setEditando(false);
+    return res;
+  }, {});
+  const formId = `custo-${c.id}`;
+  const campo = 'w-full min-w-[90px] rounded-lg border border-ninho-borda bg-white px-2 py-1 text-sm outline-none focus:border-ninho-roxo';
+
+  if (editando) {
+    return (
+      <tr className="bg-ninho-roxo-suave/40">
+        <Td>
+          <input form={formId} name="label" defaultValue={c.label} className={campo} aria-label="Descrição" />
+        </Td>
+        <Td>
+          <select form={formId} name="category" defaultValue={c.category} className={campo} aria-label="Categoria">
+            <option value="app">App</option>
+            <option value="marketing">Marketing</option>
+          </select>
+        </Td>
+        <Td>
+          <select form={formId} name="kind" defaultValue={c.kind} className={campo} aria-label="Tipo">
+            <option value="fixo">Fixo</option>
+            <option value="variavel">Variável</option>
+          </select>
+        </Td>
+        <Td>
+          <input form={formId} name="ref_month" type="month" defaultValue={c.ref_month.slice(0, 7)} className={campo} aria-label="Mês" />
+        </Td>
+        <Td>
+          <input
+            form={formId}
+            name="amount"
+            type="number"
+            step="0.01"
+            min="0"
+            defaultValue={Number(c.amount)}
+            className={campo}
+            aria-label="Valor em AED"
+          />
+        </Td>
+        <Td>
+          <form id={formId} action={action} className="flex flex-col gap-1">
+            <input type="hidden" name="id" value={c.id} />
+            <div className="flex items-center gap-2">
+              <Salvar />
+              <button type="button" onClick={() => setEditando(false)} className="text-xs font-medium text-ninho-cinza hover:underline">
+                Cancelar
+              </button>
+            </div>
+            {state.error && <span className="text-[11px] text-red-600">{state.error}</span>}
+            {c.series_id && <span className="text-[11px] text-ninho-cinza">Muda só este mês da série.</span>}
+          </form>
+        </Td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr>
+      <Td className="font-medium">{c.label}</Td>
+      <Td>
+        <BadgeCategoria category={c.category} />
+      </Td>
+      <Td className="text-ninho-cinza">{c.kind === 'fixo' ? 'Fixo' : 'Variável'}</Td>
+      <Td className="whitespace-nowrap text-ninho-cinza">{c.ref_month.slice(0, 7)}</Td>
+      <Td className="whitespace-nowrap font-semibold">{formatAED(Number(c.amount))}</Td>
+      <Td>
+        <div className="flex gap-3">
+          <button type="button" onClick={() => setEditando(true)} className="text-xs font-medium text-ninho-roxo-escuro hover:underline">
+            Editar
+          </button>
+          <form action={removerCusto}>
+            <input type="hidden" name="id" value={c.id} />
+            <button className="text-xs font-medium text-red-600 hover:underline">Excluir</button>
+          </form>
+          {c.series_id && (
+            <form action={removerCusto}>
+              <input type="hidden" name="id" value={c.id} />
+              <input type="hidden" name="series_id" value={c.series_id} />
+              <input type="hidden" name="todaSerie" value="1" />
+              <button className="whitespace-nowrap text-xs font-medium text-ninho-cinza hover:underline">Excluir série</button>
+            </form>
+          )}
+        </div>
+      </Td>
+    </tr>
   );
 }

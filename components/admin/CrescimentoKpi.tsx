@@ -7,7 +7,7 @@ import type { Cost } from '@/lib/painel/store';
 import type { AppUser } from '@/lib/app-users';
 import { custoAquisicao, realizadoDoMes, type MesRealizado } from '@/lib/metrics';
 import {
-  PLANO, PREMISSAS, CENARIO_LABEL, CENARIO_COR, SE_PAGA, CAMBIO, BRL_POR_AED, BOLSO_AED, FIM_DO_BOLSO,
+  PLANO, PREMISSAS, CENARIO_LABEL, CENARIO_COR, SE_PAGA, CAMBIO, BRL_POR_AED, BOLSO_AED, FIM_DO_BOLSO, VERBA_NOV_AED,
   type Cenario, type MesPlano,
 } from '@/lib/projecao';
 import { mesNoPainel, mesesEntre, rotuloMes } from '@/lib/dashboard-charts';
@@ -48,7 +48,7 @@ function situacao(real: number, plano: number, menorEhMelhor = false) {
 }
 
 function MetaCard({
-  label, unidade, real, plano, formatar, menorEhMelhor = false, nota,
+  label, unidade, real, plano, formatar, menorEhMelhor = false, nota, planoLabel = 'Plano', comparar = true,
 }: {
   label: string;
   unidade: string;
@@ -57,8 +57,12 @@ function MetaCard({
   formatar: (v: number) => string;
   menorEhMelhor?: boolean;
   nota?: string;
+  /** Ex.: "Plano de nov/26" quando o mês escolhido ainda não tem plano. */
+  planoLabel?: string;
+  /** false = mostra o plano só como referência, sem % (meses diferentes). */
+  comparar?: boolean;
 }) {
-  const s = real != null && plano != null ? situacao(real, plano, menorEhMelhor) : null;
+  const s = comparar && real != null && plano != null ? situacao(real, plano, menorEhMelhor) : null;
   return (
     <div className="flex min-w-0 flex-col gap-1 rounded-2xl border border-ninho-borda bg-white p-5">
       <p className="text-xs uppercase tracking-wide text-ninho-cinza">
@@ -66,7 +70,7 @@ function MetaCard({
       </p>
       <p className="text-3xl font-bold text-ninho-roxo-escuro">{real != null ? formatar(real) : '—'}</p>
       <p className="text-xs text-ninho-cinza">
-        Plano: <strong className="text-ninho-grafite">{plano != null ? formatar(plano) : '—'}</strong>
+        {planoLabel}: <strong className="text-ninho-grafite">{plano != null ? formatar(plano) : '—'}</strong>
         {s?.pct != null && (
           <span className="ml-1 font-semibold" style={{ color: s.cor }}>
             · {Math.round(s.pct)}% ({s.texto})
@@ -112,7 +116,11 @@ export function CrescimentoKpi({
   }
   const planoDe = (c: Cenario, m: string) => PLANO[c].find((p) => p.mes === m) ?? null;
 
-  const p = planoDe(cen, mes);
+  const planoDoMes = planoDe(cen, mes);
+  // Mês antes do plano (out/26): os cards mostram o plano de nov/26 como
+  // referência, sem %, para dar para comparar de olho (pedido do dono).
+  const p = planoDoMes ?? (mes < PRIMEIRO_PLANO ? planoDe(cen, PRIMEIRO_PLANO) : null);
+  const ref = { planoLabel: planoDoMes ? 'Plano' : `Plano de ${rotuloMes(PRIMEIRO_PLANO)}`, comparar: Boolean(planoDoMes) };
   const r = realizadoDoMes(users, custos, mes);
   const ca = custoAquisicao(custos, users, mes);
   const partida = real.get('2026-10')?.ativos ?? null;
@@ -173,9 +181,9 @@ export function CrescimentoKpi({
 
       <h2 className="mb-1 text-base font-bold text-ninho-grafite">{rotuloMes(mes)}: realizado × plano {CENARIO_LABEL[cen].toLowerCase()}</h2>
       <p className="mb-3 text-xs text-ninho-cinza">
-        {!p
+        {!planoDoMes
           ? mes < PRIMEIRO_PLANO
-            ? 'O plano começa em nov/26; este mês mostra só o realizado.'
+            ? 'O plano começa em nov/26: os cards mostram o realizado deste mês e, embaixo, o plano de nov/26 como meta (sem %).'
             : 'Mês fora do plano (nov/26 a dez/27).'
           : !r
           ? 'Mês ainda não começou: só o plano.'
@@ -184,8 +192,9 @@ export function CrescimentoKpi({
           : 'Mês fechado.'}
       </p>
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <MetaCard label="Assinantes novos" unidade="pessoas" real={r?.novos ?? null} plano={p?.novos ?? null} formatar={num} />
+        <MetaCard {...ref} label="Assinantes novos" unidade="pessoas" real={r?.novos ?? null} plano={p?.novos ?? null} formatar={num} />
         <MetaCard
+          {...ref}
           label="Assinantes acumulados"
           unidade="pessoas, já com churn"
           real={r?.ativos ?? null}
@@ -193,6 +202,7 @@ export function CrescimentoKpi({
           formatar={num}
         />
         <MetaCard
+          {...ref}
           label="Faturamento líquido"
           unidade="R$"
           real={r?.faturamentoLiq ?? null}
@@ -201,6 +211,7 @@ export function CrescimentoKpi({
           nota="Caixa do mês, depois dos 15% da loja. A Apple paga no dia 1 do mês seguinte."
         />
         <MetaCard
+          {...ref}
           label="Verba investida"
           unidade="AED"
           real={r ? r.gastoMarketing : null}
@@ -209,6 +220,7 @@ export function CrescimentoKpi({
           nota={r ? `Marketing lançado em Despesas (≈ R$ ${num(r.gastoMarketing * BRL_POR_AED)})` : undefined}
         />
         <MetaCard
+          {...ref}
           label="Custo por assinante"
           unidade="AED"
           real={ca.total}
@@ -316,44 +328,55 @@ export function CrescimentoKpi({
         </table>
       </div>
 
-      <section className="mb-8 grid gap-4 rounded-2xl border border-ninho-borda bg-white p-5 text-xs text-ninho-cinza lg:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <p className="text-sm font-bold text-ninho-grafite">Legenda</p>
-          <p><strong>Verba</strong>: {aed(BOLSO_AED)} do bolso por mês até jun/27 + 100% do faturamento líquido do mês anterior. De jul/27 em diante, só o faturamento.</p>
-          <p><strong>Verba realizada</strong>: marketing lançado em Despesas (Despesas é tudo em AED).</p>
-          <p><strong>Criativo</strong>: 100 AED a cada 2 meses. O resto vai 63% para a Apple e 37% para a Meta.</p>
-          <p><strong>Assinantes novos</strong>: primeira compra verificada no mês (fuso de Dubai). <strong>Acumulados</strong>: quem paga no fim do mês (já tira quem cancelou).</p>
-          <p><strong>MRR</strong>: mensais + anuais ÷ 12, antes da loja. <strong>Faturamento líquido</strong>: o que a loja cobrou no mês (o anual entra inteiro), menos 15%.</p>
-          <p><strong>Custo por assinante</strong> (AED): marketing do mês ÷ assinantes novos. Apple = confirmados pela Apple; Meta = melhor caso (divide por todos que não vieram da Apple; o real é maior).</p>
-          <p>Câmbio: 1 US$ = {CAMBIO.aedPorUsd.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} AED = R$ {CAMBIO.brlPorUsd.toLocaleString('pt-BR')} ({CAMBIO.data}); 1 AED = R$ {BRL_POR_AED.toFixed(2).replace('.', ',')}.</p>
-        </div>
-        <div className="min-w-0">
-          <p className="mb-2 text-sm font-bold text-ninho-grafite">Premissas do plano</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-ninho-borda">
-                  <th className="py-1 pr-2 font-semibold">Premissa</th>
-                  {CENARIOS.map((c) => (
-                    <th key={c} className="py-1 pr-2 font-semibold" style={{ color: CENARIO_COR[c] }}>{CENARIO_LABEL[c]}</th>
-                  ))}
-                  <th className="py-1 font-semibold">Origem</th>
-                </tr>
-              </thead>
-              <tbody>
-                {PREMISSAS.map((x) => (
-                  <tr key={x.nome} className="border-b border-ninho-borda last:border-0">
-                    <td className="py-1 pr-2 text-ninho-grafite">{x.nome}</td>
-                    <td className="py-1 pr-2">{x.pessimista}</td>
-                    <td className="py-1 pr-2">{x.base}</td>
-                    <td className="py-1 pr-2">{x.otimista}</td>
-                    <td className="py-1">{x.origem}</td>
-                  </tr>
+      <h2 className="mb-3 text-base font-bold text-ninho-grafite">Premissas do plano</h2>
+      <section className="mb-8 flex flex-col gap-4 rounded-2xl border border-ninho-borda bg-white p-5 text-xs text-ninho-cinza">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-ninho-borda">
+                <th className="py-1.5 pr-3 font-semibold">O que muda entre os cenários</th>
+                {CENARIOS.map((c) => (
+                  <th key={c} className="py-1.5 pr-3 font-semibold" style={{ color: CENARIO_COR[c] }}>{CENARIO_LABEL[c]}</th>
                 ))}
-              </tbody>
-            </table>
-          </div>
+                <th className="py-1.5 font-semibold">Origem</th>
+              </tr>
+            </thead>
+            <tbody>
+              {PREMISSAS.map((x) => (
+                <tr key={x.nome} className="border-b border-ninho-borda last:border-0">
+                  <td className="py-1.5 pr-3 text-ninho-grafite">{x.nome}</td>
+                  <td className="py-1.5 pr-3">{x.pessimista}</td>
+                  <td className="py-1.5 pr-3">{x.base}</td>
+                  <td className="py-1.5 pr-3">{x.otimista}</td>
+                  <td className="py-1.5">{x.origem}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
+        <div className="flex flex-col gap-1.5">
+          <p className="text-sm font-semibold text-ninho-grafite">Iguais nos três cenários</p>
+          <p><strong>Regra de verba</strong>: {aed(BOLSO_AED)} do bolso por mês até jun/27 + 100% do faturamento líquido do mês anterior. De jul/27 em diante, só o faturamento.</p>
+          <p><strong>Novembro/26</strong>: {aed(VERBA_NOV_AED)}, valor definido pelo dono.</p>
+          <p><strong>Divisão da verba</strong>: criativo de 100 AED a cada 2 meses; o resto vai 63% para a Apple e 37% para a Meta.</p>
+          <p><strong>Preços</strong>: Brasil (Básico R$ 9,90 / 89,90; Premium R$ 14,90 / 129,90); a loja fica com 15%. EUA fora do plano.</p>
+          <p><strong>Partida</strong>: 27 assinantes pagando em 23/10/2026.</p>
+          <p><strong>Câmbio</strong>: 1 US$ = {CAMBIO.aedPorUsd.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} AED = R$ {CAMBIO.brlPorUsd.toLocaleString('pt-BR')} ({CAMBIO.data}); 1 AED = R$ {BRL_POR_AED.toFixed(2).replace('.', ',')}.</p>
+        </div>
+      </section>
+
+      <h2 className="mb-3 text-base font-bold text-ninho-grafite">Legenda</h2>
+      <section className="mb-8 grid gap-x-8 gap-y-1.5 rounded-2xl border border-ninho-borda bg-white p-5 text-xs text-ninho-cinza md:grid-cols-2">
+        <p><strong>P</strong> = plano (cenário escolhido). <strong>R</strong> = realizado.</p>
+        <p><strong>Verba</strong> (AED): plano pela regra acima; realizado = marketing lançado em Despesas (Despesas é tudo em AED).</p>
+        <p><strong>Assinantes novos</strong>: primeira compra verificada no mês (fuso de Dubai).</p>
+        <p><strong>Acumulados c/ churn</strong>: quem paga no fim do mês (já tira quem cancelou).</p>
+        <p><strong>MRR</strong> (R$): mensais + anuais ÷ 12, antes da loja.</p>
+        <p><strong>Faturamento líquido</strong> (R$): o que a loja cobrou no mês (o anual entra inteiro), menos 15%. A Apple paga no dia 1 do mês seguinte.</p>
+        <p><strong>Custo por assinante</strong> (AED): marketing do mês ÷ assinantes novos. Apple = confirmados pela Apple; Meta = melhor caso (o real é maior).</p>
+        <p><strong>Cores dos cards</strong>: verde no plano ou melhor; amarelo perto (80–99%, ou custo até 20% acima); vermelho longe.</p>
+        <p><strong>Bolso acum.</strong> (AED): quanto o dono já colocou do próprio bolso.</p>
+        <p>Linha com borda na tabela = fim do bolso (jul/27). Faturamento em verde = mês em que a verba passa a se pagar sozinha.</p>
       </section>
     </>
   );
