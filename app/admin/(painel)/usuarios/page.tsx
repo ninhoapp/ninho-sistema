@@ -46,6 +46,7 @@ export default async function UsuariosPage() {
       diasAbertura: m?.diasAbertura ?? 0,
       sistema: m?.sistema ?? null,
       appVersion: m?.appVersion ?? null,
+      origem: u.origem,
     };
   });
 

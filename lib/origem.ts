@@ -65,17 +65,24 @@ export const ORIGENS: Origem[] = [
 
 const AUTODECLARADAS = new Set<string>(ORIGENS);
 
-/** Campanha falsa que a Apple devolve no TestFlight e em desenvolvimento. */
+/**
+ * `campaign_id` falso que a Apple devolve em TestFlight e em build de
+ * desenvolvimento. Não é campanha: é placeholder. Contar isso como Apple Ads
+ * infla o canal pago com instalação de teste — inclusive as nossas.
+ */
 export const APPLE_ADS_CAMPANHA_TESTE = 1234567890;
 
-/** Atribuição do Apple Ads que vale: a Apple confirmou e não é a de teste. */
-export function appleAdsReal(atribuido: boolean | undefined, campaignId: number | null | undefined): boolean {
-  return atribuido === true && campaignId !== APPLE_ADS_CAMPANHA_TESTE;
+/** Atribuição do Apple Ads que vale: confirmada E de campanha real. */
+export function appleAdsValido(atribuido: boolean, campaignId: number | null): boolean {
+  return atribuido && campaignId !== APPLE_ADS_CAMPANHA_TESTE;
 }
 
-/** Apple Ads confirmado pela Apple vence qualquer resposta do onboarding. */
-export function resolverOrigem(appleAdsAtribuido: boolean, comoConheceu: string | null): Origem {
-  if (appleAdsAtribuido) return 'apple_ads';
+export function resolverOrigem(
+  appleAdsAtribuido: boolean,
+  comoConheceu: string | null,
+  appleAdsCampaignId: number | null = null,
+): Origem {
+  if (appleAdsValido(appleAdsAtribuido, appleAdsCampaignId)) return 'apple_ads';
   if (comoConheceu && AUTODECLARADAS.has(comoConheceu)) return comoConheceu as Origem;
   return 'sem_informacao';
 }
