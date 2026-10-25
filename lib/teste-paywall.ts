@@ -15,6 +15,8 @@
  */
 import { appDb } from '@/lib/supabase/server';
 import { lerTudo } from '@/lib/supabase/paginar';
+import { resolverOrigem, type Origem } from '@/lib/origem';
+import type { PlanoCiclo, PlanoTier } from '@/lib/precos';
 
 /** Fuso do painel inteiro (ver lib/dashboard-charts.ts). A view
  *  teste_paywall_diario conta o dia em São Paulo: quem se cadastrava de
@@ -54,6 +56,23 @@ export interface Liberado {
   assinou: boolean;
 }
 
+/** Quem pôs o cartão (começou os 7 dias grátis da loja). Uma linha por
+ *  pessoa, para acompanhar a ativação até a 1ª cobrança. */
+export interface Cartao {
+  profile_id: string;
+  nome: string | null;
+  criado_em: string;
+  /** Fim dos dias grátis = quando a loja tenta a 1ª cobrança. */
+  cobranca_em: string | null;
+  registros: number;
+  plano: PlanoTier | null;
+  ciclo: PlanoCiclo | null;
+  /** false = desligou a renovação: não vai ser cobrado. */
+  renova: boolean | null;
+  pagou: boolean;
+  origem: Origem;
+}
+
 export interface DiaGrupo {
   dia: string; // yyyy-mm-dd, fuso de Dubai
   grupo: Grupo;
@@ -71,6 +90,7 @@ export interface TestePaywall {
   foraDoSorteio: number;
   /** null = a view ainda não existe (migration 00089 não aplicada). */
   liberados: Liberado[] | null;
+  cartoes: Cartao[];
 }
 
 function vazio(grupo: Grupo): ResumoGrupo {
@@ -165,6 +185,8 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
         assinou: !!r.assinou,
       }));
 
+  const cartoes = await fetchCartoes();
+
   return {
     config: cfg.data
       ? { ativo: !!cfg.data.ativo, fracao_b: n(cfg.data.fracao_b), sorteios: n(cfg.data.sorteios) }
@@ -173,7 +195,58 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
     diario,
     foraDoSorteio: fora.count ?? 0,
     liberados,
+    cartoes,
   };
+}
+
+/** Todo mundo que pôs o cartão (sorteado ou não), com nome, plano, origem e
+ *  quantos registros fez — a pergunta é "essa pessoa está usando e vai
+ *  pagar?". Ordem: 1ª cobrança mais próxima primeiro. */
+async function fetchCartoes(): Promise<Cartao[]> {
+  const sb = appDb();
+  const { data: part, error } = await sb
+    .from('teste_paywall_participantes')
+    .select('profile_id,teste_loja_ate,renovacao_automatica,registros,pagou')
+    .eq('comecou_teste_loja', true);
+  if (error) throw new Error(`Teste de paywall (cartões): ${error.message}`);
+  const linhas = part ?? [];
+  if (linhas.length === 0) return [];
+
+  const ids = linhas.map((l) => String(l.profile_id));
+  const [perfis, subs, apple] = await Promise.all([
+    sb.from('profiles').select('id,full_name,created_at,como_conheceu').in('id', ids),
+    sb.from('subscriptions').select('profile_id,plan,plan_interval').in('profile_id', ids).is('deleted_at', null),
+    sb.from('atribuicao_apple_ads').select('profile_id,atribuido,campaign_id').in('profile_id', ids),
+  ]);
+  for (const r of [perfis, subs, apple]) {
+    if (r.error) throw new Error(`Teste de paywall (cartões): ${r.error.message}`);
+  }
+  const perfil = new Map((perfis.data ?? []).map((p) => [String(p.id), p]));
+  const sub = new Map((subs.data ?? []).map((s) => [String(s.profile_id), s]));
+  const ads = new Map((apple.data ?? []).map((a) => [String(a.profile_id), a]));
+
+  return linhas
+    .map((l) => {
+      const id = String(l.profile_id);
+      const p = perfil.get(id);
+      const s = sub.get(id);
+      const a = ads.get(id);
+      const plano = s?.plan === 'basico' || s?.plan === 'premium' ? (s.plan as PlanoTier) : null;
+      const ciclo = s?.plan_interval === 'mensal' || s?.plan_interval === 'anual' ? (s.plan_interval as PlanoCiclo) : null;
+      return {
+        profile_id: id,
+        nome: (p?.full_name ?? '').trim() || null,
+        criado_em: String(p?.created_at ?? ''),
+        cobranca_em: l.teste_loja_ate ?? null,
+        registros: n(l.registros),
+        plano,
+        ciclo,
+        renova: l.renovacao_automatica ?? null,
+        pagou: !!l.pagou,
+        origem: resolverOrigem(a?.atribuido === true, p?.como_conheceu ?? null, a?.campaign_id ?? null),
+      };
+    })
+    .sort((x, y) => (x.cobranca_em ?? '').localeCompare(y.cobranca_em ?? ''));
 }
 
 interface ParticipanteDia {

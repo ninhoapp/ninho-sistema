@@ -5,9 +5,12 @@ import {
   hojeDubai,
   pct,
   type Grupo,
+  type Cartao,
   type Liberado,
   type ResumoGrupo,
 } from '@/lib/teste-paywall';
+import { ORIGEM_LABEL } from '@/lib/origem';
+import { PLANO_LABEL, brl, precoDe } from '@/lib/precos';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
 import { Notice } from '@/components/admin/Notice';
@@ -217,6 +220,76 @@ function TabelaLiberados({ lista }: { lista: Liberado[] }) {
   );
 }
 
+/** Dias inteiros até a 1ª cobrança (arredonda para cima: faltando 30h, "2"). */
+function diasAte(iso: string | null): number | null {
+  if (!iso) return null;
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
+}
+
+/** Valor da 1ª cobrança: nada se desligou a renovação; preço de tabela
+ *  (bruto, antes da taxa da loja) se vai cobrar ou já cobrou. */
+function valorCartao(c: Cartao): { texto: string; valor: number } {
+  if (!c.plano || !c.ciclo) return { texto: '—', valor: 0 };
+  const preco = precoDe(c.plano, c.ciclo);
+  if (c.pagou) return { texto: `${brl(preco)} · pago`, valor: 0 };
+  if (c.renova === false) return { texto: 'R$ 0 · cancelou', valor: 0 };
+  return { texto: brl(preco), valor: preco };
+}
+
+function TabelaCartoes({ lista }: { lista: Cartao[] }) {
+  if (lista.length === 0) {
+    return (
+      <p className="mb-8 rounded-2xl border border-ninho-borda bg-white p-5 text-sm text-ninho-cinza">
+        Ninguém pôs o cartão ainda.
+      </p>
+    );
+  }
+  const celula = 'px-3 py-2 text-left';
+  return (
+    <div className="mb-8 overflow-x-auto rounded-2xl border border-ninho-borda bg-white">
+      <table className="w-full min-w-[760px] text-sm text-ninho-grafite">
+        <thead className="border-b border-ninho-borda text-xs text-ninho-cinza">
+          <tr>
+            <th className={celula}>Nome</th>
+            <th className={celula}>Conta criada</th>
+            <th className={celula}>Compra prevista</th>
+            <th className={celula}>Lançamentos</th>
+            <th className={celula}>Plano</th>
+            <th className={celula}>Dias até a cobrança</th>
+            <th className={celula}>Valor a faturar</th>
+            <th className={celula}>Origem</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lista.map((c) => {
+            const dias = diasAte(c.cobranca_em);
+            const valor = valorCartao(c);
+            const encerrado = c.pagou || c.renova === false;
+            return (
+              <tr key={c.profile_id} className="border-b border-ninho-borda last:border-b-0">
+                <td className={celula}>{c.nome ?? <span className="text-ninho-cinza">sem nome</span>}</td>
+                <td className={celula}>{quando(c.criado_em)}</td>
+                <td className={celula}>{quando(c.cobranca_em)}</td>
+                <td className={`${celula} ${c.registros === 0 ? 'font-semibold text-state-danger' : ''}`}>
+                  {c.registros}
+                </td>
+                <td className={celula}>{c.plano ? `${PLANO_LABEL[c.plano]} ${c.ciclo ?? ''}` : '—'}</td>
+                <td className={celula}>
+                  {encerrado || dias == null ? '—' : dias <= 0 ? 'cobrando agora' : dias}
+                </td>
+                <td className={`${celula} ${c.renova === false && !c.pagou ? 'text-ninho-cinza' : ''}`}>
+                  {valor.texto}
+                </td>
+                <td className={celula}>{ORIGEM_LABEL[c.origem]}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default async function TestePaywallPage() {
   requireRole('admin');
   const t = await fetchTestePaywall();
@@ -322,6 +395,23 @@ export default async function TestePaywallPage() {
             se voltou ao app (qualquer abertura depois da liberação) e se fez pelo menos 1 registro.
             Receita por cadastro aos 60 dias entra quando a primeira turma completar 60 dias.
           </p>
+
+          <h2 className="mb-1 text-base font-bold text-ninho-grafite">Quem pôs o cartão</h2>
+          <p className="mb-3 text-xs text-ninho-cinza">
+            Horários no fuso de Dubai. A loja tenta a 1ª cobrança no fim dos 7 dias grátis.{' '}
+            {(() => {
+              const previsto = t.cartoes.reduce((s, c) => s + valorCartao(c).valor, 0);
+              const aCobrar = t.cartoes.filter((c) => valorCartao(c).valor > 0).length;
+              return (
+                <>
+                  <strong>{brl(previsto)}</strong> previstos de {aCobrar}{' '}
+                  {aCobrar === 1 ? 'pessoa' : 'pessoas'} que ainda não cancelaram (valor de tabela, antes da
+                  taxa da loja). Lançamentos em vermelho = ainda não registrou nada.
+                </>
+              );
+            })()}
+          </p>
+          <TabelaCartoes lista={t.cartoes} />
 
           {t.liberados != null && (
             <>
