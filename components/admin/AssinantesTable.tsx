@@ -6,6 +6,7 @@ import { applyColumnFilters } from '@/components/admin/ColumnFilter';
 import { ThSort, nextSort, type SortState } from '@/components/admin/ThSort';
 import { ExportExcelButton } from '@/components/admin/ExportExcelButton';
 import { CopyAll } from '@/components/admin/CopyAll';
+import { DualScrollTable, useLargurasColunas } from '@/components/admin/TabelaPessoas';
 import {
   formatBRL,
   formatDate,
@@ -34,6 +35,9 @@ const CABECALHOS: [Col, string][] = [
 
 const COLUNAS: Col[] = CABECALHOS.map(([c]) => c);
 
+/** Largura inicial de cada coluna, na ordem de CABECALHOS (dá para arrastar). */
+const LARGURAS = [170, 210, 130, 185, 120, 140, 100, 100, 100];
+
 /** Colunas cujo filtro ordena por número, não por texto — senão "R$ 9,90"
  *  viria depois de "R$ 129,90" na lista. */
 const COLUNAS_NUMERICAS: Set<Col> = new Set(['cobrado', 'entrou']);
@@ -50,6 +54,7 @@ const COLUNAS_NUMERICAS: Set<Col> = new Set(['cobrado', 'entrou']);
  *                        meses sem cobrança. É esta coluna que soma no caixa.
  */
 export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string }) {
+  const { larguras, iniciarArraste } = useLargurasColunas(LARGURAS);
   const [sort, setSort] = useState<SortState<Col> | null>(null);
   const [colFilters, setColFilters] = useState<Record<Col, Set<string> | null>>(
     () => Object.fromEntries(COLUNAS.map((c) => [c, null])) as Record<Col, Set<string> | null>
@@ -185,14 +190,19 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
           Nenhum assinante ainda. Quando alguém pagar, aparece aqui.
         </div>
       ) : (
-        <div className="admin-scroll overflow-x-auto rounded-2xl border border-ninho-borda bg-white">
-          <table className="w-full min-w-[1040px] text-left text-sm">
+        <DualScrollTable minWidth={larguras.reduce((a, b) => a + b, 0)}>
+            <colgroup>
+              {larguras.map((w, i) => (
+                <col key={i} style={{ width: w }} />
+              ))}
+            </colgroup>
             <thead>
-              <tr className="border-b-2 border-ninho-borda text-xs font-medium text-ninho-cinza">
-                {CABECALHOS.map(([col, label]) => (
+              <tr className="border-b-2 border-ninho-borda text-left text-xs font-medium text-ninho-cinza">
+                {CABECALHOS.map(([col, label], i) => (
                   <ThSort
                     key={col}
                     col={col}
+                    onResize={(e) => iniciarArraste(e, i)}
                     label={col === 'entrou' ? `Entrou em ${mes} (líq.)` : label}
                     filterOptions={filterOptions[col]}
                     filterSelected={colFilters[col]}
@@ -203,7 +213,7 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-ninho-borda">
+            <tbody className="divide-y divide-ninho-borda [&>tr>td]:overflow-hidden [&>tr>td]:text-ellipsis">
               {filtradas.length === 0 && (
                 <tr>
                   <td colSpan={CABECALHOS.length} className="p-6 text-center text-ninho-cinza">
@@ -216,9 +226,9 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
                 const caixa = entrouLiquido(u);
                 return (
                   <tr key={u.id} className="hover:bg-ninho-nuvem">
-                    <td className="px-4 py-3 font-medium text-ninho-grafite">{u.name || '—'}</td>
-                    <td className="px-4 py-3 text-ninho-cinza">{u.email || '—'}</td>
-                    <td className="px-4 py-3">
+                    <td className="p-3 font-medium text-ninho-grafite">{u.name || '—'}</td>
+                    <td className="p-3 text-ninho-cinza">{u.email || '—'}</td>
+                    <td className="p-3">
                       <span
                         className={`whitespace-nowrap rounded-pill px-2.5 py-1 text-[11px] font-semibold ${
                           u.plan === 'basico'
@@ -230,7 +240,7 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
                       </span>
                     </td>
                     <td
-                      className="whitespace-nowrap px-4 py-3 text-ninho-grafite"
+                      className="whitespace-nowrap p-3 text-ninho-grafite"
                       title={u.appleAdsCampaignId ? `Campanha ${u.appleAdsCampaignId} no Apple Ads` : undefined}
                     >
                       <span
@@ -242,14 +252,14 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
                         <span className="ml-1 text-[11px] text-ninho-cinza">#{u.appleAdsCampaignId}</span>
                       )}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-ninho-grafite">
+                    <td className="whitespace-nowrap p-3 text-ninho-grafite">
                       {formatBRL(priceForUser(u))}
                       <span className="ml-1 text-[11px] text-ninho-cinza">
                         {anual ? '/ano' : '/mês'}
                       </span>
                     </td>
                     <td
-                      className={`whitespace-nowrap px-4 py-3 tabular-nums ${
+                      className={`whitespace-nowrap p-3 tabular-nums ${
                         caixa > 0 ? 'font-semibold text-ninho-grafite' : 'text-ninho-cinza'
                       }`}
                       title={
@@ -260,13 +270,13 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
                     >
                       {formatBRL(caixa)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-ninho-cinza">
+                    <td className="whitespace-nowrap p-3 text-ninho-cinza">
                       {formatDate(u.assinouEm)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-ninho-cinza">
+                    <td className="whitespace-nowrap p-3 text-ninho-cinza">
                       {formatDate(u.current_period_end)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-ninho-cinza">
+                    <td className="whitespace-nowrap p-3 text-ninho-cinza">
                       {formatDate(u.created_at)}
                     </td>
                   </tr>
@@ -275,10 +285,10 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-ninho-borda bg-ninho-nuvem">
-                <td colSpan={5} className="px-4 py-3 text-xs font-semibold uppercase text-ninho-cinza">
+                <td colSpan={5} className="p-3 text-xs font-semibold uppercase text-ninho-cinza">
                   Entrou em {mes}
                 </td>
-                <td colSpan={4} className="px-4 py-3 font-bold text-ninho-roxo-escuro">
+                <td colSpan={4} className="p-3 font-bold text-ninho-roxo-escuro">
                   {formatBRL(totalLiquido)}{' '}
                   <span className="font-medium text-ninho-cinza">
                     líquido · {formatBRL(totalBruto)} bruto
@@ -286,12 +296,11 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
                 </td>
               </tr>
             </tfoot>
-          </table>
-        </div>
+        </DualScrollTable>
       )}
 
       <p className="mt-3 text-xs text-ninho-cinza">
-        Toda coluna ordena (clique no título: crescente → decrescente → sem ordem) e filtra (seta ▾).{' '}
+        Toda coluna ordena (clique no título: crescente → decrescente → sem ordem), filtra (seta ▾) e muda de largura (arraste a borda do cabeçalho).{' '}
         <strong>Valor cobrado</strong> é o preço de tabela, o que sai do cartão do cliente — no
         anual, o ano inteiro. <strong>Entrou</strong> é o que caiu pra você no mês: a cobrança menos
         os {Math.round(TAXA_LOJA * 100)}% da loja, e R$ 0,00 nos meses sem cobrança.{' '}

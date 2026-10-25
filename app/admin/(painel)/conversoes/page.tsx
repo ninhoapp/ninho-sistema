@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
 import { BarChart } from '@/components/admin/BarChart';
 import { DonutChart } from '@/components/admin/DonutChart';
-import { Tabela, Td } from '@/components/admin/Tabela';
+import { TabelaContatosConversor } from '@/components/admin/TabelaContatosConversor';
 import { MonthFilter } from '@/components/admin/MonthFilter';
 import { ExportExcelButton } from '@/components/admin/ExportExcelButton';
 import { DESFECHO_LABEL } from '@/components/admin/FilaConversor';
@@ -116,35 +116,22 @@ export default async function ConversoesPage({
       </div>
 
       <h2 className="mb-3 text-base font-bold text-ninho-grafite">Histórico de {mes}</h2>
-      <Tabela
-        headers={['Quando', 'Pessoa', 'Desfecho', 'Conversor', 'Observação']}
+      <TabelaContatosConversor
         vazio={`Nenhum contato registrado em ${mes}.`}
-      >
-        {outcomes.map((o) => {
+        lista={outcomes.map((o) => {
           const u = usuarioPorId.get(o.profile_id);
-          return (
-            <tr key={o.id}>
-              <Td className="whitespace-nowrap text-ninho-cinza">{formatDate(o.contacted_at)}</Td>
-              <Td className="font-medium">{u?.name || u?.email || '—'}</Td>
-              <Td>
-                <span
-                  className={`rounded-pill px-2.5 py-1 text-[11px] font-semibold ${
-                    o.outcome === 'convertido'
-                      ? 'bg-[#E4F5EC] text-[#2E7D51]'
-                      : 'bg-ninho-nuvem text-ninho-cinza'
-                  }`}
-                >
-                  {DESFECHO_LABEL[o.outcome] ?? o.outcome}
-                </span>
-              </Td>
-              <Td className="text-ninho-cinza">
-                {o.perfil_id ? nomePorPerfil.get(o.perfil_id) ?? '—' : '—'}
-              </Td>
-              <Td className="text-ninho-cinza">{o.comment || '—'}</Td>
-            </tr>
-          );
+          return {
+            id: String(o.id),
+            em: o.contacted_at,
+            emTexto: formatDate(o.contacted_at),
+            pessoa: u?.name || u?.email || '—',
+            desfecho: DESFECHO_LABEL[o.outcome] ?? o.outcome,
+            convertido: o.outcome === 'convertido',
+            conversor: o.perfil_id ? nomePorPerfil.get(o.perfil_id) ?? '—' : '—',
+            observacao: o.comment || '—',
+          };
         })}
-      </Tabela>
+      />
     </>
   );
 }

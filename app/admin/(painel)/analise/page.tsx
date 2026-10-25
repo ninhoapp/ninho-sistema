@@ -7,6 +7,7 @@ import { StatCard } from '@/components/admin/StatCard';
 import { Notice } from '@/components/admin/Notice';
 import { BarChart } from '@/components/admin/BarChart';
 import { Tabela, Td } from '@/components/admin/Tabela';
+import { TabelaAssinouTarde, TabelaOfertas } from '@/components/admin/TabelasAnalise';
 import { Mini } from '@/components/admin/Mini';
 
 export const dynamic = 'force-dynamic';
@@ -245,17 +246,17 @@ export default async function AnalisePage() {
             <p className="mb-2 text-xs font-semibold text-ninho-grafite">
               Assinaram 3+ dias depois de expirar ({expiracao.depoisDe3Dias.length})
             </p>
-            <Tabela headers={['Quem', 'Plano', 'Assinou', 'Dias após expirar', 'Recebeu antes (7d)']} vazio="Ninguém assinou 3+ dias depois de expirar.">
-              {expiracao.depoisDe3Dias.map((p) => (
-                <tr key={p.profileId}>
-                  <Td>{p.nome ?? '—'}</Td>
-                  <Td className="whitespace-nowrap">{produtoLabel(p.produto)}</Td>
-                  <Td className="whitespace-nowrap">{formatDate(p.em)}</Td>
-                  <Td>{p.diasDepois}</Td>
-                  <Td className="text-xs">{p.recebeu.length ? p.recebeu.join(', ') : <span className="text-ninho-cinza">nenhuma campanha</span>}</Td>
-                </tr>
-              ))}
-            </Tabela>
+            <TabelaAssinouTarde
+              lista={expiracao.depoisDe3Dias.map((p) => ({
+                id: p.profileId,
+                nome: p.nome ?? null,
+                plano: produtoLabel(p.produto),
+                em: p.em,
+                emTexto: formatDate(p.em),
+                diasDepois: p.diasDepois,
+                recebeu: p.recebeu,
+              }))}
+            />
           </div>
         </div>
       </Secao>
@@ -292,18 +293,18 @@ export default async function AnalisePage() {
           />
         </div>
         {ofertas.compras.length > 0 && (
-          <Tabela headers={['Quem', 'Plano', 'Pagou', 'Tabela', 'Oferta', 'Quando']}>
-            {ofertas.compras.map((o) => (
-              <tr key={o.profileId}>
-                <Td>{o.nome ?? '—'}</Td>
-                <Td>{produtoLabel(o.produto)}</Td>
-                <Td>R$ {o.preco.toFixed(2).replace('.', ',')}</Td>
-                <Td className="text-ninho-cinza">R$ {o.precoTabela.toFixed(2).replace('.', ',')}</Td>
-                <Td>{o.oferta}</Td>
-                <Td>{formatDate(o.em)}</Td>
-              </tr>
-            ))}
-          </Tabela>
+          <TabelaOfertas
+            lista={ofertas.compras.map((o) => ({
+              id: o.profileId,
+              nome: o.nome ?? null,
+              plano: produtoLabel(o.produto),
+              preco: o.preco,
+              precoTabela: o.precoTabela,
+              oferta: o.oferta,
+              em: o.em,
+              emTexto: formatDate(o.em),
+            }))}
+          />
         )}
       </Secao>
 

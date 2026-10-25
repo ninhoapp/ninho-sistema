@@ -19,6 +19,7 @@ import { ORIGENS, ORIGEM_LABEL, ORIGEM_COR, type Origem } from '@/lib/origem';
 import { ExportExcelButton } from '@/components/admin/ExportExcelButton';
 import { CopyAll } from '@/components/admin/CopyAll';
 import { VerticalBarChart } from '@/components/admin/VerticalBarChart';
+import { DualScrollTable } from '@/components/admin/TabelaPessoas';
 
 export interface UsuarioRow {
   id: string;
@@ -79,7 +80,9 @@ type StatKey = 'total' | 'hoje' | 'assinantes' | 'trial_ativo' | 'trial_expirado
 
 // Larguras padrão em px, na ordem das células: a primeira é a caixinha de
 // seleção (que não ordena nem filtra), as outras seguem CABECALHOS.
-const DEFAULT_COL_WIDTHS = [40, 170, 90, 90, 80, 100, 90, 130, 70, 80, 80, 200];
+// Nome mais estreito e Origem mais larga (pedido do dono em 25/10/2026: o
+// nome trunca bem, a origem cortava "Instagram/Facebook").
+const DEFAULT_COL_WIDTHS = [40, 140, 90, 90, 80, 100, 90, 130, 70, 185, 80, 200];
 
 // Fuso de quem opera o painel (Dubai), não o dos usuários: é daqui que os
 // anúncios rodam, e é essa virada de dia que precisa bater com "novos
@@ -310,50 +313,10 @@ const COLUNAS: SortKey[] = CABECALHOS.map(([c]) => c);
  *  texto — senão 10 vem antes de 2). */
 const COLUNAS_NUMERICAS: Set<FilterCol> = new Set(['uso', 'registros', 'momentos']);
 
-// ThSort, SortArrow e ResizeHandle vivem em components/admin/ThSort.tsx —
+// ThSort, SortArrow e ResizeHandle vivem em components/admin/ThSort.tsx e a
+// rolagem dupla em components/admin/TabelaPessoas.tsx —
 // compartilhados com a tabela de Assinantes, pra ordenação e filtro se
 // comportarem igual nas duas telas.
-
-/** Scrollbar dupla sincronizada (topo + fundo) — a tabela é mais larga que
- *  a tela, e sem a de cima só dá pra rolar chegando ao fim da lista. */
-function DualScrollTable({ children, minWidth }: { children: React.ReactNode; minWidth: number }) {
-  const topRef = useRef<HTMLDivElement>(null);
-  const botRef = useRef<HTMLDivElement>(null);
-  const syncing = useRef(false);
-
-  const syncTop = useCallback(() => {
-    if (syncing.current || !topRef.current || !botRef.current) return;
-    syncing.current = true;
-    botRef.current.scrollLeft = topRef.current.scrollLeft;
-    syncing.current = false;
-  }, []);
-
-  const syncBot = useCallback(() => {
-    if (syncing.current || !topRef.current || !botRef.current) return;
-    syncing.current = true;
-    topRef.current.scrollLeft = botRef.current.scrollLeft;
-    syncing.current = false;
-  }, []);
-
-  return (
-    <div className="rounded-2xl border border-ninho-borda bg-white p-2">
-      <div
-        ref={topRef}
-        onScroll={syncTop}
-        className="admin-scroll overflow-x-auto"
-        style={{ overflowY: 'hidden', height: 12 }}
-      >
-        <div style={{ width: minWidth, height: 1 }} />
-      </div>
-
-      <div ref={botRef} onScroll={syncBot} className="admin-scroll overflow-x-auto">
-        <table className="w-full table-fixed text-sm" style={{ minWidth }}>
-          {children}
-        </table>
-      </div>
-    </div>
-  );
-}
 
 function BotaoConfirmar() {
   const { pending } = useFormStatus();

@@ -5,12 +5,12 @@ import {
   hojeDubai,
   pct,
   type Grupo,
-  type Cartao,
   type Liberado,
   type ResumoGrupo,
 } from '@/lib/teste-paywall';
-import { ORIGEM_LABEL } from '@/lib/origem';
-import { PLANO_LABEL, brl, precoDe } from '@/lib/precos';
+import { brl } from '@/lib/precos';
+import { valorCartao } from '@/lib/teste-paywall-formato';
+import { TabelaCartoes, TabelaLiberados } from '@/components/admin/TabelasTestePaywall';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
 import { Notice } from '@/components/admin/Notice';
@@ -125,14 +125,6 @@ function CartaoGrupo({ r, totalSorteado }: { r: ResumoGrupo; totalSorteado: numb
   );
 }
 
-/** "24/10 07:22" no fuso de Dubai (regra do painel para datas). */
-function quando(iso: string | null): string {
-  if (!iso) return '—';
-  return new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'Asia/Dubai', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-  }).format(new Date(iso));
-}
-
 /** Terceira coluna: quem caiu no B, ficou 2h sem cartão e foi liberado com
  *  7 dias sem cartão (migration 00089). Continua contando no B ao lado; aqui
  *  é o caminho de volta de cada um. */
@@ -173,119 +165,6 @@ function CartaoLiberados({ lista }: { lista: Liberado[] | null }) {
         destaque
       />
       <Linha label="Assinaram depois" valor={assinaram} detalhe={`${pct(assinaram, total)} dos liberados`} />
-    </div>
-  );
-}
-
-function TabelaLiberados({ lista }: { lista: Liberado[] }) {
-  if (lista.length === 0) {
-    return (
-      <p className="mb-8 rounded-2xl border border-ninho-borda bg-white p-5 text-sm text-ninho-cinza">
-        Ninguém liberado ainda. A cada 15 minutos o servidor libera quem está no B há 2h sem cartão.
-      </p>
-    );
-  }
-  const celula = 'px-3 py-2 text-left';
-  return (
-    <div className="mb-8 overflow-x-auto rounded-2xl border border-ninho-borda bg-white">
-      <table className="w-full min-w-[640px] text-sm text-ninho-grafite">
-        <thead className="border-b border-ninho-borda text-xs text-ninho-cinza">
-          <tr>
-            <th className={celula}>Pessoa</th>
-            <th className={celula}>Liberada</th>
-            <th className={celula}>Aviso</th>
-            <th className={celula}>Abriu a push</th>
-            <th className={celula}>Voltou</th>
-            <th className={celula}>1º registro</th>
-            <th className={celula}>Registros</th>
-            <th className={celula}>Assinou</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lista.map((l) => (
-            <tr key={l.profile_id} className="border-b border-ninho-borda last:border-b-0">
-              <td className={celula}>{l.primeiro_nome ?? <span className="text-ninho-cinza">sem nome</span>}</td>
-              <td className={celula}>{quando(l.liberado_em)}</td>
-              <td className={celula}>{quando(l.avisado_em)}</td>
-              <td className={celula}>{quando(l.push_aberta_em)}</td>
-              <td className={celula}>{quando(l.voltou_em)}</td>
-              <td className={celula}>{quando(l.registrou_em)}</td>
-              <td className={celula}>{l.registros_depois}</td>
-              <td className={celula}>{l.assinou ? 'sim' : '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-/** Dias inteiros até a 1ª cobrança (arredonda para cima: faltando 30h, "2"). */
-function diasAte(iso: string | null): number | null {
-  if (!iso) return null;
-  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
-}
-
-/** Valor da 1ª cobrança: nada se desligou a renovação; preço de tabela
- *  (bruto, antes da taxa da loja) se vai cobrar ou já cobrou. */
-function valorCartao(c: Cartao): { texto: string; valor: number } {
-  if (!c.plano || !c.ciclo) return { texto: '—', valor: 0 };
-  const preco = precoDe(c.plano, c.ciclo);
-  if (c.pagou) return { texto: `${brl(preco)} · pago`, valor: 0 };
-  if (c.renova === false) return { texto: 'R$ 0 · cancelou', valor: 0 };
-  return { texto: brl(preco), valor: preco };
-}
-
-function TabelaCartoes({ lista }: { lista: Cartao[] }) {
-  if (lista.length === 0) {
-    return (
-      <p className="mb-8 rounded-2xl border border-ninho-borda bg-white p-5 text-sm text-ninho-cinza">
-        Ninguém pôs o cartão ainda.
-      </p>
-    );
-  }
-  const celula = 'px-3 py-2 text-left';
-  return (
-    <div className="mb-8 overflow-x-auto rounded-2xl border border-ninho-borda bg-white">
-      <table className="w-full min-w-[760px] text-sm text-ninho-grafite">
-        <thead className="border-b border-ninho-borda text-xs text-ninho-cinza">
-          <tr>
-            <th className={celula}>Nome</th>
-            <th className={celula}>Conta criada</th>
-            <th className={celula}>Compra prevista</th>
-            <th className={celula}>Lançamentos</th>
-            <th className={celula}>Plano</th>
-            <th className={celula}>Dias até a cobrança</th>
-            <th className={celula}>Valor a faturar</th>
-            <th className={celula}>Origem</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lista.map((c) => {
-            const dias = diasAte(c.cobranca_em);
-            const valor = valorCartao(c);
-            const encerrado = c.pagou || c.renova === false;
-            return (
-              <tr key={c.profile_id} className="border-b border-ninho-borda last:border-b-0">
-                <td className={celula}>{c.nome ?? <span className="text-ninho-cinza">sem nome</span>}</td>
-                <td className={celula}>{quando(c.criado_em)}</td>
-                <td className={celula}>{quando(c.cobranca_em)}</td>
-                <td className={`${celula} ${c.registros === 0 ? 'font-semibold text-state-danger' : ''}`}>
-                  {c.registros}
-                </td>
-                <td className={celula}>{c.plano ? `${PLANO_LABEL[c.plano]} ${c.ciclo ?? ''}` : '—'}</td>
-                <td className={celula}>
-                  {encerrado || dias == null ? '—' : dias <= 0 ? 'cobrando agora' : dias}
-                </td>
-                <td className={`${celula} ${c.renova === false && !c.pagou ? 'text-ninho-cinza' : ''}`}>
-                  {valor.texto}
-                </td>
-                <td className={celula}>{ORIGEM_LABEL[c.origem]}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
     </div>
   );
 }
@@ -411,7 +290,9 @@ export default async function TestePaywallPage() {
               );
             })()}
           </p>
-          <TabelaCartoes lista={t.cartoes} />
+          <div className="mb-8">
+            <TabelaCartoes lista={t.cartoes} />
+          </div>
 
           {t.liberados != null && (
             <>
@@ -420,7 +301,9 @@ export default async function TestePaywallPage() {
                 Horários no fuso de Dubai. O aviso (push, sininho e e-mail) só sai das 5h à meia-noite no
                 horário da pessoa.
               </p>
-              <TabelaLiberados lista={t.liberados} />
+              <div className="mb-8">
+                <TabelaLiberados lista={t.liberados} />
+              </div>
             </>
           )}
 
