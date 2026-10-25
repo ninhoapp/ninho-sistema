@@ -3,6 +3,7 @@ import { signOut } from '@/app/admin/actions';
 import { AdminLogo } from '@/components/admin/AdminLogo';
 import { SidebarNav } from '@/components/admin/SidebarNav';
 import { SetorTabs } from '@/components/admin/SetorTabs';
+import { AlertaAtendimento } from '@/components/admin/AlertaAtendimento';
 import '../admin.css';
 
 export const dynamic = 'force-dynamic';
@@ -56,6 +57,7 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
             <summary className="cursor-pointer px-2 py-1 text-sm font-semibold">Menu</summary>
             <SidebarNav role={session.role} />
           </details>
+          {session.role === 'admin' && <AlertaAtendimento />}
           {session.role === 'admin' && <SetorTabs />}
           {children}
         </main>

@@ -128,6 +128,18 @@ export async function fetchAprendizados(): Promise<Aprendizado[]> {
   return (data ?? []) as Aprendizado[];
 }
 
+/** Pendências abertas e a mais antiga — para o alerta vermelho no topo do painel. */
+export async function fetchAlertaAtendimento(): Promise<{ abertas: number; maisAntiga: string | null }> {
+  const { data, error } = await appDb()
+    .from('atendimento_pendencias')
+    .select('created_at')
+    .eq('status', 'aberta')
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(error.message);
+  const linhas = (data ?? []) as { created_at: string }[];
+  return { abertas: linhas.length, maisAntiga: linhas[0]?.created_at ?? null };
+}
+
 export async function fetchResumoAtendimento(): Promise<ResumoAtendimento> {
   const db = appDb();
   const hoje = inicioHojeDubai();
