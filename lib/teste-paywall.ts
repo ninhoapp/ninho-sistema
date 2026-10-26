@@ -38,6 +38,11 @@ export interface ResumoGrupo {
   convidaram_cuidador: number;
   media_registros: number | null;
   pct_pagou: number | null;
+  /** Já pagou ou o período grátis acabou (migration 00090). null = a
+   *  coluna ainda não existe no banco. */
+  decididos: number | null;
+  /** Conta oficial do teste: pagaram ÷ decididos (00090). */
+  pct_pagou_decididos: number | null;
 }
 
 /** Grupo B sem cartão por 2h, liberado com 7 dias sem cartão e passado
@@ -106,6 +111,8 @@ function vazio(grupo: Grupo): ResumoGrupo {
     convidaram_cuidador: 0,
     media_registros: null,
     pct_pagou: null,
+    decididos: 0,
+    pct_pagou_decididos: null,
   };
 }
 
@@ -152,6 +159,9 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
       convidaram_cuidador: n(r.convidaram_cuidador),
       media_registros: nOuNull(r.media_registros),
       pct_pagou: nOuNull(r.pct_pagou),
+      // Antes da 00090 a coluna não vem: null avisa a tela.
+      decididos: 'decididos' in r ? n(r.decididos) : null,
+      pct_pagou_decididos: nOuNull(r.pct_pagou_decididos),
     };
   }
 

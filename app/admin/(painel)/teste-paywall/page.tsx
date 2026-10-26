@@ -69,6 +69,23 @@ function Linha({
   );
 }
 
+/** Conta oficial do teste (00090): pagaram ÷ quem já decidiu — já pagou ou
+ *  o período grátis acabou. Quem ainda está nos dias grátis fica de fora
+ *  (pedido do dono, 26/10/2026). Antes da 00090, cai na conta antiga. */
+function conversao(r: ResumoGrupo): { valor: string; detalhe: string } {
+  if (r.decididos == null) {
+    return {
+      valor: r.pct_pagou != null ? `${r.pct_pagou.toFixed(1)}%` : '—',
+      detalhe: `${r.pagaram} de ${r.cadastros} · aplicar a migration 00090`,
+    };
+  }
+  const aindaNoTeste = Math.max(r.cadastros - r.decididos, 0);
+  return {
+    valor: r.pct_pagou_decididos != null ? `${r.pct_pagou_decididos.toFixed(1)}%` : '—',
+    detalhe: `${r.pagaram} de ${r.decididos} · ${aindaNoTeste} ainda no período grátis`,
+  };
+}
+
 function CartaoGrupo({ r, totalSorteado }: { r: ResumoGrupo; totalSorteado: number }) {
   const c = r.cadastros;
   const cartao = r.comecaram_teste_loja;
@@ -112,9 +129,9 @@ function CartaoGrupo({ r, totalSorteado }: { r: ResumoGrupo; totalSorteado: numb
         />
       )}
       <Linha
-        label="Pagaram ÷ cadastros"
-        valor={r.pct_pagou != null ? `${r.pct_pagou.toFixed(1)}%` : '—'}
-        detalhe={`${r.pagaram} de ${c}`}
+        label="Pagaram ÷ período grátis encerrado"
+        valor={conversao(r).valor}
+        detalhe={conversao(r).detalhe}
         destaque
       />
       <Linha label="Pagantes hoje" valor={r.pagantes_hoje} detalhe="fora do teste da loja" />
@@ -208,8 +225,9 @@ export default async function TestePaywallPage() {
       <Notice tone="warn">
         <strong>Pôr o cartão não é pagar.</strong> No grupo B, quem começa os 7 dias grátis da loja
         ainda pode cancelar antes da primeira cobrança. A métrica que decide o teste é{' '}
-        <strong>pagaram ÷ cadastros</strong> (e, depois, a receita por cadastro aos 60 dias) — nunca
-        &ldquo;puseram o cartão&rdquo;.
+        <strong>pagaram ÷ quem já saiu do período grátis</strong> (quem ainda está nos dias grátis não
+        entra na conta; depois, a receita por cadastro aos 60 dias) — nunca &ldquo;puseram o
+        cartão&rdquo;.
       </Notice>
 
       {antesDoRodizio > 0 && (
@@ -245,16 +263,16 @@ export default async function TestePaywallPage() {
               compactHint
             />
             <StatCard
-              label="Pagaram ÷ cadastros · A"
-              value={A.pct_pagou != null ? `${A.pct_pagou.toFixed(1)}%` : '—'}
-              hint={`${A.pagaram} de ${A.cadastros}`}
+              label="Conversão · A"
+              value={conversao(A).valor}
+              hint={conversao(A).detalhe}
               compactHint
               accent
             />
             <StatCard
-              label="Pagaram ÷ cadastros · B"
-              value={B.pct_pagou != null ? `${B.pct_pagou.toFixed(1)}%` : '—'}
-              hint={`${B.pagaram} de ${B.cadastros}`}
+              label="Conversão · B"
+              value={conversao(B).valor}
+              hint={conversao(B).detalhe}
               compactHint
               accent
             />
@@ -267,7 +285,9 @@ export default async function TestePaywallPage() {
             <CartaoLiberados lista={t.liberados} />
           </div>
           <p className="mb-8 text-xs text-ninho-cinza">
-            <strong>Pagou</strong> = compra verificada e cobrança real (no B, só depois que os 7 dias
+            <strong>Conversão</strong> = pagaram ÷ quem já decidiu: já pagou ou o período grátis acabou
+            (no B com cartão, 1 dia depois dos 7 dias da loja, tempo de a renovação chegar; quem ainda
+            está nas 2h antes da liberação não conta). <strong>Pagou</strong> = compra verificada e cobrança real (no B, só depois que os 7 dias
             grátis da loja acabaram). <strong>Viram a oferta</strong> conta todo o grupo B, que já
             abre na tela de planos. <strong>B liberado</strong>: quem ficou 2h no B sem pôr o cartão
             ganha 7 dias sem cartão e passa para o fluxo do A; continua contando no B, e aqui aparece
