@@ -90,6 +90,8 @@ export default async function FaturamentoPage({
   const mrrLiquido = liquido(m.receitaMensalEstimada);
 
   const pagantes = users.filter(isPagante);
+  // Pôs o cartão no teste da loja e ainda não pagou: não é assinante.
+  const emTesteLoja = users.filter((u) => u.emTesteLoja).length;
   const mensais = pagantes.filter((u) => u.plan_interval !== 'anual').length;
   const anuais = pagantes.filter((u) => u.plan_interval === 'anual').length;
 
@@ -288,7 +290,12 @@ export default async function FaturamentoPage({
 
       <h2 className="mb-3 text-base font-bold text-ninho-grafite">Assinantes</h2>
       <div className="mb-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <StatCard label="Assinantes" value={m.pagantes} />
+        <StatCard
+          label="Assinantes"
+          value={m.pagantes}
+          hint={emTesteLoja > 0 ? `Só quem pagou. Fora: ${emTesteLoja} nos dias grátis da loja` : 'Só quem pagou'}
+          compactHint
+        />
         <StatCard label="Mensais" value={mensais} />
         <StatCard label="Anuais" value={anuais} />
         <StatCard

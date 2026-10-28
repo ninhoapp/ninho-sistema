@@ -52,6 +52,9 @@ export interface AppUser {
    *  pagou (ou pagou antes de `purchase_verifications` existir). NÃO confundir
    *  com `created_at`, que é a data do cadastro. */
   assinouEm: string | null;
+  /** Nos 7 dias grátis da loja (pôs o cartão, ainda não pagou). Não é
+   *  assinante: `estado` vem como `trial_ativo` (ver ajustarTesteLoja). */
+  emTesteLoja: boolean;
   /** De onde a conta veio: Apple Ads (confirmado pela Apple) > resposta do
    *  onboarding > sem informação. Ver lib/origem.ts. */
   origem: Origem;
@@ -84,6 +87,9 @@ interface EstadoRow {
   trial_ends_at: string | null;
   current_period_end: string | null;
   estado: Estado;
+  /** Fim dos dias grátis da loja (grupo B do teste de paywall) — migration
+   *  00093 do app. Ver ajustarTesteLoja. */
+  teste_loja_ate: string | null;
 }
 
 /**
@@ -258,7 +264,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
     lerTudo<EstadoRow>('assinatura_estado', (de, ate) =>
       sb
         .from('assinatura_estado')
-        .select('profile_id,plan,plan_interval,trial_ends_at,current_period_end,estado')
+        .select('profile_id,plan,plan_interval,trial_ends_at,current_period_end,estado,teste_loja_ate')
         .order('profile_id')
         .range(de, ate),
     ),
@@ -282,7 +288,8 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
   return profiles.map((p) => {
     const e = estadoByProfile.get(p.id);
     const ef = efetivos.get(p.id);
-    const estadoProprio = corrigirChurnPorData(e);
+    const teste = ajustarTesteLoja(e, corrigirChurnPorData(e), assinouEm.get(p.id) ?? null);
+    const estadoProprio = teste.estado;
     const apple = appleAds.get(p.id);
     return {
       id: p.id,
@@ -301,14 +308,19 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
       // Sem linha em usuarios_admin (falha de rede/permissão — ver
       // fetchPlanoEfetivo) cai pro próprio estado: nunca esconde uma conta
       // que paga só porque a query de herança falhou.
-      estadoEfetivo: ef?.estado_efetivo ?? estadoProprio,
+      // Teste da loja (sem herança): a view diz `pagante`; aqui vale o ajuste.
+      estadoEfetivo: teste.emTesteLoja && !ef?.coberto_por ? estadoProprio : (ef?.estado_efetivo ?? estadoProprio),
       planoEfetivo: ef?.plano_efetivo ?? (e?.plan === 'basico' ? 'basico' : e?.plan === 'premium' ? 'premium' : 'free'),
       planIntervalEfetivo: ef?.plan_interval_efetivo ?? e?.plan_interval ?? null,
-      trialEndsAtEfetivo: ef?.trial_ends_at_efetivo ?? e?.trial_ends_at ?? null,
+      trialEndsAtEfetivo:
+        teste.emTesteLoja && !ef?.coberto_por
+          ? (e?.teste_loja_ate ?? null)
+          : (ef?.trial_ends_at_efetivo ?? e?.trial_ends_at ?? null),
       currentPeriodEndEfetivo: ef?.current_period_end_efetivo ?? e?.current_period_end ?? null,
       herdadoDe: ef?.coberto_por ?? null,
       birthDate: nascimentos.get(p.id) ?? null,
-      assinouEm: assinouEm.get(p.id) ?? null,
+      assinouEm: teste.assinouEm,
+      emTesteLoja: teste.emTesteLoja,
       origem: resolverOrigem(apple?.atribuido === true, p.como_conheceu, apple?.campaign_id ?? null),
       // Só expõe a campanha quando ela é real — o id de TestFlight não é campanha.
       appleAdsCampaignId: appleAdsValido(apple?.atribuido === true, apple?.campaign_id ?? null)
@@ -330,7 +342,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
  *  - `cache` do React: dentro de uma mesma requisição não vai ao banco 2x.
  */
 export const fetchAppUsers = cache(
-  unstable_cache(fetchAppUsersRaw, ['app-users-v2'], { revalidate: 60, tags: [APP_USERS_TAG] })
+  unstable_cache(fetchAppUsersRaw, ['app-users-v3'], { revalidate: 60, tags: [APP_USERS_TAG] })
 );
 
 /**
@@ -348,6 +360,43 @@ function corrigirChurnPorData(e: EstadoRow | undefined): Estado {
     if (new Date(e.current_period_end).getTime() < Date.now()) return 'churn';
   }
   return estado;
+}
+
+/**
+ * Assinante = só quem pagou de fato (regra do dono, 27/10/2026).
+ *
+ * No grupo B do teste de paywall a loja dá 7 dias grátis: a assinatura já
+ * nasce `active` (a view diz `pagante`) e a compra é verificada no INÍCIO do
+ * teste. Sem este ajuste o painel contava como assinante e como dinheiro no
+ * caixa quem só pôs o cartão (37 × 30 em 27/10). Então:
+ *  - ainda nos dias grátis → `trial_ativo`, sem data de assinatura;
+ *  - o teste acabou e não pagou (cancelou antes) → `trial_expirado`;
+ *  - pagou → a assinatura conta a partir do fim do teste (1ª cobrança).
+ * O app continua liberando o plano a quem está no teste: isto é só contagem.
+ */
+function ajustarTesteLoja(
+  e: EstadoRow | undefined,
+  estado: Estado,
+  verificadoEm: string | null,
+): { estado: Estado; assinouEm: string | null; emTesteLoja: boolean } {
+  const fim = e?.teste_loja_ate ? new Date(e.teste_loja_ate).getTime() : null;
+  if (fim === null) return { estado, assinouEm: verificadoEm, emTesteLoja: false };
+
+  if (Date.now() < fim) {
+    if (estado === 'pagante') return { estado: 'trial_ativo', assinouEm: null, emTesteLoja: true };
+    if (estado === 'churn') return { estado: 'trial_expirado', assinouEm: null, emTesteLoja: false };
+    return { estado, assinouEm: null, emTesteLoja: false };
+  }
+
+  // Depois do teste: só pagou quem continua pagante ou teve período pago
+  // além do fim do teste (renovou ao menos uma vez antes de cancelar).
+  const pagouAlgo =
+    estado === 'pagante' ||
+    (e?.current_period_end != null && new Date(e.current_period_end).getTime() > fim + 86_400_000);
+  if (!pagouAlgo) {
+    return { estado: estado === 'churn' ? 'trial_expirado' : estado, assinouEm: null, emTesteLoja: false };
+  }
+  return { estado, assinouEm: new Date(fim).toISOString(), emTesteLoja: false };
 }
 
 // ─── Status da conta (rótulo legível) — tipo e listas em lib/status-conta ──
