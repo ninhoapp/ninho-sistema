@@ -52,9 +52,12 @@ export async function recusarPost(fd: FormData) {
   await mudar(id(fd), { status: 'recusado', aprovado_em: null }, ['rascunho', 'aprovado', 'erro']);
 }
 
-/** Horário digitado em Brasília (o público). O Brasil não tem horário de verão. */
+/**
+ * Horário digitado em Dubai, o relógio do dono (correção dele em 27/10/2026:
+ * ele lia o horário do card como se fosse de Dubai). Dubai não tem horário de verão.
+ */
 export async function mudarHorario(fd: FormData) {
   const v = String(fd.get('quando') ?? '');
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) return;
-  await mudar(id(fd), { agendado_para: `${v}:00-03:00` }, ['rascunho', 'aprovado', 'erro', 'recusado']);
+  await mudar(id(fd), { agendado_para: `${v}:00+04:00` }, ['rascunho', 'aprovado', 'erro', 'recusado']);
 }

@@ -73,11 +73,11 @@ export function quando(iso: string, timeZone: 'America/Sao_Paulo' | 'Asia/Dubai'
   }).format(new Date(iso)).replace('.', '').replace(',', '');
 }
 
-/** As 3 horas (em Brasília) com mais seguidores online. Vem em UTC da Meta. */
+/** As 3 horas (em Dubai, o relógio do dono) com mais seguidores online. Vem em UTC da Meta. */
 export function melhoresHoras(online: Record<string, number> | null): string[] {
   if (!online) return [];
   return Object.entries(online)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
-    .map(([h]) => `${String((Number(h) + 21) % 24).padStart(2, '0')}h`);
+    .map(([h]) => `${String((Number(h) + 4) % 24).padStart(2, '0')}h`);
 }

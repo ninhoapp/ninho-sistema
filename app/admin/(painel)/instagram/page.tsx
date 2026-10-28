@@ -17,9 +17,9 @@ const STATUS: Record<StatusPost, { label: string; cor: string }> = {
 
 const botao = 'rounded-pill px-3 py-1.5 text-sm font-medium transition';
 
-/** "2026-10-26T07:30" em Brasília, para o campo de horário. */
+/** "2026-10-26T14:30" em Dubai (o relógio do dono), para o campo de horário. */
 function valorHorario(iso: string): string {
-  const d = new Date(new Date(iso).getTime() - 3 * 3_600_000);
+  const d = new Date(new Date(iso).getTime() + 4 * 3_600_000);
   return d.toISOString().slice(0, 16);
 }
 
@@ -45,8 +45,8 @@ function CardPost({ p }: { p: PostInstagram }) {
     <article className="rounded-2xl border border-ninho-borda bg-white p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="text-sm">
-          <strong>{quando(p.agendado_para, 'America/Sao_Paulo')}</strong> em Brasília
-          <span className="text-ninho-cinza"> · {quando(p.agendado_para, 'Asia/Dubai')} em Dubai</span>
+          <strong>{quando(p.agendado_para, 'Asia/Dubai')}</strong> em Dubai
+          <span className="text-ninho-cinza"> · {quando(p.agendado_para, 'America/Sao_Paulo')} no Brasil</span>
         </div>
         <span className={`rounded-pill px-2.5 py-1 text-xs font-semibold ${s.cor}`}>{s.label}</span>
       </div>
@@ -130,14 +130,14 @@ export default async function InstagramPage() {
     <>
       <PageHeader
         title="Instagram"
-        subtitle="Aprove cada post: aprovado, ele sai sozinho no horário marcado (Brasília). Mudou legenda ou imagem depois do OK, volta para aprovação."
+        subtitle="Aprove cada post: aprovado, ele sai sozinho no horário marcado (hora de Dubai em destaque; o público está no Brasil, 7h antes). Mudou legenda ou imagem depois do OK, volta para aprovação."
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Seguidores" value={hoje?.seguidores != null ? String(hoje.seguidores) : '—'} hint="Meta: 200" accent />
         <StatCard label="Ganho em 7 dias" value={ganho != null ? (ganho >= 0 ? `+${ganho}` : String(ganho)) : '—'} />
         <StatCard label="Esperando seu OK" value={String(esperando.length)} />
-        <StatCard label="Seguidores mais online" value={horas.length ? horas.join(' · ') : '—'} hint="Horário de Brasília" />
+        <StatCard label="Seguidores mais online" value={horas.length ? horas.join(' · ') : '—'} hint="Horário de Dubai" />
       </div>
 
       {posts.length === 0 && (
