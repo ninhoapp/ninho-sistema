@@ -38,11 +38,21 @@ function Numeros({ m }: { m: PostInstagram['metricas'] }) {
   );
 }
 
+/** Rascunho com o horário já vencido: não saiu porque ninguém aprovou. */
+function atrasado(p: PostInstagram): boolean {
+  return p.status === 'rascunho' && new Date(p.agendado_para).getTime() < Date.now();
+}
+
 function CardPost({ p }: { p: PostInstagram }) {
   const s = STATUS[p.status];
   const editavel = ['rascunho', 'aprovado', 'erro', 'recusado'].includes(p.status);
   return (
-    <article className="rounded-2xl border border-ninho-borda bg-white p-4">
+    <article className={`rounded-2xl border bg-white p-4 ${atrasado(p) ? 'border-red-300' : 'border-ninho-borda'}`}>
+      {atrasado(p) && (
+        <p className="mb-3 rounded-lg bg-red-50 p-2 text-sm text-red-700">
+          <strong>O horário passou e o post não saiu</strong> porque não estava aprovado. Mude o horário e aprove, ou aprove como está para sair em até 10 minutos.
+        </p>
+      )}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="text-sm">
           <strong>{quando(p.agendado_para, 'Asia/Dubai')}</strong> em Dubai
@@ -124,7 +134,10 @@ export default async function InstagramPage() {
   const horas = melhoresHoras(conta.find((c) => c.online_por_hora)?.online_por_hora ?? null);
   const esperando = posts.filter((p) => p.status === 'rascunho');
 
-  const semanas = [...new Set(posts.map((p) => p.semana))].sort().reverse();
+  // Atrasados no topo e nunca escondidos; depois, as semanas da mais próxima para a mais distante.
+  const atrasados = posts.filter(atrasado);
+  const proximo = posts.find((p) => p.status === 'aprovado');
+  const semanas = [...new Set(posts.filter((p) => !atrasado(p)).map((p) => p.semana))].sort();
 
   return (
     <>
@@ -144,8 +157,23 @@ export default async function InstagramPage() {
         <p className="rounded-2xl bg-white p-6 text-sm text-ninho-cinza">Nenhum post ainda. A Lívia sobe a semana com marketing/instagram/gerador/subir.py.</p>
       )}
 
+      <p className={`mb-6 rounded-2xl p-4 text-sm ${proximo ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-900'}`}>
+        {proximo
+          ? <>Próximo post que sai sozinho: <strong>{quando(proximo.agendado_para, 'Asia/Dubai')} em Dubai</strong>.</>
+          : <><strong>Nenhum post aprovado.</strong> Nada vai sair até você aprovar.</>}
+      </p>
+
+      {atrasados.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-bold text-red-700">Horário passou sem aprovação ({atrasados.length})</h2>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {atrasados.map((p) => <CardPost key={p.id} p={p} />)}
+          </div>
+        </section>
+      )}
+
       {semanas.map((semana) => {
-        const daSemana = posts.filter((p) => p.semana === semana);
+        const daSemana = posts.filter((p) => p.semana === semana && !atrasado(p));
         const rascunhos = daSemana.filter((p) => p.status === 'rascunho').length;
         return (
           <section key={semana} className="mb-8">

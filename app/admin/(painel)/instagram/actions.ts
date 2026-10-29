@@ -37,7 +37,10 @@ export async function aprovarSemana(fd: FormData) {
     .from('instagram_posts')
     .update({ status: 'aprovado', aprovado_em: new Date().toISOString(), ajuste: null })
     .eq('semana', semana)
-    .eq('status', 'rascunho');
+    .eq('status', 'rascunho')
+    // Post cujo horário já passou fica de fora: aprovado em lote, sairia tudo
+    // junto no próximo cron. O dono aprova um por um, na seção "Horário passou".
+    .gt('agendado_para', new Date().toISOString());
   if (error) throw new Error(error.message);
   revalidatePath('/admin/instagram');
 }
