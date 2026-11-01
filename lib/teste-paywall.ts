@@ -302,3 +302,34 @@ export function cadastrosPorDia(diario: DiaGrupo[], dias: number) {
 export function pct(parte: number, base: number): string {
   return base > 0 ? `${((parte / base) * 100).toFixed(1)}%` : '—';
 }
+
+/** Grupo do teste de cada conta, para a coluna "Teste" de Usuários ativos.
+ *  `sorteado = false` = bebê ainda não nascido: vai para o A fora da
+ *  comparação. `liberadoEm` = grupo B que ficou 2h sem cartão e ganhou 7
+ *  dias sem cartão (00089); no teste continua contando no B. Quem não está
+ *  no mapa nunca entrou no teste (versão sem o teste ou conta antiga).
+ *  Falha não derruba a página: todo mundo aparece como "—". */
+export interface GrupoTeste {
+  grupo: Grupo;
+  sorteado: boolean;
+  liberadoEm: string | null;
+}
+
+export async function fetchGrupoTestePorUsuario(): Promise<Map<string, GrupoTeste>> {
+  const out = new Map<string, GrupoTeste>();
+  const { data, error } = await lerTudo<{ profile_id: string; grupo: string; sorteado: boolean; liberado_em: string | null }>(
+    'teste_paywall_participantes',
+    (de, ate) =>
+      appDb()
+        .from('teste_paywall_participantes')
+        .select('profile_id,grupo,sorteado,liberado_em')
+        .order('profile_id')
+        .range(de, ate),
+  );
+  if (error) return out;
+  for (const r of data) {
+    if (r.grupo !== 'A' && r.grupo !== 'B') continue;
+    out.set(r.profile_id, { grupo: r.grupo, sorteado: !!r.sorteado, liberadoEm: r.liberado_em ?? null });
+  }
+  return out;
+}

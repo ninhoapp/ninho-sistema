@@ -16,6 +16,7 @@ import { PasswordInput } from '@/components/admin/PasswordInput';
 import { applyColumnFilters } from '@/components/admin/ColumnFilter';
 import { ThSort, nextSort, type SortDir } from '@/components/admin/ThSort';
 import { ORIGENS, ORIGEM_LABEL, ORIGEM_COR, type Origem } from '@/lib/origem';
+import type { GrupoTeste } from '@/lib/teste-paywall';
 import { ExportExcelButton } from '@/components/admin/ExportExcelButton';
 import { CopyAll } from '@/components/admin/CopyAll';
 import { VerticalBarChart } from '@/components/admin/VerticalBarChart';
@@ -55,6 +56,8 @@ export interface UsuarioRow {
   /** De onde a conta veio. Apple Ads é confirmado pela Apple, conta a conta;
    *  o resto é o que a pessoa respondeu no cadastro. Ver lib/origem.ts. */
   origem: Origem;
+  /** Grupo do teste de paywall (A ou B); null = nunca entrou no teste. */
+  teste: GrupoTeste | null;
 }
 
 const STATUS_STYLE: Record<StatusConta, string> = {
@@ -72,7 +75,7 @@ const STATUS_STYLE: Record<StatusConta, string> = {
 // em que aparecem na tabela.
 type SortKey =
   | 'nome' | 'created_at' | 'idade' | 'uso' | 'registros' | 'momentos' | 'status'
-  | 'dias' | 'origem' | 'versao' | 'email';
+  | 'dias' | 'origem' | 'teste' | 'versao' | 'email';
 
 type FilterCol = SortKey;
 
@@ -82,7 +85,7 @@ type StatKey = 'total' | 'hoje' | 'assinantes' | 'trial_ativo' | 'trial_expirado
 // seleção (que não ordena nem filtra), as outras seguem CABECALHOS.
 // Nome mais estreito e Origem mais larga (pedido do dono em 25/10/2026: o
 // nome trunca bem, a origem cortava "Instagram/Facebook").
-const DEFAULT_COL_WIDTHS = [40, 140, 90, 90, 80, 100, 90, 130, 70, 185, 80, 200];
+const DEFAULT_COL_WIDTHS = [40, 140, 90, 90, 80, 100, 90, 130, 70, 185, 70, 80, 200];
 
 // Fuso de quem opera o painel (Dubai), não o dos usuários: é daqui que os
 // anúncios rodam, e é essa virada de dia que precisa bater com "novos
@@ -251,6 +254,18 @@ function usoClass(r: UsuarioRow): string {
 // O que resta por pessoa: Apple Ads (provado) > o que ela respondeu no
 // cadastro > sem informação.
 
+// Mesmas cores dos grupos na página Teste de paywall.
+const TESTE_STYLE: Record<GrupoTeste['grupo'], string> = {
+  A: 'bg-[#EFEAFB] text-[#6B52B8]',
+  B: 'bg-[#FEF1DE] text-[#9A5B1E]',
+};
+
+function testeTooltip(t: GrupoTeste): string {
+  if (!t.sorteado) return 'A — fora da comparação: bebê ainda não nascido vai direto para o A';
+  if (t.liberadoEm) return 'B — ficou 2h sem cartão e ganhou 7 dias sem cartão; no teste continua contando no B';
+  return t.grupo === 'A' ? 'A — 7 dias de teste do app, sem cartão' : 'B — tela de planos obrigatória, 7 dias grátis da loja';
+}
+
 function origemTooltip(r: UsuarioRow): string {
   if (r.origem === 'apple_ads') {
     return 'Apple Ads — confirmado pela Apple (AdServices), conta a conta';
@@ -285,6 +300,7 @@ function colValue(r: UsuarioRow, col: FilterCol): string {
     case 'momentos':   return String(r.momentos);
     case 'dias':       return diasLabel(dias(r));
     case 'origem':     return ORIGEM_LABEL[r.origem];
+    case 'teste':      return r.teste?.grupo ?? '—';
     case 'versao':     return r.appVersion || '—';
   }
 }
@@ -302,6 +318,7 @@ const CABECALHOS: [SortKey, string][] = [
   ['status', 'Status'],
   ['dias', 'Dias'],
   ['origem', 'Origem'],
+  ['teste', 'Teste'],
   ['versao', 'Versão'],
   ['email', 'E-mail'],
 ];
@@ -516,6 +533,7 @@ export function UsuariosTable({
           // Ordena pela ordem de ORIGENS (pagos primeiro, "sem informação" por
           // último), não alfabética — é a leitura útil do canal.
           case 'origem': cmp = ORIGENS.indexOf(a.origem) - ORIGENS.indexOf(b.origem); break;
+          case 'teste': cmp = (a.teste?.grupo ?? 'Z').localeCompare(b.teste?.grupo ?? 'Z'); break;
           case 'versao': cmp = (a.appVersion ?? '').localeCompare(b.appVersion ?? '', 'pt-BR'); break;
         }
         return sort.dir === 'asc' ? cmp : -cmp;
@@ -574,6 +592,7 @@ export function UsuariosTable({
         'Herdado de': r.herdadoDe || '',
         Dias: diasLabel(dias(r)),
         Origem: ORIGEM_LABEL[r.origem],
+        'Teste de paywall': r.teste ? testeTooltip(r.teste) : '',
         Sistema: r.sistema ? sistemaLabel(r) : '',
         Versão: r.appVersion || '',
         'E-mail': r.email || '',
@@ -1050,6 +1069,20 @@ export function UsuariosTable({
                       <span className="truncate">{ORIGEM_LABEL[r.origem]}</span>
                     </span>
                   </td>
+                  <td className="overflow-hidden p-3">
+                    {r.teste ? (
+                      <span
+                        className={`inline-block rounded-pill px-2 py-0.5 text-xs font-semibold ${
+                          r.teste.sorteado ? TESTE_STYLE[r.teste.grupo] : 'bg-ninho-nuvem text-ninho-cinza'
+                        }`}
+                        title={testeTooltip(r.teste)}
+                      >
+                        {r.teste.grupo}
+                      </span>
+                    ) : (
+                      <span className="text-ninho-cinza">—</span>
+                    )}
+                  </td>
                   <td
                     className="overflow-hidden p-3 text-ninho-cinza"
                     title={r.sistema ? sistemaLabel(r) : undefined}
@@ -1087,7 +1120,10 @@ export function UsuariosTable({
         orgânico. <em>Sem informação</em> não quer dizer "veio da Meta": no iPhone sem permissão de
         rastreamento a Meta não informa quem veio do anúncio, só o total no Gerenciador.{' '}
         <strong>Versão</strong> vem do aparelho mais recente com push token (o sistema está no
-        tooltip): fica vazia pra quem recusou notificações.
+        tooltip): fica vazia pra quem recusou notificações.{' '}
+        <strong>Teste:</strong> grupo do teste de paywall (passe o mouse para o detalhe). Cinza = fora
+        da comparação (bebê ainda não nascido). "—" = nunca entrou no teste (só existe a partir da
+        versão 1.0.6).
       </p>
     </div>
   );

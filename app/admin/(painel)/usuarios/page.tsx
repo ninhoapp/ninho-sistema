@@ -6,6 +6,7 @@ import {
   accountStatus,
 } from '@/lib/app-users';
 import { buildUsuariosCharts } from '@/lib/dashboard-charts';
+import { fetchGrupoTestePorUsuario } from '@/lib/teste-paywall';
 import { taxaConversaoNascidos, taxaConversaoHint } from '@/lib/metrics';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { Notice } from '@/components/admin/Notice';
@@ -16,7 +17,7 @@ export const dynamic = 'force-dynamic';
 export default async function UsuariosPage() {
   requireRole('admin');
 
-  const [users, uso] = await Promise.all([fetchAppUsers(), fetchUsoPorUsuario()]);
+  const [users, uso, testePaywall] = await Promise.all([fetchAppUsers(), fetchUsoPorUsuario(), fetchGrupoTestePorUsuario()]);
   const charts = buildUsuariosCharts(users);
   const conversao = taxaConversaoNascidos(users);
 
@@ -47,6 +48,7 @@ export default async function UsuariosPage() {
       sistema: m?.sistema ?? null,
       appVersion: m?.appVersion ?? null,
       origem: u.origem,
+      teste: testePaywall.get(u.id) ?? null,
     };
   });
 
