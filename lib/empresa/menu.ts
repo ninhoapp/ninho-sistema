@@ -71,7 +71,10 @@ export const MENU_ADMIN: GrupoMenu[] = [
   },
   {
     id: 'ate', nome: 'Atendimento', cor: COR_SETOR.ate, equipe: '/admin/empresa/ate',
-    abas: [{ href: '/admin/atendimento', label: 'Atendimento no app' }],
+    abas: [
+      { href: '/admin/atendimento', label: 'Atendimento no app' },
+      { href: '/admin/avaliacoes', label: 'Avaliações das lojas' },
+    ],
   },
   {
     id: 'eng', nome: 'Produto', cor: COR_SETOR.eng, equipe: '/admin/empresa/eng',
