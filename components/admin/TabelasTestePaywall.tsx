@@ -87,7 +87,7 @@ export function TabelaLiberados({ lista }: { lista: Liberado[] }) {
       rows={lista}
       colunas={COLUNAS_LIBERADO}
       getId={(l) => l.profile_id}
-      vazio="Ninguém liberado ainda. A cada 15 minutos o servidor libera quem está no B há 2h sem cartão."
+      vazio="Ninguém liberado ainda. A cada 5 minutos o servidor libera quem está no B há 30 min sem cartão."
       busca={(l) => l.primeiro_nome ?? ''}
       excel={{ arquivo: 'ninho-b-liberados', aba: 'Liberados' }}
     />

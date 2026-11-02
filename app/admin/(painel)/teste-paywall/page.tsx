@@ -142,8 +142,8 @@ function CartaoGrupo({ r, totalSorteado }: { r: ResumoGrupo; totalSorteado: numb
   );
 }
 
-/** Terceira coluna: quem caiu no B, ficou 2h sem cartão e foi liberado com
- *  7 dias sem cartão (migration 00089). Continua contando no B ao lado; aqui
+/** Terceira coluna: quem caiu no B, ficou 30 min sem cartão e foi liberado com
+ *  7 dias sem cartão (migrations 00089 e 00094; antes de 02/11 eram 2h). Continua contando no B ao lado; aqui
  *  é o caminho de volta de cada um. */
 function CartaoLiberados({ lista }: { lista: Liberado[] | null }) {
   if (lista == null) {
@@ -151,7 +151,7 @@ function CartaoLiberados({ lista }: { lista: Liberado[] | null }) {
       <div className="rounded-2xl border border-dashed border-ninho-borda bg-white p-5">
         <div className="mb-3 flex items-center gap-2">
           <span className="inline-block h-3 w-3 rounded-sm" style={{ background: COR_LIBERADO }} />
-          <h3 className="text-sm font-bold text-ninho-grafite">B liberado · sem cartão em 2h</h3>
+          <h3 className="text-sm font-bold text-ninho-grafite">B liberado · sem cartão em 30 min</h3>
         </div>
         <p className="text-sm text-ninho-cinza">
           Aparece quando a migration <strong>00089</strong> for aplicada no Supabase.
@@ -169,7 +169,7 @@ function CartaoLiberados({ lista }: { lista: Liberado[] | null }) {
     <div className="rounded-2xl border border-ninho-borda bg-white p-5">
       <div className="mb-3 flex items-center gap-2">
         <span className="inline-block h-3 w-3 rounded-sm" style={{ background: COR_LIBERADO }} />
-        <h3 className="text-sm font-bold text-ninho-grafite">B liberado · sem cartão em 2h</h3>
+        <h3 className="text-sm font-bold text-ninho-grafite">B liberado · sem cartão em 30 min</h3>
       </div>
       <Linha label="Liberados (7 dias sem cartão)" valor={total} detalhe="passaram para o A" />
       <Linha label="Receberam o aviso" valor={avisados} detalhe={`${pct(avisados, total)} dos liberados`} />
@@ -287,9 +287,9 @@ export default async function TestePaywallPage() {
           <p className="mb-8 text-xs text-ninho-cinza">
             <strong>Conversão</strong> = pagaram ÷ quem já decidiu: já pagou ou o período grátis acabou
             (no B com cartão, 1 dia depois dos 7 dias da loja, tempo de a renovação chegar; quem ainda
-            está nas 2h antes da liberação não conta). <strong>Pagou</strong> = compra verificada e cobrança real (no B, só depois que os 7 dias
+            está nos 30 min antes da liberação não conta). <strong>Pagou</strong> = compra verificada e cobrança real (no B, só depois que os 7 dias
             grátis da loja acabaram). <strong>Viram a oferta</strong> conta todo o grupo B, que já
-            abre na tela de planos. <strong>B liberado</strong>: quem ficou 2h no B sem pôr o cartão
+            abre na tela de planos. <strong>B liberado</strong>: quem ficou 30 min no B sem pôr o cartão (2h até 02/11)
             ganha 7 dias sem cartão e passa para o fluxo do A; continua contando no B, e aqui aparece
             se voltou ao app (qualquer abertura depois da liberação) e se fez pelo menos 1 registro.
             Receita por cadastro aos 60 dias entra quando a primeira turma completar 60 dias.

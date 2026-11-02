@@ -6,7 +6,7 @@
  *   teste_paywall_participantes → uma linha por pessoa (inclui quem ficou fora do sorteio);
  *                                 também vira o "dia × grupo", contado aqui no fuso de Dubai
  *   teste_paywall_config        → rodízio ligado/desligado e fração do grupo B
- *   teste_paywall_liberados     → B sem cartão em 2h, liberado e passado para o A (00089)
+ *   teste_paywall_liberados     → B sem cartão em 30 min (2h até 02/11), liberado e passado para o A (00089, 00094)
  *
  * Grupo A: 7 dias de teste do app, sem cartão.
  * Grupo B: tela de planos obrigatória, 7 dias grátis da loja (com cartão).
@@ -45,7 +45,7 @@ export interface ResumoGrupo {
   pct_pagou_decididos: number | null;
 }
 
-/** Grupo B sem cartão por 2h, liberado com 7 dias sem cartão e passado
+/** Grupo B sem cartão por 30 min (2h até 02/11), liberado com 7 dias sem cartão e passado
  *  para o A (migration 00089). Uma linha por pessoa. */
 export interface Liberado {
   profile_id: string;
@@ -309,7 +309,7 @@ export function pct(parte: number, base: number): string {
 
 /** Grupo do teste de cada conta, para a coluna "Teste" de Usuários ativos.
  *  `sorteado = false` = bebê ainda não nascido: vai para o A fora da
- *  comparação. `liberadoEm` = grupo B que ficou 2h sem cartão e ganhou 7
+ *  comparação. `liberadoEm` = grupo B que ficou sem cartão (30 min; 2h até 02/11) e ganhou 7
  *  dias sem cartão (00089); no teste continua contando no B. Quem não está
  *  no mapa nunca entrou no teste (versão sem o teste ou conta antiga).
  *  Falha não derruba a página: todo mundo aparece como "—". */
