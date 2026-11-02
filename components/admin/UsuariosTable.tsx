@@ -97,8 +97,10 @@ type StatKey = 'total' | 'hoje' | 'assinantes' | 'trial_ativo' | 'trial_expirado
 // lugar que era do Teste.
 // País entrou no lugar de Momentos, que foi pra depois de Versão (pedido do
 // dono em 02/11/2026, quando a campanha do Apple Ads passou a rodar também
-// nos EUA): de onde veio e de que país, lado a lado, sem rolar.
-const DEFAULT_COL_WIDTHS = [40, 140, 90, 90, 80, 100, 70, 130, 70, 185, 80, 80, 90, 200];
+// nos EUA): de onde veio e de que país, lado a lado, sem rolar. Pra País
+// caber na tela sem arrastar, Nome, Dias de uso, Lançamentos e Origem
+// ficaram mais estreitas (mesmo pedido).
+const DEFAULT_COL_WIDTHS = [40, 120, 90, 90, 65, 90, 70, 130, 70, 165, 80, 80, 90, 200];
 
 // Fuso de quem opera o painel (Dubai), não o dos usuários: é daqui que os
 // anúncios rodam, e é essa virada de dia que precisa bater com "novos
