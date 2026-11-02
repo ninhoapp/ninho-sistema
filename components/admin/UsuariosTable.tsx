@@ -16,6 +16,7 @@ import { PasswordInput } from '@/components/admin/PasswordInput';
 import { applyColumnFilters } from '@/components/admin/ColumnFilter';
 import { ThSort, nextSort, type SortDir } from '@/components/admin/ThSort';
 import { ORIGENS, ORIGEM_LABEL, ORIGEM_COR, type Origem } from '@/lib/origem';
+import { PAISES, type Pais } from '@/lib/pais';
 import type { GrupoTeste } from '@/lib/teste-paywall';
 import { ExportExcelButton } from '@/components/admin/ExportExcelButton';
 import { CopyAll } from '@/components/admin/CopyAll';
@@ -56,6 +57,10 @@ export interface UsuarioRow {
   /** De onde a conta veio. Apple Ads é confirmado pela Apple, conta a conta;
    *  o resto é o que a pessoa respondeu no cadastro. Ver lib/origem.ts. */
   origem: Origem;
+  /** País aproximado, pelo fuso do cadastro (ver lib/pais.ts). Null = sem fuso. */
+  pais: Pais | null;
+  /** Fuso do cadastro — só no tooltip de País. */
+  fuso: string | null;
   /** Grupo do teste de paywall (A ou B); null = nunca entrou no teste. */
   teste: GrupoTeste | null;
 }
@@ -75,7 +80,7 @@ const STATUS_STYLE: Record<StatusConta, string> = {
 // em que aparecem na tabela.
 type SortKey =
   | 'nome' | 'created_at' | 'idade' | 'uso' | 'registros' | 'teste' | 'status'
-  | 'dias' | 'origem' | 'momentos' | 'versao' | 'email';
+  | 'dias' | 'origem' | 'pais' | 'versao' | 'momentos' | 'email';
 
 type FilterCol = SortKey;
 
@@ -90,7 +95,10 @@ type StatKey = 'total' | 'hoje' | 'assinantes' | 'trial_ativo' | 'trial_expirado
 // usa? lança? A ou B? status? quando vence? de onde veio? Momentos é
 // diagnóstico de pico de lançamentos, não pergunta de triagem, e foi pro
 // lugar que era do Teste.
-const DEFAULT_COL_WIDTHS = [40, 140, 90, 90, 80, 100, 70, 130, 70, 185, 90, 80, 200];
+// País entrou no lugar de Momentos, que foi pra depois de Versão (pedido do
+// dono em 02/11/2026, quando a campanha do Apple Ads passou a rodar também
+// nos EUA): de onde veio e de que país, lado a lado, sem rolar.
+const DEFAULT_COL_WIDTHS = [40, 140, 90, 90, 80, 100, 70, 130, 70, 185, 80, 80, 90, 200];
 
 // Fuso de quem opera o painel (Dubai), não o dos usuários: é daqui que os
 // anúncios rodam, e é essa virada de dia que precisa bater com "novos
@@ -267,7 +275,7 @@ const TESTE_STYLE: Record<GrupoTeste['grupo'], string> = {
 
 function testeTooltip(t: GrupoTeste): string {
   if (!t.sorteado) return 'A — fora da comparação: bebê ainda não nascido vai direto para o A';
-  if (t.liberadoEm) return 'B — ficou 2h sem cartão e ganhou 7 dias sem cartão; no teste continua contando no B';
+  if (t.liberadoEm) return 'B — ficou sem cartão (30 min; 2h até 02/11) e ganhou 7 dias sem cartão; no teste continua contando no B';
   return t.grupo === 'A' ? 'A — 7 dias de teste do app, sem cartão' : 'B — tela de planos obrigatória, 7 dias grátis da loja';
 }
 
@@ -305,6 +313,7 @@ function colValue(r: UsuarioRow, col: FilterCol): string {
     case 'momentos':   return String(r.momentos);
     case 'dias':       return diasLabel(dias(r));
     case 'origem':     return ORIGEM_LABEL[r.origem];
+    case 'pais':       return r.pais ?? '—';
     case 'teste':      return r.teste?.grupo ?? '—';
     case 'versao':     return r.appVersion || '—';
   }
@@ -323,8 +332,9 @@ const CABECALHOS: [SortKey, string][] = [
   ['status', 'Status'],
   ['dias', 'Dias'],
   ['origem', 'Origem'],
-  ['momentos', 'Momentos'],
+  ['pais', 'País'],
   ['versao', 'Versão'],
+  ['momentos', 'Momentos'],
   ['email', 'E-mail'],
 ];
 
@@ -538,6 +548,7 @@ export function UsuariosTable({
           // Ordena pela ordem de ORIGENS (pagos primeiro, "sem informação" por
           // último), não alfabética — é a leitura útil do canal.
           case 'origem': cmp = ORIGENS.indexOf(a.origem) - ORIGENS.indexOf(b.origem); break;
+          case 'pais': cmp = (a.pais ? PAISES.indexOf(a.pais) : 9) - (b.pais ? PAISES.indexOf(b.pais) : 9); break;
           case 'teste': cmp = (a.teste?.grupo ?? 'Z').localeCompare(b.teste?.grupo ?? 'Z'); break;
           case 'versao': cmp = (a.appVersion ?? '').localeCompare(b.appVersion ?? '', 'pt-BR'); break;
         }
@@ -597,9 +608,11 @@ export function UsuariosTable({
         'Herdado de': r.herdadoDe || '',
         Dias: diasLabel(dias(r)),
         Origem: ORIGEM_LABEL[r.origem],
-        Momentos: r.momentos,
+        País: r.pais ?? '',
+        Fuso: r.fuso ?? '',
         Sistema: r.sistema ? sistemaLabel(r) : '',
         Versão: r.appVersion || '',
+        Momentos: r.momentos,
         'E-mail': r.email || '',
       })),
     [filteredRows]
@@ -1085,14 +1098,20 @@ export function UsuariosTable({
                       <span className="truncate">{ORIGEM_LABEL[r.origem]}</span>
                     </span>
                   </td>
-                  <td className="overflow-hidden p-3 text-right font-medium tabular-nums text-ninho-grafite">
-                    {r.momentos}
+                  <td
+                    className="overflow-hidden p-3 text-ninho-grafite"
+                    title={r.fuso ? `Pelo fuso do cadastro: ${r.fuso}` : 'Sem fuso no cadastro'}
+                  >
+                    <div className="truncate">{r.pais ?? '—'}</div>
                   </td>
                   <td
                     className="overflow-hidden p-3 text-ninho-cinza"
                     title={r.sistema ? sistemaLabel(r) : undefined}
                   >
                     <div className="truncate font-mono text-xs">{r.appVersion || '—'}</div>
+                  </td>
+                  <td className="overflow-hidden p-3 text-right font-medium tabular-nums text-ninho-grafite">
+                    {r.momentos}
                   </td>
                   <td className="p-3">
                     <div className="truncate text-ninho-grafite" title={r.email ?? undefined}>

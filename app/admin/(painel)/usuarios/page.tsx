@@ -8,6 +8,7 @@ import {
 import { buildUsuariosCharts } from '@/lib/dashboard-charts';
 import { fetchGrupoTestePorUsuario } from '@/lib/teste-paywall';
 import { taxaConversaoNascidos, taxaConversaoHint } from '@/lib/metrics';
+import { paisDoFuso } from '@/lib/pais';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { Notice } from '@/components/admin/Notice';
 import { UsuariosTable, type UsuarioRow } from '@/components/admin/UsuariosTable';
@@ -48,6 +49,8 @@ export default async function UsuariosPage() {
       sistema: m?.sistema ?? null,
       appVersion: m?.appVersion ?? null,
       origem: u.origem,
+      pais: paisDoFuso(u.timezone),
+      fuso: u.timezone,
       teste: testePaywall.get(u.id) ?? null,
     };
   });
