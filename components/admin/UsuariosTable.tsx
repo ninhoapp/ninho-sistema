@@ -74,8 +74,8 @@ const STATUS_STYLE: Record<StatusConta, string> = {
 // Toda coluna ordena e filtra — as duas listas cobrem as 10, na mesma ordem
 // em que aparecem na tabela.
 type SortKey =
-  | 'nome' | 'created_at' | 'idade' | 'uso' | 'registros' | 'momentos' | 'status'
-  | 'dias' | 'origem' | 'teste' | 'versao' | 'email';
+  | 'nome' | 'created_at' | 'idade' | 'uso' | 'registros' | 'teste' | 'status'
+  | 'dias' | 'origem' | 'momentos' | 'versao' | 'email';
 
 type FilterCol = SortKey;
 
@@ -85,7 +85,12 @@ type StatKey = 'total' | 'hoje' | 'assinantes' | 'trial_ativo' | 'trial_expirado
 // seleção (que não ordena nem filtra), as outras seguem CABECALHOS.
 // Nome mais estreito e Origem mais larga (pedido do dono em 25/10/2026: o
 // nome trunca bem, a origem cortava "Instagram/Facebook").
-const DEFAULT_COL_WIDTHS = [40, 140, 90, 90, 80, 100, 90, 130, 70, 185, 70, 80, 200];
+// Teste trocou de lugar com Momentos (pedido do dono em 02/11/2026): a
+// primeira tela, sem rolar, tem que responder a sequência de triagem —
+// usa? lança? A ou B? status? quando vence? de onde veio? Momentos é
+// diagnóstico de pico de lançamentos, não pergunta de triagem, e foi pro
+// lugar que era do Teste.
+const DEFAULT_COL_WIDTHS = [40, 140, 90, 90, 80, 100, 70, 130, 70, 185, 90, 80, 200];
 
 // Fuso de quem opera o painel (Dubai), não o dos usuários: é daqui que os
 // anúncios rodam, e é essa virada de dia que precisa bater com "novos
@@ -314,11 +319,11 @@ const CABECALHOS: [SortKey, string][] = [
   ['idade', 'Idade do bebê'],
   ['uso', 'Dias de uso'],
   ['registros', 'Lançamentos'],
-  ['momentos', 'Momentos'],
+  ['teste', 'Teste'],
   ['status', 'Status'],
   ['dias', 'Dias'],
   ['origem', 'Origem'],
-  ['teste', 'Teste'],
+  ['momentos', 'Momentos'],
   ['versao', 'Versão'],
   ['email', 'E-mail'],
 ];
@@ -587,12 +592,12 @@ export function UsuariosTable({
         'Dias de uso': r.diasAbertura,
         Lançamentos: r.registros,
         'Lançamentos por dia de uso': intensidade(r)?.toFixed(1) ?? '',
-        Momentos: r.momentos,
+        'Teste de paywall': r.teste ? testeTooltip(r.teste) : '',
         Status: r.status,
         'Herdado de': r.herdadoDe || '',
         Dias: diasLabel(dias(r)),
         Origem: ORIGEM_LABEL[r.origem],
-        'Teste de paywall': r.teste ? testeTooltip(r.teste) : '',
+        Momentos: r.momentos,
         Sistema: r.sistema ? sistemaLabel(r) : '',
         Versão: r.appVersion || '',
         'E-mail': r.email || '',
@@ -1030,8 +1035,19 @@ export function UsuariosTable({
                   >
                     {r.registros}
                   </td>
-                  <td className="overflow-hidden p-3 text-right font-medium tabular-nums text-ninho-grafite">
-                    {r.momentos}
+                  <td className="overflow-hidden p-3">
+                    {r.teste ? (
+                      <span
+                        className={`inline-block rounded-pill px-2 py-0.5 text-xs font-semibold ${
+                          r.teste.sorteado ? TESTE_STYLE[r.teste.grupo] : 'bg-ninho-nuvem text-ninho-cinza'
+                        }`}
+                        title={testeTooltip(r.teste)}
+                      >
+                        {r.teste.grupo}
+                      </span>
+                    ) : (
+                      <span className="text-ninho-cinza">—</span>
+                    )}
                   </td>
                   <td className="overflow-hidden p-3">
                     <span className={`rounded-pill px-2 py-0.5 text-xs ${STATUS_STYLE[r.status]}`}>
@@ -1069,19 +1085,8 @@ export function UsuariosTable({
                       <span className="truncate">{ORIGEM_LABEL[r.origem]}</span>
                     </span>
                   </td>
-                  <td className="overflow-hidden p-3">
-                    {r.teste ? (
-                      <span
-                        className={`inline-block rounded-pill px-2 py-0.5 text-xs font-semibold ${
-                          r.teste.sorteado ? TESTE_STYLE[r.teste.grupo] : 'bg-ninho-nuvem text-ninho-cinza'
-                        }`}
-                        title={testeTooltip(r.teste)}
-                      >
-                        {r.teste.grupo}
-                      </span>
-                    ) : (
-                      <span className="text-ninho-cinza">—</span>
-                    )}
+                  <td className="overflow-hidden p-3 text-right font-medium tabular-nums text-ninho-grafite">
+                    {r.momentos}
                   </td>
                   <td
                     className="overflow-hidden p-3 text-ninho-cinza"

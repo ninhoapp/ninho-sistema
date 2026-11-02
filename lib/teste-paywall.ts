@@ -75,6 +75,9 @@ export interface Cartao {
   /** false = desligou a renovação: não vai ser cobrado. */
   renova: boolean | null;
   pagou: boolean;
+  /** A loja tentou a 1ª cobrança, o cartão foi recusado e ela segue
+   *  tentando de novo (status past_due da assinatura). */
+  recusado: boolean;
   origem: Origem;
 }
 
@@ -225,7 +228,7 @@ async function fetchCartoes(): Promise<Cartao[]> {
   const ids = linhas.map((l) => String(l.profile_id));
   const [perfis, subs, apple] = await Promise.all([
     sb.from('profiles').select('id,full_name,created_at,como_conheceu').in('id', ids),
-    sb.from('subscriptions').select('profile_id,plan,plan_interval').in('profile_id', ids).is('deleted_at', null),
+    sb.from('subscriptions').select('profile_id,plan,plan_interval,status').in('profile_id', ids).is('deleted_at', null),
     sb.from('atribuicao_apple_ads').select('profile_id,atribuido,campaign_id').in('profile_id', ids),
   ]);
   for (const r of [perfis, subs, apple]) {
@@ -253,6 +256,7 @@ async function fetchCartoes(): Promise<Cartao[]> {
         ciclo,
         renova: l.renovacao_automatica ?? null,
         pagou: !!l.pagou,
+        recusado: !l.pagou && s?.status === 'past_due',
         origem: resolverOrigem(a?.atribuido === true, p?.como_conheceu ?? null, a?.campaign_id ?? null),
       };
     })

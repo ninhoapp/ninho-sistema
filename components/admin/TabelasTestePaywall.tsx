@@ -12,6 +12,7 @@ const encerrado = (c: Cartao) => c.pagou || c.renova === false;
 function diasTexto(c: Cartao): string {
   const d = diasAte(c.cobranca_em);
   if (encerrado(c) || d == null) return '—';
+  if (c.recusado) return 'cartão recusado · loja tentando';
   return d <= 0 ? 'cobrando agora' : String(d);
 }
 
@@ -30,9 +31,10 @@ const COLUNAS_CARTAO: Coluna<Cartao>[] = [
   },
   { key: 'plano', label: 'Plano', largura: 130, valor: (c) => (c.plano ? `${PLANO_LABEL[c.plano]} ${c.ciclo ?? ''}`.trim() : '—') },
   {
-    key: 'dias', label: 'Dias até a cobrança', largura: 120, numerica: true,
+    key: 'dias', label: 'Dias até a cobrança', largura: 210, numerica: true,
     valor: diasTexto,
     ordem: (c) => (encerrado(c) ? null : diasAte(c.cobranca_em)),
+    className: (c) => (c.recusado && !encerrado(c) ? 'font-semibold text-state-danger' : ''),
   },
   {
     key: 'valor', label: 'Valor a faturar', largura: 140,
