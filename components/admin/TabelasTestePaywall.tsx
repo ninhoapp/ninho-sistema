@@ -51,9 +51,12 @@ const COLUNAS_CARTAO: Coluna<Cartao>[] = [
 ];
 
 export function TabelaCartoes({ lista }: { lista: Cartao[] }) {
+  // Ordem padrão (pedido do dono em 03/11/2026): quem criou a conta primeiro
+  // em cima. Clicar num cabeçalho ainda reordena; "limpar" volta para esta.
+  const porCriacao = [...lista].sort((a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime());
   return (
     <TabelaPessoas
-      rows={lista}
+      rows={porCriacao}
       colunas={COLUNAS_CARTAO}
       getId={(c) => c.profile_id}
       vazio="Ninguém pôs o cartão ainda."
