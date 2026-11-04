@@ -428,7 +428,7 @@ export default function LandingPage() {
           <div className="n-cabeca">
             <span className="n-rotulo">Guia para pais</span>
             <h2>Dúvidas de quem acabou de ter bebê</h2>
-            <p>Respostas diretas sobre sono, mamada e fralda, com referências da SBP e da OMS.</p>
+            <p>Respostas diretas sobre sono, mamada e fralda. Cada número traz a fonte (OMS, AAP, SBP e outras): não é recomendação do Ninho.</p>
           </div>
           <div className="n-guias">
             {destaques.map((g) => (

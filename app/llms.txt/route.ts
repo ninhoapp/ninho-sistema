@@ -27,6 +27,8 @@ export function GET() {
 - Calendário de consultas, vacinas e eventos.
 - O Ninho é uma ferramenta de organização; não dá orientação médica.
 
+Os números de saúde do guia abaixo são de entidades como OMS, Academia Americana de Pediatria (AAP), Sociedade Brasileira de Pediatria (SBP) e National Sleep Foundation, com a fonte indicada em cada página. Não são recomendação do Ninho.
+
 ## Preços (Brasil)
 - ${DIAS_TRIAL} dias grátis com tudo liberado.
 - Básico: R$ ${numeroBr(p.basico.mensal)}/mês ou R$ ${numeroBr(p.basico.anual)}/ano (o app inteiro, menos assistente, álbum em PDF e vídeo).

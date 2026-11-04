@@ -2,13 +2,17 @@
  * Conteúdo do /guia — páginas de pergunta e resposta para quem pesquisa no
  * Google ou pergunta a uma IA sobre a rotina do recém-nascido.
  *
- * Regras do conteúdo (mesmas da loja, ver Ninho-expo/marketing/loja/textos-app-store.md):
+ * REGRA DE OURO (pedido do dono, 04/11/2026): todo número ou orientação de
+ * saúde precisa dizer DE ONDE veio, com link para a página da entidade, e a
+ * página deixa claro que não é recomendação do Ninho. Nada de número "de
+ * cabeça": se não há fonte reconhecida, o número não entra.
+ * Fontes conferidas em 04/11/2026 (texto citado em cada FONTE.trecho).
+ *
+ * Outras regras (mesmas da loja, Ninho-expo/marketing/loja/textos-app-store.md):
  * - Sem promessa de saúde. O Ninho organiza; quem orienta é o pediatra.
- * - A previsão "costuma", nunca "garante".
+ * - A previsão do app "costuma", nunca "garante".
  * - Só citar recurso que o app TEM hoje (a tela de Saúde, com vacinas,
  *   alergias e curva de crescimento, saiu em 18/10/2026).
- * - Números de referência só de fonte reconhecida (SBP, OMS, Ministério da
- *   Saúde, AAP), sempre com "cada bebê é um".
  * - Resposta direta logo no começo: é o trecho que o Google e as IAs citam.
  *
  * Para incluir uma página nova: acrescente um item em GUIAS. A rota, o
@@ -22,6 +26,10 @@ export interface Secao {
   paragrafos?: string[];
   lista?: string[];
   tabela?: { cabecalho: string[]; linhas: string[][] };
+  /** De onde saíram os números/orientações desta seção. */
+  fonte?: FonteKey[];
+  /** Observação sobre a fonte (ex.: "são estimativas, não recomendação oficial"). */
+  notaFonte?: string;
 }
 
 export interface Guia {
@@ -33,7 +41,7 @@ export interface Guia {
   titulo: string;
   /** meta description (até ~155 caracteres). */
   descricao: string;
-  /** Resposta direta, 2 a 3 frases. */
+  /** Resposta direta, 2 a 3 frases, já dizendo a fonte dos números. */
   resumo: string;
   secoes: Secao[];
   /** Quando procurar o pediatra (opcional, aparece em destaque). */
@@ -41,19 +49,94 @@ export interface Guia {
   ninho: { titulo: string; texto: string; itens?: string[]; tela: string; alt: string };
   faqs: { q: string; a: string }[];
   relacionados: string[];
+  /** Todas as fontes usadas na página (listadas no fim e no aviso do topo). */
   fontes: FonteKey[];
   atualizado: string; // AAAA-MM-DD
 }
 
-export type FonteKey = 'sbp' | 'oms' | 'ms' | 'aap' | 'nsf';
+export type FonteKey =
+  | 'nsf'
+  | 'aapMamadas'
+  | 'aapLeite'
+  | 'aapXixi'
+  | 'whoAlim'
+  | 'sbpSono'
+  | 'sfJanela'
+  | 'msCaderneta';
 
-export const FONTES: Record<FonteKey, { nome: string; url: string }> = {
-  sbp: { nome: 'Sociedade Brasileira de Pediatria (SBP)', url: 'https://www.sbp.com.br' },
-  oms: { nome: 'Organização Mundial da Saúde (OMS)', url: 'https://www.who.int' },
-  ms: { nome: 'Ministério da Saúde — Caderneta da Criança', url: 'https://www.gov.br/saude' },
-  aap: { nome: 'American Academy of Pediatrics (HealthyChildren.org)', url: 'https://www.healthychildren.org' },
-  nsf: { nome: 'National Sleep Foundation', url: 'https://www.thensf.org' },
+export interface Fonte {
+  /** Entidade, como aparece no texto ("a OMS", "a AAP"). */
+  sigla: string;
+  nome: string;
+  pagina: string;
+  url: string;
+  /** false = site de informação, não órgão de saúde (aparece com esse aviso). */
+  oficial: boolean;
+}
+
+export const FONTES: Record<FonteKey, Fonte> = {
+  nsf: {
+    sigla: 'National Sleep Foundation',
+    nome: 'National Sleep Foundation (EUA)',
+    pagina: 'How Much Sleep Do You Really Need?',
+    url: 'https://www.thensf.org/how-many-hours-of-sleep-do-you-really-need/',
+    oficial: true,
+  },
+  aapMamadas: {
+    sigla: 'AAP',
+    nome: 'Academia Americana de Pediatria (AAP), site HealthyChildren.org',
+    pagina: 'How Often and How Much Should Your Baby Eat?',
+    url: 'https://www.healthychildren.org/English/ages-stages/baby/feeding-nutrition/pages/How-Often-and-How-Much-Should-Your-Baby-Eat.aspx',
+    oficial: true,
+  },
+  aapLeite: {
+    sigla: 'AAP',
+    nome: 'Academia Americana de Pediatria (AAP), site HealthyChildren.org',
+    pagina: 'How to Tell if Your Breastfed Baby is Getting Enough Milk',
+    url: 'https://www.healthychildren.org/English/ages-stages/baby/breastfeeding/Pages/How-to-Tell-if-Baby-is-Getting-Enough-Milk.aspx',
+    oficial: true,
+  },
+  aapXixi: {
+    sigla: 'AAP',
+    nome: 'Academia Americana de Pediatria (AAP), site HealthyChildren.org',
+    pagina: "Baby's First Days: Bowel Movements & Urination",
+    url: 'https://www.healthychildren.org/English/ages-stages/baby/Pages/babys-first-days-bowel-movements-and-urination.aspx',
+    oficial: true,
+  },
+  whoAlim: {
+    sigla: 'OMS',
+    nome: 'Organização Mundial da Saúde (OMS)',
+    pagina: 'Infant and young child feeding (nota descritiva)',
+    url: 'https://www.who.int/news-room/fact-sheets/detail/infant-and-young-child-feeding',
+    oficial: true,
+  },
+  sbpSono: {
+    sigla: 'SBP',
+    nome: 'Sociedade Brasileira de Pediatria (SBP)',
+    pagina: 'Bebê deve dormir de barriga para cima ou de lado? Pediatras reforçam recomendações para o sono seguro',
+    url: 'https://www.sbp.com.br/imprensa/detalhe/nid/bebe-deve-dormir-de-barriga-para-cima-ou-de-lado-pediatras-reforcam-recomendacoes-para-o-sono-seguro/',
+    oficial: true,
+  },
+  sfJanela: {
+    sigla: 'Sleep Foundation',
+    nome: 'Sleep Foundation (site de informação sobre sono, artigo revisado por pediatra)',
+    pagina: "Newborn Wake Windows: What's Normal by Age",
+    url: 'https://www.sleepfoundation.org/baby-sleep/newborn-wake-windows',
+    oficial: false,
+  },
+  msCaderneta: {
+    sigla: 'Ministério da Saúde',
+    nome: 'Ministério da Saúde',
+    pagina: 'Caderneta da Criança',
+    url: 'https://www.gov.br/saude',
+    oficial: true,
+  },
 };
+
+/** Categorias com informação de saúde: levam o aviso de fonte no topo. */
+export function temInfoDeSaude(g: Guia): boolean {
+  return g.categoria !== 'O app Ninho';
+}
 
 const ATUALIZADO = '2026-11-04';
 
@@ -203,41 +286,45 @@ export const GUIAS: Guia[] = [
     pergunta: 'Quanto tempo um recém-nascido dorme por dia?',
     titulo: 'Quanto tempo o recém-nascido dorme por dia?',
     descricao:
-      'Recém-nascidos costumam dormir de 14 a 17 horas por dia, em períodos curtos de dia e de noite. Veja o que é esperado por idade e como acompanhar.',
+      'Segundo a National Sleep Foundation, bebês de 0 a 3 meses precisam de 14 a 17 horas de sono por dia, contando as sonecas. Veja as faixas por idade e a fonte.',
     resumo:
-      'Nos primeiros 3 meses, a referência é de 14 a 17 horas de sono a cada 24 horas, divididas em vários períodos de 1 a 4 horas, de dia e de noite. O recém-nascido ainda não distingue dia e noite e acorda para mamar. Cada bebê é um: alguns dormem um pouco menos ou um pouco mais e estão bem.',
+      'Segundo a National Sleep Foundation (EUA), bebês de 0 a 3 meses precisam de 14 a 17 horas de sono a cada 24 horas, somando as sonecas do dia e o sono da noite. De 4 a 11 meses, a faixa da mesma entidade é de 12 a 15 horas. São referências gerais: cada bebê é um, e quem avalia o seu é o pediatra.',
     secoes: [
       {
-        titulo: 'Sono por idade (referência para 24 horas)',
+        titulo: 'Sono por idade, segundo a National Sleep Foundation',
         tabela: {
-          cabecalho: ['Idade', 'Total de sono em 24 h', 'Como costuma ser'],
+          cabecalho: ['Idade', 'Sono em 24 horas (sonecas incluídas)'],
           linhas: [
-            ['0 a 3 meses', '14 a 17 horas', 'Vários períodos curtos, dia e noite, entre as mamadas'],
-            ['4 a 11 meses', '12 a 15 horas', 'Noite mais longa e 2 a 4 sonecas durante o dia'],
-            ['1 a 2 anos', '11 a 14 horas', 'Noite longa e 1 ou 2 sonecas'],
+            ['0 a 3 meses', '14 a 17 horas'],
+            ['4 a 11 meses', '12 a 15 horas'],
+            ['1 a 2 anos', '11 a 14 horas'],
           ],
         },
-        paragrafos: ['Faixas recomendadas pela National Sleep Foundation e usadas como referência por sociedades de pediatria. São médias, não metas.'],
+        fonte: ['nsf'],
+        notaFonte: 'Faixas copiadas da página da National Sleep Foundation. Não são recomendação do Ninho.',
       },
       {
         titulo: 'Por que o recém-nascido acorda tanto',
         paragrafos: [
-          'O estômago é pequeno, então ele precisa mamar com frequência, inclusive de madrugada. Além disso, o relógio biológico (ritmo circadiano) ainda está se formando: é comum que só entre a 6ª e a 12ª semana o bebê comece a dormir períodos mais longos à noite.',
+          'Nas primeiras semanas, o bebê dorme em períodos curtos, de dia e de noite, e acorda para mamar. A AAP descreve que bebês amamentados costumam mamar a cada 2 horas nesse começo, o que explica boa parte dos despertares. Com o passar dos meses, os períodos de sono da noite tendem a ficar mais longos, no ritmo de cada bebê.',
         ],
+        fonte: ['aapMamadas'],
       },
       {
-        titulo: 'Sono seguro',
+        titulo: 'Sono seguro, segundo a Sociedade Brasileira de Pediatria',
         lista: [
-          'Sempre de barriga para cima, no berço ou no moisés.',
-          'Colchão firme, sem travesseiro, protetor, bichinhos ou cobertas soltas.',
-          'No quarto dos pais, mas na superfície dele, de preferência nos primeiros meses.',
-          'Sem cigarro por perto e sem superaquecer o bebê.',
+          'Bebês menores de 1 ano devem dormir de barriga para cima (não de lado nem de bruços).',
+          'Em berço com superfície firme e sem inclinação.',
+          'Sem objetos fofos no berço: travesseiros, "naninhas", cobertas e lençóis soltos.',
+          'Em berço próprio, separado da cama dos pais.',
         ],
+        fonte: ['sbpSono'],
+        notaFonte: 'Resumo das orientações publicadas pela SBP. Para os detalhes, leia o texto original.',
       },
       {
-        titulo: 'Como saber se o seu bebê está dormindo o suficiente',
+        titulo: 'Como acompanhar o sono do seu bebê',
         paragrafos: [
-          'Mais do que o total exato, observe o conjunto: o bebê mama bem, molha as fraldas, ganha peso nas consultas e tem momentos acordado e tranquilo. Anotar o sono por alguns dias mostra o padrão real, e esse histórico ajuda muito na conversa com o pediatra.',
+          'Anotar o sono por alguns dias mostra o padrão real do seu bebê, e esse histórico ajuda muito na conversa com o pediatra. Ele é quem diz se o sono está adequado para o seu filho.',
         ],
       },
     ],
@@ -245,77 +332,75 @@ export const GUIAS: Guia[] = [
       'Procure o pediatra se o bebê estiver muito sonolento e difícil de acordar para mamar, com febre, recusando mamadas ou molhando menos fraldas do que o habitual.',
     ninho: {
       titulo: 'Veja quanto o seu bebê dormiu hoje',
-      texto: 'No Ninho, um toque começa e outro termina o sono. O resumo do dia soma as horas, e o card Ritmo mostra a janela de sono do seu bebê.',
+      texto: 'No Ninho, um toque começa e outro termina o sono. O resumo do dia soma as horas, e o card Ritmo mostra a janela de sono do seu bebê, calculada pelos seus registros.',
       itens: ['Total de sono do dia no resumo', 'Histórico por dia para levar ao pediatra', 'No iPhone, cronômetro do sono na tela bloqueada'],
       tela: '/app/live.webp',
       alt: 'Cronômetro do sono noturno do Ninho na tela bloqueada do iPhone',
     },
     faqs: [
-      { q: 'Recém-nascido pode dormir 5 horas seguidas?', a: 'Alguns dormem, principalmente depois das primeiras semanas. Nos primeiros dias, muitos pediatras orientam acordar o bebê para mamar se passar de 3 a 4 horas. Confirme com o pediatra do seu filho, que conhece o peso e a história dele.' },
-      { q: 'Quando o bebê começa a dormir a noite toda?', a: 'Não há uma idade certa. Muitos bebês começam a fazer um período longo à noite entre 3 e 6 meses, mas acordar à noite no primeiro ano é comum e esperado.' },
-      { q: 'É normal o recém-nascido dormir o dia todo?', a: 'Nas primeiras semanas, sim: ele passa a maior parte do dia dormindo e acorda para mamar. O que merece atenção é sonolência a ponto de não conseguir mamar.' },
+      { q: 'Preciso acordar o recém-nascido para mamar?', a: 'Isso depende do peso e da história do bebê. Pergunte ao pediatra do seu filho qual o intervalo máximo entre mamadas para ele.' },
+      { q: 'Quando o bebê começa a dormir a noite toda?', a: 'Não há uma idade certa, e acordar à noite no primeiro ano é comum. Se o sono preocupa, leve o histórico para o pediatra.' },
+      { q: 'É normal o recém-nascido dormir o dia todo?', a: 'Nas primeiras semanas o bebê passa a maior parte do dia dormindo e acorda para mamar. Sonolência a ponto de não conseguir mamar é motivo para procurar o pediatra.' },
     ],
     relacionados: ['janela-de-sono-do-bebe', 'bebe-trocou-o-dia-pela-noite', 'rotina-do-recem-nascido'],
-    fontes: ['nsf', 'sbp', 'aap'],
+    fontes: ['nsf', 'sbpSono', 'aapMamadas'],
     atualizado: ATUALIZADO,
   },
   {
     slug: 'janela-de-sono-do-bebe',
     categoria: 'Sono',
     pergunta: 'O que é janela de sono e qual a do meu bebê?',
-    titulo: 'Janela de sono do bebê: o que é e tabela por idade',
+    titulo: 'Janela de sono do bebê: o que é e estimativas por idade',
     descricao:
-      'Janela de sono é o tempo que o bebê fica acordado entre um sono e outro. Veja as faixas comuns por idade, os sinais de sono e como descobrir a do seu bebê.',
+      'Janela de sono é o tempo que o bebê fica acordado entre um sono e outro. Veja as estimativas por idade (e de onde vêm), os sinais de sono e como descobrir a do seu bebê.',
     resumo:
-      'Janela de sono é o tempo que o bebê consegue ficar acordado entre um sono e outro antes de ficar cansado demais. No recém-nascido ela é curta, perto de 45 a 60 minutos, e vai aumentando com os meses. A melhor referência é o próprio bebê: os sinais de sono e o padrão que aparece nos registros dos últimos dias.',
+      'Janela de sono é o tempo que o bebê fica acordado entre um sono e outro. Não existe uma tabela oficial de órgão de saúde para isso: as faixas que circulam são estimativas. A Sleep Foundation, por exemplo, estima de 30 minutos a 1h30 para bebês de 0 a 1 mês. A melhor referência é o próprio bebê: os sinais de sono e o padrão dos registros dele.',
     secoes: [
       {
-        titulo: 'Janelas de sono comuns por idade',
+        titulo: 'Estimativas de janela de sono por idade',
         tabela: {
-          cabecalho: ['Idade', 'Tempo acordado (aproximado)'],
+          cabecalho: ['Idade', 'Tempo acordado (estimativa)'],
           linhas: [
-            ['0 a 1 mês', '35 a 60 minutos'],
-            ['1 a 2 meses', '1h a 1h30'],
-            ['3 a 4 meses', '1h15 a 2h'],
-            ['5 a 7 meses', '2h a 3h'],
-            ['8 a 12 meses', '2h30 a 4h'],
+            ['0 a 1 mês', '30 min a 1h30'],
+            ['1 a 4 meses', '1h a 3h'],
+            ['5 a 7 meses', '1h30 a 4h30'],
+            ['7 a 10 meses', '1h30 a 6h'],
+            ['10 a 12 meses', '3h a 7h30'],
           ],
         },
-        paragrafos: [
-          'Essas faixas são referências usadas por consultoras de sono e pediatras, não regras. Bebês da mesma idade podem ter janelas bem diferentes.',
-        ],
+        fonte: ['sfJanela'],
+        notaFonte:
+          'Atenção: estes números são estimativas publicadas pela Sleep Foundation, um site de informação sobre sono (o artigo é revisado por uma pediatra). Não são recomendação oficial de órgão de saúde nem recomendação do Ninho. O próprio artigo diz que cada bebê tem o seu ritmo.',
       },
       {
-        titulo: 'Sinais de que o bebê está ficando com sono',
+        titulo: 'Sinais que os pais costumam notar quando o bebê está com sono',
         lista: [
           'Olhar perdido, desvia o olhar de rostos e brinquedos',
           'Esfrega os olhos ou as orelhas',
           'Boceja, fica mais quieto ou mais irritado',
-          'Pálpebras pesadas, sobrancelhas avermelhadas',
-          'Choro que não passa com mamada nem colo (pode ser cansaço demais)',
         ],
+        notaFonte: 'Observações comuns do dia a dia, não uma lista clínica. Cada bebê demonstra o sono do seu jeito.',
       },
       {
         titulo: 'Como descobrir a janela do seu bebê',
         paragrafos: [
-          'Anote, por 3 a 5 dias, a hora em que o bebê acorda e a hora em que adormece de novo. A diferença entre os dois é a janela. Quando o mesmo intervalo se repete, você passa a preparar o sono (fralda, quarto escuro, colo) alguns minutos antes, e não depois que o choro começa.',
+          'Anote, por alguns dias, a hora em que o bebê acorda e a hora em que adormece de novo. A diferença entre os dois é a janela dele. Quando o mesmo intervalo se repete, você passa a preparar o sono (fralda, quarto escuro, colo) um pouco antes.',
         ],
       },
     ],
     ninho: {
-      titulo: 'O Ninho calcula a janela de sono por você',
-      texto: 'Com os registros de sono dos últimos dias, o card Ritmo mostra a janela de sono do seu bebê e o horário em que a próxima soneca costuma acontecer. Com poucos dias de registro, ele avisa em vez de chutar.',
+      titulo: 'O Ninho calcula a janela de sono do seu bebê',
+      texto: 'Em vez de tabela, o Ninho usa os registros de sono do próprio bebê nos últimos dias: o card Ritmo mostra a janela de sono dele e quando a próxima soneca costuma acontecer. Com poucos dias de registro, ele avisa em vez de chutar.',
       itens: ['Janela de sono calculada pelos seus registros', 'Aviso antes da próxima soneca', 'Muda junto com o bebê, semana a semana'],
       tela: '/app/home.webp',
       alt: 'Card Ritmo do Ninho mostrando janela de sono de 50 minutos e soneca entre 07:35 e 07:55',
     },
     faqs: [
-      { q: 'Janela de sono vale para a noite também?', a: 'A janela é mais útil durante o dia, entre as sonecas. A última janela antes do sono da noite costuma ser a mais longa do dia.' },
-      { q: 'E se o bebê passar da janela?', a: 'Ele pode ficar agitado e demorar mais para dormir. Não é grave: acalme, diminua os estímulos e tente de novo. No dia seguinte, comece a preparar o sono um pouco antes.' },
-      { q: 'Precisa seguir a tabela à risca?', a: 'Não. A tabela é ponto de partida. O que vale é o seu bebê: os sinais de sono e o padrão que aparece nos registros.' },
+      { q: 'Preciso seguir a tabela à risca?', a: 'Não. A tabela é uma estimativa de um site de informação, não uma regra. O que vale é o seu bebê: os sinais de sono e o padrão que aparece nos registros.' },
+      { q: 'E se o bebê passar da janela?', a: 'Ele pode ficar mais agitado e demorar para dormir. Diminua os estímulos e tente de novo. Se o sono preocupa, converse com o pediatra.' },
     ],
     relacionados: ['quanto-tempo-recem-nascido-dorme', 'bebe-trocou-o-dia-pela-noite', 'rotina-do-recem-nascido'],
-    fontes: ['sbp', 'aap'],
+    fontes: ['sfJanela'],
     atualizado: ATUALIZADO,
   },
   {
@@ -324,54 +409,55 @@ export const GUIAS: Guia[] = [
     pergunta: 'Bebê trocou o dia pela noite: o que fazer?',
     titulo: 'Bebê trocou o dia pela noite? O que ajuda',
     descricao:
-      'É comum o recém-nascido dormir de dia e ficar acordado à noite. Entenda por que acontece e o que ajuda o bebê a diferenciar dia e noite.',
+      'É comum o recém-nascido dormir de dia e ficar acordado à noite. Veja ideias práticas que muitas famílias usam e quando conversar com o pediatra.',
     resumo:
-      'É comum e costuma passar sozinho: o recém-nascido ainda não tem o relógio biológico formado e só começa a diferenciar dia e noite entre a 6ª e a 12ª semana. Dá para ajudar com luz e barulho normais durante o dia, e escuro, silêncio e pouca conversa nas mamadas da noite.',
+      'É comum nas primeiras semanas: o recém-nascido dorme e acorda em períodos curtos, de dia e de noite, e ainda não diferencia um do outro. Muitas famílias ajudam com luz e barulho normais durante o dia e um ambiente escuro e calmo nas mamadas da noite. Se a troca preocupa ou não melhora, converse com o pediatra.',
     secoes: [
       {
-        titulo: 'Por que acontece',
-        paragrafos: [
-          'Na barriga, o bebê era embalado pelo movimento da mãe durante o dia e ficava mais ativo à noite, quando ela descansava. Depois do nascimento, o corpo dele ainda não produz melatonina no ritmo do dia e da noite. Esse ritmo amadurece nas primeiras semanas, com a ajuda da luz do dia e da rotina da casa.',
-        ],
-      },
-      {
-        titulo: 'O que ajuda durante o dia',
+        titulo: 'Ideias que muitas famílias usam durante o dia',
         lista: [
           'Abrir as cortinas e deixar a luz natural entrar',
-          'Não precisa de silêncio absoluto nas sonecas do dia',
-          'Conversar, brincar e mostrar o rosto quando ele estiver acordado',
-          'Oferecer as mamadas normalmente, sem deixar intervalos muito longos de dia',
+          'Não exigir silêncio absoluto nas sonecas do dia',
+          'Conversar e brincar quando o bebê estiver acordado',
         ],
+        notaFonte: 'Dicas práticas de rotina, não orientação médica.',
       },
       {
-        titulo: 'O que ajuda à noite',
+        titulo: 'Ideias que muitas famílias usam à noite',
         lista: [
-          'Luz baixa e quente nas mamadas e trocas',
+          'Luz baixa nas mamadas e nas trocas',
           'Pouca conversa e pouca brincadeira',
-          'Trocar a fralda só quando precisar',
           'Voltar para o berço logo depois de mamar e arrotar',
         ],
+        notaFonte: 'Dicas práticas de rotina, não orientação médica.',
       },
       {
-        titulo: 'Quanto tempo leva',
+        titulo: 'Sono seguro vale de dia e de noite',
         paragrafos: [
-          'Para a maioria dos bebês, a melhora aparece em algumas semanas. Anotar sono e mamadas ajuda a ver a evolução: muitas vezes os períodos da noite já estão ficando mais longos e o cansaço não deixa você perceber.',
+          'A Sociedade Brasileira de Pediatria orienta que bebês menores de 1 ano durmam de barriga para cima, em berço firme, sem objetos fofos e separado da cama dos pais.',
+        ],
+        fonte: ['sbpSono'],
+      },
+      {
+        titulo: 'Acompanhe a evolução',
+        paragrafos: [
+          'Anotar sono e mamadas ajuda a ver a evolução: muitas vezes os períodos da noite já estão ficando mais longos e o cansaço não deixa você perceber. O histórico também ajuda o pediatra a avaliar.',
         ],
       },
     ],
-    alerta: 'Converse com o pediatra se o bebê chora sem parar, não consegue mamar ou se a troca de dia e noite continua depois dos 3 a 4 meses.',
+    alerta: 'Converse com o pediatra se o bebê chora sem parar, não consegue mamar, ou se a troca de dia e noite continua por muitas semanas.',
     ninho: {
       titulo: 'Veja a noite melhorando',
-      texto: 'No histórico do Ninho, cada dia mostra os sonos e as mamadas em ordem. Em poucas semanas dá para ver os períodos da noite ficando mais longos.',
+      texto: 'No histórico do Ninho, cada dia mostra os sonos e as mamadas em ordem. Com algumas semanas de registro dá para ver se os períodos da noite estão ficando mais longos.',
       tela: '/app/historico.webp',
       alt: 'Histórico do dia no Ninho com horários de sono e mamada',
     },
     faqs: [
-      { q: 'Devo acordar o bebê de dia para ele dormir à noite?', a: 'Nas primeiras semanas, muitos pediatras orientam não deixar o bebê passar de 3 a 4 horas sem mamar durante o dia. Pergunte ao pediatra do seu filho qual o intervalo ideal para ele.' },
-      { q: 'Banho à noite ajuda?', a: 'Para muitos bebês, um banho morno e calmo faz parte de um ritual que sinaliza a noite. Não é obrigatório: o que ajuda é a repetição do ritual.' },
+      { q: 'Devo acordar o bebê de dia para ele dormir à noite?', a: 'Pergunte ao pediatra do seu filho. O intervalo máximo entre mamadas depende do peso e da idade do bebê.' },
+      { q: 'Banho à noite ajuda?', a: 'Muitas famílias usam um banho calmo como parte do ritual da noite. Não é obrigatório: o que costuma ajudar é a repetição do ritual.' },
     ],
     relacionados: ['quanto-tempo-recem-nascido-dorme', 'janela-de-sono-do-bebe', 'rotina-do-recem-nascido'],
-    fontes: ['sbp', 'aap'],
+    fontes: ['sbpSono'],
     atualizado: ATUALIZADO,
   },
 
@@ -382,58 +468,54 @@ export const GUIAS: Guia[] = [
     pergunta: 'De quanto em quanto tempo o recém-nascido mama?',
     titulo: 'Intervalo entre mamadas do recém-nascido',
     descricao:
-      'O recém-nascido costuma mamar de 8 a 12 vezes em 24 horas, a cada 1h30 a 3h. Veja como contar o intervalo, sinais de fome e como acompanhar.',
+      'Segundo a Academia Americana de Pediatria, o recém-nascido amamentado costuma mamar a cada 2 horas, 10 a 12 vezes por dia. Veja a fonte, a orientação da OMS e a mamadeira.',
     resumo:
-      'Um recém-nascido em aleitamento materno costuma mamar de 8 a 12 vezes em 24 horas, o que dá um intervalo médio de 1h30 a 3 horas. A recomendação da OMS e da SBP é a livre demanda: oferecer o peito sempre que o bebê mostrar fome, sem horário fixo. Com mamadeira, os intervalos tendem a ser um pouco maiores, de 3 a 4 horas.',
+      'Segundo a Academia Americana de Pediatria (AAP), recém-nascidos amamentados costumam mamar a cada 2 horas (do início de uma mamada ao início da próxima), e 10 a 12 mamadas em 24 horas é o normal. A OMS recomenda amamentar sob livre demanda, ou seja, sempre que o bebê quiser, de dia e de noite. Com fórmula, a AAP diz que a maioria dos recém-nascidos mama a cada 2 a 3 horas.',
     secoes: [
+      {
+        titulo: 'O que dizem a AAP e a OMS',
+        tabela: {
+          cabecalho: ['Situação', 'Referência', 'Fonte'],
+          linhas: [
+            ['Peito, recém-nascido', 'A cada 2 horas; 10 a 12 mamadas em 24 h é o normal', 'AAP'],
+            ['Peito, como oferecer', 'Livre demanda: sempre que o bebê quiser, de dia e de noite', 'OMS'],
+            ['Fórmula, recém-nascido', 'A cada 2 a 3 horas; no mínimo 8 vezes em 24 h', 'AAP'],
+            ['Fórmula, fim do 1º mês', 'Cerca de a cada 3 a 4 horas', 'AAP'],
+          ],
+        },
+        fonte: ['aapMamadas', 'whoAlim'],
+        notaFonte: 'Números traduzidos das páginas da AAP e da OMS. Não são recomendação do Ninho. A quantidade e o intervalo certos para o seu bebê são definidos pelo pediatra.',
+      },
       {
         titulo: 'Como contar o intervalo entre mamadas',
         paragrafos: [
-          'O intervalo é contado do início de uma mamada até o início da próxima. Então, se o bebê começou a mamar às 14h, mamou 30 minutos e voltou a pedir às 16h, o intervalo foi de 2 horas, e não de 1h30.',
+          'A AAP conta o intervalo do início de uma mamada até o início da próxima. Então, se o bebê começou a mamar às 14h, mamou 30 minutos e voltou a pedir às 16h, o intervalo foi de 2 horas, e não de 1h30.',
         ],
-      },
-      {
-        titulo: 'Sinais de fome (antes do choro)',
-        lista: [
-          'Leva as mãos à boca ou chupa os dedos',
-          'Vira a cabeça procurando o peito (reflexo de busca)',
-          'Abre a boca, estala os lábios, põe a língua para fora',
-          'Fica inquieto e se mexe mais',
-          'O choro costuma ser um sinal tardio de fome',
-        ],
-      },
-      {
-        titulo: 'Mamadas em cachos (cluster feeding)',
-        paragrafos: [
-          'Em alguns momentos, principalmente no fim da tarde e nos picos de crescimento, o bebê pede para mamar muitas vezes seguidas, com intervalos de 30 a 60 minutos. É comum e costuma durar alguns dias.',
-        ],
+        fonte: ['aapMamadas'],
       },
       {
         titulo: 'Como saber se o bebê está mamando o suficiente',
-        lista: [
-          'Depois do 5º dia, molha pelo menos 6 fraldas por dia',
-          'Faz cocô com regularidade nas primeiras semanas',
-          'Ganha peso nas consultas de acompanhamento',
-          'Fica satisfeito depois das mamadas na maior parte das vezes',
+        paragrafos: [
+          'Um dos sinais que a AAP cita são as fraldas: depois dos primeiros 4 a 5 dias, o bebê deve molhar pelo menos 5 a 6 fraldas por dia. O ganho de peso é acompanhado pelo pediatra nas consultas.',
         ],
+        fonte: ['aapMamadas'],
       },
     ],
     alerta:
-      'Procure o pediatra se o bebê mama muito pouco, está sonolento demais para mamar, molha menos fraldas ou se você está com dor ao amamentar. Bancos de leite e consultoras de amamentação também ajudam.',
+      'Procure o pediatra se o bebê mama muito pouco, está sonolento demais para mamar, molha menos fraldas do que o esperado, ou se você sente dor ao amamentar. Bancos de leite humano também ajudam com a amamentação.',
     ninho: {
       titulo: 'O Ninho mostra quando foi a última mamada',
-      texto: 'A tela inicial mostra quanto tempo passou desde a última mamada, e o card Ritmo mostra o intervalo médio entre mamadas do seu bebê e o horário em que a próxima costuma chegar.',
-      itens: ['Peito com lado e duração', 'Mamadeira com ml', 'Intervalo médio entre mamadas e próxima mamada prevista'],
+      texto: 'A tela inicial mostra quanto tempo passou desde a última mamada, e o card Ritmo mostra o intervalo médio entre as mamadas do seu bebê, calculado pelos registros dele, e quando a próxima costuma chegar.',
+      itens: ['Peito com lado e duração', 'Mamadeira com ml', 'Intervalo médio do seu bebê e próxima mamada prevista'],
       tela: '/app/home.webp',
       alt: 'Card Ritmo do Ninho mostrando 2h40 entre mamadas e próxima por volta de 09:00',
     },
     faqs: [
-      { q: 'Preciso acordar o recém-nascido para mamar?', a: 'Nas primeiras semanas, muitos pediatras orientam não deixar passar de 3 a 4 horas sem mamar, até o bebê recuperar o peso do nascimento. Depois disso, siga a orientação do pediatra do seu filho.' },
-      { q: 'Quanto tempo dura cada mamada no peito?', a: 'Varia muito, de 10 a 40 minutos. Mais importante que o relógio é deixar o bebê esvaziar bem um peito antes de oferecer o outro.' },
-      { q: 'Quantos ml o recém-nascido mama na mamadeira?', a: 'A quantidade muda muito nas primeiras semanas e depende do peso do bebê. Quem define é o pediatra; anotar os ml de cada mamadeira ajuda nessa conversa.' },
+      { q: 'Preciso acordar o recém-nascido para mamar?', a: 'Depende do bebê. A AAP comenta que, para bebês com dificuldade de ganhar peso, não se deve esperar demais entre as mamadas, mesmo que seja preciso acordá-los. O intervalo certo para o seu filho é o pediatra quem define.' },
+      { q: 'Quantos ml o recém-nascido mama na mamadeira?', a: 'A AAP cita de 1 a 2 onças (cerca de 30 a 60 ml) por mamada depois dos primeiros dias, chegando a 3 ou 4 onças (cerca de 90 a 120 ml) no fim do primeiro mês. A quantidade do seu bebê é definida pelo pediatra; anotar os ml ajuda nessa conversa.' },
     ],
     relacionados: ['como-controlar-as-mamadas-do-bebe', 'qual-peito-o-bebe-mamou-por-ultimo', 'quantas-fraldas-o-recem-nascido-usa-por-dia'],
-    fontes: ['oms', 'sbp', 'ms', 'aap'],
+    fontes: ['aapMamadas', 'whoAlim'],
     atualizado: ATUALIZADO,
   },
   {
@@ -491,7 +573,7 @@ export const GUIAS: Guia[] = [
       { q: 'Controlar a mamada não vai contra a livre demanda?', a: 'Não. Livre demanda é oferecer o peito quando o bebê pede. Anotar só registra o que aconteceu; ninguém precisa seguir um horário fixo.' },
     ],
     relacionados: ['intervalo-entre-mamadas-recem-nascido', 'qual-peito-o-bebe-mamou-por-ultimo', 'o-que-anotar-para-a-consulta-do-pediatra'],
-    fontes: ['oms', 'sbp'],
+    fontes: ['whoAlim'],
     atualizado: ATUALIZADO,
   },
   {
@@ -500,39 +582,39 @@ export const GUIAS: Guia[] = [
     pergunta: 'Como lembrar qual peito o bebê mamou por último?',
     titulo: 'Qual peito o bebê mamou por último? Como lembrar',
     descricao:
-      'Alternar o peito em que a mamada começa ajuda a esvaziar as duas mamas. Veja truques para lembrar o lado e como um app mostra o próximo peito.',
+      'Truques que as mães usam para lembrar o lado da última mamada, e como um app mostra o próximo peito. Dúvidas sobre amamentação: pediatra ou banco de leite.',
     resumo:
-      'Comece cada mamada pelo peito em que a anterior terminou, ou pelo que ficou para trás, alternando os lados. Para não esquecer, registre o lado no fim de cada mamada: um app de rotina guarda isso e já mostra qual peito oferecer na próxima vez.',
+      'Registre o lado no fim de cada mamada: um app de rotina guarda isso e já mostra qual peito oferecer na próxima vez, para você e para quem estiver ajudando. Como alternar os lados e quanto tempo deixar em cada peito são orientações para combinar com o pediatra ou com um banco de leite humano.',
     secoes: [
-      {
-        titulo: 'Por que alternar os peitos',
-        paragrafos: [
-          'Alternar o lado em que a mamada começa ajuda a esvaziar bem as duas mamas, o que mantém a produção de leite equilibrada e diminui o risco de ingurgitamento (peito empedrado). O ideal é deixar o bebê esvaziar bem um peito antes de oferecer o outro.',
-        ],
-      },
       {
         titulo: 'Truques que as mães usam',
         lista: [
           'Pulseira ou elástico de cabelo no braço do lado da próxima mamada',
           'Trocar o anel de mão',
-          'Sentir qual peito está mais cheio',
           'Anotar no celular, o que também guarda a hora e a duração',
         ],
+        notaFonte: 'Dicas práticas de organização, não orientação médica.',
+      },
+      {
+        titulo: 'E a amamentação em si?',
+        paragrafos: [
+          'A OMS recomenda amamentar sob livre demanda, sempre que o bebê quiser, de dia e de noite. Para dúvidas sobre pega, lado e duração da mamada, procure o pediatra, uma consultora de amamentação ou um banco de leite humano.',
+        ],
+        fonte: ['whoAlim'],
       },
     ],
-    alerta: 'Dor forte, rachaduras, vermelhidão ou febre durante a amamentação são motivo para procurar o pediatra, o obstetra ou um banco de leite.',
+    alerta: 'Dor forte, rachaduras, vermelhidão ou febre durante a amamentação são motivo para procurar o pediatra, o obstetra ou um banco de leite humano.',
     ninho: {
       titulo: 'O Ninho já mostra o próximo lado',
-      texto: 'Ao registrar o peito, você escolhe esquerdo ou direito. No card Ritmo aparece o último lado e o próximo a oferecer, para você e para quem estiver ajudando.',
+      texto: 'Ao registrar o peito, você escolhe esquerdo ou direito. No card Ritmo aparece o último lado e o próximo, para você e para quem estiver ajudando.',
       tela: '/app/home.webp',
       alt: 'Card Ritmo do Ninho com último lado Esquerdo e próximo direito',
     },
     faqs: [
-      { q: 'Preciso oferecer os dois peitos em toda mamada?', a: 'Nem sempre. Muitos bebês ficam satisfeitos com um só. Ofereça o segundo se o bebê ainda mostrar fome depois de esvaziar o primeiro.' },
-      { q: 'É normal um peito produzir mais que o outro?', a: 'É comum ter alguma diferença. Se ela for grande ou vier com dor, converse com um profissional de amamentação.' },
+      { q: 'Preciso oferecer os dois peitos em toda mamada?', a: 'Essa é uma dúvida para o pediatra ou para um profissional de amamentação, que avalia o seu caso.' },
     ],
     relacionados: ['como-controlar-as-mamadas-do-bebe', 'intervalo-entre-mamadas-recem-nascido', 'rotina-do-recem-nascido'],
-    fontes: ['sbp', 'ms'],
+    fontes: ['whoAlim'],
     atualizado: ATUALIZADO,
   },
 
@@ -541,43 +623,43 @@ export const GUIAS: Guia[] = [
     slug: 'quantas-fraldas-o-recem-nascido-usa-por-dia',
     categoria: 'Fralda',
     pergunta: 'Quantas fraldas o recém-nascido suja por dia?',
-    titulo: 'Quantas fraldas o recém-nascido usa por dia?',
+    titulo: 'Quantas fraldas o recém-nascido molha por dia?',
     descricao:
-      'A partir do 5º dia, o recém-nascido costuma molhar pelo menos 6 fraldas por dia. Veja a referência por dia de vida e o que observar no xixi e no cocô.',
+      'Segundo a Academia Americana de Pediatria, depois dos primeiros 4 a 5 dias o bebê deve molhar pelo menos 5 a 6 fraldas por dia. Veja a fonte e o que observar.',
     resumo:
-      'Nos primeiros dias, o número de fraldas molhadas sobe junto com os dias de vida: 1 no primeiro dia, 2 no segundo e assim por diante. A partir do 5º ou 6º dia, a referência é de pelo menos 6 fraldas molhadas por dia, com xixi claro. Na prática, muitas famílias trocam de 8 a 12 fraldas por dia no primeiro mês.',
+      'Segundo a Academia Americana de Pediatria (AAP), nos primeiros dias depois do nascimento o bebê deve molhar 2 a 3 fraldas por dia e, depois dos primeiros 4 a 5 dias, pelo menos 5 a 6 fraldas por dia. Números diferentes disso são motivo para falar com o pediatra.',
     secoes: [
       {
-        titulo: 'Fraldas molhadas por dia de vida (referência)',
+        titulo: 'Fraldas molhadas, segundo a AAP',
         tabela: {
-          cabecalho: ['Dia de vida', 'Fraldas molhadas (mínimo)', 'Cocô'],
+          cabecalho: ['Período', 'Fraldas molhadas por dia'],
           linhas: [
-            ['1º dia', '1', 'Mecônio, escuro e pegajoso'],
-            ['2º dia', '2', 'Mecônio'],
-            ['3º dia', '3', 'Fezes de transição, esverdeadas'],
-            ['4º dia', '4', 'Ficando amareladas'],
-            ['5º dia em diante', '6 ou mais', 'Amarelas e moles (no aleitamento materno)'],
+            ['Primeiros dias depois do nascimento', '2 a 3'],
+            ['Depois dos primeiros 4 a 5 dias', 'Pelo menos 5 a 6'],
           ],
         },
+        fonte: ['aapMamadas'],
+        notaFonte: 'Números traduzidos da página da AAP. Não são recomendação do Ninho.',
       },
       {
-        titulo: 'O que observar',
+        titulo: 'Xixi e cocô: o que a AAP descreve',
         lista: [
-          'Xixi claro ou amarelo bem claro é bom sinal de hidratação',
-          'Cristais alaranjados na fralda podem aparecer nos primeiros dias',
-          'No aleitamento materno, o cocô costuma ser amarelo, mole e com "grumos"',
-          'Com fórmula, o cocô tende a ser mais firme e menos frequente',
+          'Nos primeiros dias, o cocô é o mecônio (escuro e pegajoso); depois de eliminado, fica amarelo-esverdeado.',
+          'No bebê amamentado, o cocô logo fica amarelo e líquido, com grumos que lembram sementinhas.',
+          'No bebê que toma fórmula, costuma ser bege ou amarelo.',
+          'Na primeira semana pode aparecer uma mancha rosada ou cor de tijolo na fralda, que costuma ser confundida com sangue.',
         ],
+        fonte: ['aapXixi'],
       },
       {
         titulo: 'Por que contar fraldas',
         paragrafos: [
-          'Nas primeiras semanas, as fraldas são uma das formas mais simples de saber se o bebê está mamando o suficiente. É por isso que o pediatra costuma perguntar quantas fraldas o bebê molhou nas últimas 24 horas.',
+          'Nas primeiras semanas, as fraldas são uma forma simples de acompanhar se o bebê está mamando o suficiente. É por isso que o pediatra costuma perguntar quantas fraldas o bebê molhou nas últimas 24 horas.',
         ],
       },
     ],
     alerta:
-      'Procure o pediatra se o bebê molhar menos fraldas do que o esperado, se o xixi estiver escuro, se houver sangue nas fezes, cocô branco ou acinzentado, ou se o bebê estiver muito sonolento.',
+      'A AAP orienta procurar o pediatra se houver sangue de verdade no xixi ou no cocô (diz que nunca é normal), se a mancha rosada continuar, se houver febre em bebê com menos de 3 meses, ou se o bebê molhar menos fraldas do que o esperado.',
     ninho: {
       titulo: 'Fraldas contadas sem esforço',
       texto: 'No Ninho, um toque em Fralda registra xixi, cocô ou os dois. O resumo do dia mostra quantas fraldas foram trocadas, e todos os cuidadores somam no mesmo lugar.',
@@ -585,11 +667,10 @@ export const GUIAS: Guia[] = [
       alt: 'Histórico do Ninho com registro de Fralda Xixi e resumo do dia com 1 fralda',
     },
     faqs: [
-      { q: 'Quantas fraldas comprar para o primeiro mês?', a: 'Como a troca pode passar de 8 a 12 por dia, muitas famílias calculam entre 250 e 350 fraldas no primeiro mês. O tamanho RN dura pouco: vale não estocar demais.' },
-      { q: 'Bebê que mama no peito pode ficar dias sem fazer cocô?', a: 'Depois das primeiras semanas, alguns bebês em aleitamento exclusivo ficam alguns dias sem evacuar e estão bem. Nas primeiras semanas, porém, o cocô frequente é esperado. Na dúvida, fale com o pediatra.' },
+      { q: 'Bebê que mama no peito pode ficar dias sem fazer cocô?', a: 'Isso muda com a idade do bebê e deve ser avaliado pelo pediatra. Na dúvida, leve o registro das fraldas dos últimos dias para a consulta.' },
     ],
     relacionados: ['intervalo-entre-mamadas-recem-nascido', 'o-que-anotar-para-a-consulta-do-pediatra', 'rotina-do-recem-nascido'],
-    fontes: ['aap', 'sbp', 'ms'],
+    fontes: ['aapMamadas', 'aapXixi'],
     atualizado: ATUALIZADO,
   },
 
@@ -600,54 +681,53 @@ export const GUIAS: Guia[] = [
     pergunta: 'Como montar uma rotina para o recém-nascido?',
     titulo: 'Rotina do recém-nascido: como montar sem horário fixo',
     descricao:
-      'Recém-nascido não segue horário, mas segue um ritmo: mamar, ficar acordado um pouco e dormir. Veja como observar esse ciclo e organizar o dia da casa.',
+      'Recém-nascido não segue horário, mas tem um ritmo: mamar, ficar acordado um pouco e dormir. Veja como observar esse ciclo e organizar o dia da casa.',
     resumo:
-      'Nas primeiras semanas, a rotina do recém-nascido é um ciclo que se repete de 8 a 12 vezes por dia: mamar, ficar acordado um pouco (trocar fralda, colo, conversa) e dormir. Em vez de impor horários, observe esse ciclo por alguns dias; o padrão que aparecer é a rotina do seu bebê, e ela muda a cada poucas semanas.',
+      'Nas primeiras semanas, a rotina do recém-nascido é um ciclo que se repete muitas vezes por dia: mamar, ficar acordado um pouco e dormir. A OMS recomenda amamentar sob livre demanda, sem horário fixo. Em vez de impor horários, observe esse ciclo por alguns dias: o padrão que aparecer é a rotina do seu bebê, e ela muda com o tempo.',
     secoes: [
       {
         titulo: 'O ciclo mamar, acordar, dormir',
         paragrafos: [
-          'Um dia típico de recém-nascido tem muitos ciclos curtos. O bebê acorda com fome, mama, fica acordado por pouco tempo (no primeiro mês, perto de 35 a 60 minutos contando a mamada) e volta a dormir. À noite, o tempo acordado é menor ainda.',
+          'Segundo a AAP, recém-nascidos amamentados costumam mamar a cada 2 horas. Entre uma mamada e outra, o bebê fica acordado por pouco tempo (troca de fralda, colo, conversa) e volta a dormir. A Sleep Foundation estima esse tempo acordado entre 30 minutos e 1h30 no primeiro mês; é uma estimativa de site de informação, não uma regra.',
         ],
+        fonte: ['aapMamadas', 'sfJanela'],
       },
       {
-        titulo: 'Exemplo de um dia (só para ter ideia)',
+        titulo: 'Exemplo ilustrativo de um dia',
         tabela: {
-          cabecalho: ['Horário aproximado', 'O que costuma acontecer'],
+          cabecalho: ['Horário aproximado', 'O que pode acontecer'],
           linhas: [
             ['06:00', 'Mamada, fralda, um pouco acordado'],
-            ['07:00 a 08:30', 'Soneca'],
-            ['08:30', 'Mamada, banho de sol ou tummy time rápido'],
-            ['09:30 a 11:30', 'Soneca'],
-            ['…', 'O ciclo se repete ao longo do dia'],
-            ['Fim da tarde', 'Mamadas mais seguidas (comum)'],
+            ['07:00', 'Soneca'],
+            ['08:00', 'Mamada, fralda, colo'],
+            ['…', 'O ciclo se repete ao longo do dia e da noite'],
             ['Noite', 'Mamadas com luz baixa e volta direta ao berço'],
           ],
         },
-        paragrafos: ['Cada bebê tem o próprio ritmo. Use o exemplo para entender a lógica, não como horário a cumprir.'],
+        notaFonte: 'Exemplo inventado só para mostrar a lógica do ciclo. Não é uma recomendação de horário, nem do Ninho nem de nenhuma entidade. Cada bebê tem o seu ritmo.',
       },
       {
         titulo: 'O que ajuda a casa a funcionar',
         lista: [
           'Combinar turnos à noite entre os adultos',
           'Deixar tudo anotado num lugar que todos vejam',
-          'Aproveitar as sonecas para comer e descansar, não só para arrumar a casa',
-          'Aceitar ajuda dos avós e amigos com tarefas da casa',
+          'Aproveitar as sonecas para comer e descansar',
+          'Aceitar ajuda dos avós e amigos com as tarefas da casa',
         ],
+        notaFonte: 'Dicas práticas de organização da casa.',
       },
     ],
     ninho: {
       titulo: 'Deixe o Ninho mostrar o ritmo do seu bebê',
-      texto: 'Registre por alguns dias e o card Ritmo mostra a janela de sono, o intervalo entre mamadas e quando a próxima soneca e mamada costumam acontecer. Assim o dia da casa se organiza em volta do bebê, e não do relógio.',
+      texto: 'Registre por alguns dias e o card Ritmo mostra a janela de sono, o intervalo entre mamadas e quando a próxima soneca e a próxima mamada costumam acontecer, sempre pelos registros do seu bebê.',
       tela: '/app/home.webp',
       alt: 'Tela inicial do Ninho com o Ritmo da Helena e o resumo de hoje',
     },
     faqs: [
-      { q: 'Com quantos meses o bebê tem rotina?', a: 'Um padrão mais previsível costuma aparecer entre 2 e 4 meses, quando o sono da noite fica mais longo e as sonecas mais regulares.' },
-      { q: 'Dá para colocar o recém-nascido em horário fixo de mamada?', a: 'Para bebês amamentados, a OMS e a SBP recomendam a livre demanda, sem horário fixo. Com fórmula, siga a orientação do pediatra.' },
+      { q: 'Dá para colocar o recém-nascido em horário fixo de mamada?', a: 'Para bebês amamentados, a OMS recomenda a livre demanda, sem horário fixo. Com fórmula, siga a orientação do pediatra.' },
     ],
     relacionados: ['janela-de-sono-do-bebe', 'intervalo-entre-mamadas-recem-nascido', 'como-dividir-os-cuidados-do-bebe'],
-    fontes: ['oms', 'sbp', 'aap'],
+    fontes: ['aapMamadas', 'whoAlim', 'sfJanela'],
     atualizado: ATUALIZADO,
   },
   {
@@ -736,7 +816,7 @@ export const GUIAS: Guia[] = [
       { q: 'O Ninho substitui a Caderneta da Criança?', a: 'Não. A Caderneta é o documento oficial de vacinas e crescimento. O Ninho cuida da rotina do dia a dia e ajuda a levar essas informações para a consulta.' },
     ],
     relacionados: ['como-controlar-as-mamadas-do-bebe', 'quantas-fraldas-o-recem-nascido-usa-por-dia', 'quanto-tempo-recem-nascido-dorme'],
-    fontes: ['ms', 'sbp'],
+    fontes: ['msCaderneta'],
     atualizado: ATUALIZADO,
   },
 ];

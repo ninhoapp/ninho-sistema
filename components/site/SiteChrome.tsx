@@ -130,7 +130,12 @@ export function StoreButtons({ claro = false }: { claro?: boolean }) {
   );
 }
 
-/** Print real do app dentro de uma moldura de celular. */
+/**
+ * Print real do app dentro de um iPhone desenhado em CSS: aro de titânio com
+ * reflexo, botões laterais, borda preta fina, Dynamic Island e brilho do
+ * vidro. As medidas seguem as proporções do iPhone 16 Pro (tela 1179x2556),
+ * em cqw, para valer em qualquer largura.
+ */
 export function Phone({
   src,
   alt,
@@ -144,15 +149,25 @@ export function Phone({
 }) {
   return (
     <div className="n-phone" style={style}>
-      <img
-        src={src}
-        alt={alt}
-        width={600}
-        height={1303}
-        loading={priority ? 'eager' : 'lazy'}
-        decoding="async"
-        {...(priority ? { fetchPriority: 'high' as const } : {})}
-      />
+      <div className="n-phone-corpo">
+        <i className="n-phone-botao n-phone-acao" />
+        <i className="n-phone-botao n-phone-vol1" />
+        <i className="n-phone-botao n-phone-vol2" />
+        <i className="n-phone-botao n-phone-power" />
+        <div className="n-phone-tela">
+          <img
+            src={src}
+            alt={alt}
+            width={600}
+            height={1303}
+            loading={priority ? 'eager' : 'lazy'}
+            decoding="async"
+            {...(priority ? { fetchPriority: 'high' as const } : {})}
+          />
+          <i className="n-phone-ilha" />
+          <i className="n-phone-brilho" />
+        </div>
+      </div>
     </div>
   );
 }
