@@ -5,14 +5,14 @@ import './globals.css';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: 'Ninho — Cada momento do seu bebê, no lugar certo',
+  title: 'Ninho: app de rotina do bebê — mamada, sono e fralda',
   description:
-    'Ninho — o app que acompanha o dia a dia do seu bebê. Sono, mamadas, fraldas, vacinas, crescimento e memórias, compartilhados com quem cuida junto.',
+    'Ninho — o app de rotina do bebê. Mamada, sono e fralda num toque, a próxima soneca e mamada à vista e o dia compartilhado com quem cuida junto.',
   icons: { icon: '/brand/ninho-logo.png', apple: '/brand/ninho-logo.png' },
   openGraph: {
-    title: 'Ninho — Cada momento do seu bebê, no lugar certo',
+    title: 'Ninho: app de rotina do bebê',
     description:
-      'Sono, mamadas, fraldas, vacinas, crescimento e memórias. Tudo registrado em segundos e compartilhado com quem cuida junto.',
+      'Mamada, sono e fralda registrados num toque, a próxima soneca e mamada à vista e o dia compartilhado com quem cuida junto.',
     type: 'website',
     url: SITE_URL,
   },
