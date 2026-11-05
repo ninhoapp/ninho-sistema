@@ -427,12 +427,16 @@ export async function logClick(input: ClickInput): Promise<string | null> {
   const sb = painelDb();
   let primeiro = true;
   if (input.visitor_hash) {
-    const { count } = await sb
+    // Busca normal de 1 linha: o `count` com `head: true` voltava vazio no
+    // schema painel e marcava todo clique como único (visto em 05/11/2026).
+    const { data: anterior, error: erroBusca } = await sb
       .from('link_clicks')
-      .select('id', { count: 'exact', head: true })
+      .select('id')
       .eq('promo_code', input.promo_code)
-      .eq('visitor_hash', input.visitor_hash);
-    primeiro = !count;
+      .eq('visitor_hash', input.visitor_hash)
+      .limit(1);
+    if (erroBusca) console.error('[painel] link_clicks (visitante) falhou:', erroBusca.message);
+    primeiro = !anterior || anterior.length === 0;
   }
   const { data, error } = await sb
     .from('link_clicks')
