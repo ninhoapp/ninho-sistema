@@ -42,6 +42,7 @@ export function SiteNav() {
           <li><Link href="/landing#como-funciona">Como funciona</Link></li>
           <li><Link href="/landing#planos">Planos</Link></li>
           <li><Link href="/guia">Guia para pais</Link></li>
+          <li><Link href="/parceiros">Seja parceiro</Link></li>
         </ul>
         <div className="n-nav-cta">
           <a href="/get/ios" className="n-btn n-btn-escuro n-btn-sm" aria-label="Baixar o Ninho na App Store">
@@ -93,6 +94,7 @@ export function SiteFooter() {
             <h4>Ninho</h4>
             <ul>
               <li><Link href="/suporte">Suporte</Link></li>
+              <li><Link href="/parceiros">Seja parceiro</Link></li>
               <li><a href={`mailto:${CONTATO_EMAIL}`}>Contato</a></li>
               <li><a href="/privacidade">Privacidade</a></li>
               <li><a href="/termos">Termos de uso</a></li>

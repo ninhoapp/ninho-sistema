@@ -13,6 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'monthly' as const,
       priority: 0.7,
     })),
+    { url: `${SITE_URL}/parceiros`, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${SITE_URL}/suporte`, changeFrequency: 'monthly', priority: 0.4 },
     { url: `${SITE_URL}/privacidade`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${SITE_URL}/termos`, changeFrequency: 'yearly', priority: 0.2 },

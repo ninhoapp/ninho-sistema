@@ -24,7 +24,11 @@ import type { PlanoCiclo, PlanoTier } from '@/lib/precos';
  *  do que entrou hoje. Por isso o dia é contado aqui, a partir de entrou_em. */
 const TZ = 'Asia/Dubai';
 
-export type Grupo = 'A' | 'B';
+/** C (00100 do Ninho-expo): tela de planos no fim do onboarding, com anual e
+ *  mensal e um X para fechar; quem fecha segue com o teste do app, como o A. */
+export type Grupo = 'A' | 'B' | 'C';
+const GRUPOS: Grupo[] = ['A', 'B', 'C'];
+const ehGrupo = (g: unknown): g is Grupo => g === 'A' || g === 'B' || g === 'C';
 
 export interface ResumoGrupo {
   grupo: Grupo;
@@ -43,6 +47,8 @@ export interface ResumoGrupo {
   decididos: number | null;
   /** Conta oficial do teste: pagaram ÷ decididos (00090). */
   pct_pagou_decididos: number | null;
+  /** Saíram sem cartão pelo cron (só o B). */
+  liberados: number;
 }
 
 /** Grupo B sem cartão por 30 min (2h até 02/11), liberado com 7 dias sem cartão e passado
@@ -92,7 +98,7 @@ export interface DiaGrupo {
 export interface TestePaywall {
   /** sorteios = quantas contas já entraram pelo rodízio (00088). Quem
    *  entrou antes dele foi pelo sorteio aleatório da 00083. */
-  config: { ativo: boolean; fracao_b: number; sorteios: number } | null;
+  config: { ativo: boolean; fracao_b: number; sorteios: number; modo: 'AB' | 'ABC' } | null;
   resumo: Record<Grupo, ResumoGrupo>;
   diario: DiaGrupo[];
   foraDoSorteio: number;
@@ -116,6 +122,7 @@ function vazio(grupo: Grupo): ResumoGrupo {
     pct_pagou: null,
     decididos: 0,
     pct_pagou_decididos: null,
+    liberados: 0,
   };
 }
 
@@ -126,7 +133,8 @@ const nOuNull = (v: unknown) => (v == null ? null : Number(v));
 export async function fetchTestePaywall(): Promise<TestePaywall> {
   const sb = appDb();
   const [cfg, res, dia, fora, lib] = await Promise.all([
-    sb.from('teste_paywall_config').select('ativo,fracao_b,sorteios').limit(1).maybeSingle(),
+    // '*': a coluna modo só existe depois da 00100.
+    sb.from('teste_paywall_config').select('*').limit(1).maybeSingle(),
     sb.from('teste_paywall_resumo').select('*'),
     lerTudo<ParticipanteDia>('teste_paywall_participantes', (de, ate) =>
       sb
@@ -146,10 +154,10 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
     if (r.error) throw new Error(`Teste de paywall: ${r.error.message}`);
   }
 
-  const resumo: Record<Grupo, ResumoGrupo> = { A: vazio('A'), B: vazio('B') };
+  const resumo = Object.fromEntries(GRUPOS.map((g) => [g, vazio(g)])) as Record<Grupo, ResumoGrupo>;
   for (const r of res.data ?? []) {
-    const g = r.grupo as Grupo;
-    if (g !== 'A' && g !== 'B') continue;
+    const g = r.grupo;
+    if (!ehGrupo(g)) continue;
     resumo[g] = {
       grupo: g,
       cadastros: n(r.cadastros),
@@ -165,15 +173,17 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
       // Antes da 00090 a coluna não vem: null avisa a tela.
       decididos: 'decididos' in r ? n(r.decididos) : null,
       pct_pagou_decididos: nOuNull(r.pct_pagou_decididos),
+      liberados: n(r.liberados),
     };
   }
 
   const porDia = new Map<string, DiaGrupo>();
   for (const r of dia.data) {
-    if (r.grupo !== 'A' && r.grupo !== 'B') continue;
+    const g: unknown = r.grupo;
+    if (!ehGrupo(g)) continue;
     const d = diaDubai(new Date(r.entrou_em));
-    const chave = `${d}|${r.grupo}`;
-    const linha = porDia.get(chave) ?? { dia: d, grupo: r.grupo, cadastros: 0, comecaram_teste_loja: 0, pagaram: 0 };
+    const chave = `${d}|${g}`;
+    const linha = porDia.get(chave) ?? { dia: d, grupo: g, cadastros: 0, comecaram_teste_loja: 0, pagaram: 0 };
     linha.cadastros += 1;
     if (r.comecou_teste_loja) linha.comecaram_teste_loja += 1;
     if (r.pagou) linha.pagaram += 1;
@@ -202,7 +212,12 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
 
   return {
     config: cfg.data
-      ? { ativo: !!cfg.data.ativo, fracao_b: n(cfg.data.fracao_b), sorteios: n(cfg.data.sorteios) }
+      ? {
+          ativo: !!cfg.data.ativo,
+          fracao_b: n(cfg.data.fracao_b),
+          sorteios: n(cfg.data.sorteios),
+          modo: cfg.data.modo === 'ABC' ? 'ABC' : 'AB',
+        }
       : null,
     resumo,
     diario,
@@ -284,20 +299,20 @@ export function hojeDubai(): string {
 /** Últimos N dias (hoje incluso) com cadastros por grupo, preenchendo dias sem ninguém com zero. */
 export function cadastrosPorDia(diario: DiaGrupo[], dias: number) {
   const hoje = hojeDubai();
-  const mapa = new Map<string, { A: number; B: number }>();
+  const mapa = new Map<string, Record<Grupo, number>>();
   for (const d of diario) {
-    const m = mapa.get(d.dia) ?? { A: 0, B: 0 };
+    const m = mapa.get(d.dia) ?? { A: 0, B: 0, C: 0 };
     m[d.grupo] += d.cadastros;
     mapa.set(d.dia, m);
   }
   // Meio-dia UTC: subtrair dias inteiros nunca troca a data por fuso.
   const base = new Date(`${hoje}T12:00:00Z`).getTime();
-  const pontos: { dia: string; label: string; A: number; B: number; hoje: boolean }[] = [];
+  const pontos: { dia: string; label: string; A: number; B: number; C: number; hoje: boolean }[] = [];
   for (let i = dias - 1; i >= 0; i--) {
     const key = new Date(base - i * 86400000).toISOString().slice(0, 10);
     const [, mm, dd] = key.split('-');
-    const v = mapa.get(key) ?? { A: 0, B: 0 };
-    pontos.push({ dia: key, label: `${dd}/${mm}`, A: v.A, B: v.B, hoje: key === hoje });
+    const v = mapa.get(key) ?? { A: 0, B: 0, C: 0 };
+    pontos.push({ dia: key, label: `${dd}/${mm}`, A: v.A, B: v.B, C: v.C, hoje: key === hoje });
   }
   return pontos;
 }

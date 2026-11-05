@@ -58,7 +58,8 @@ export function planoLabel(u: AppUser): string {
 
 /** Preço de tabela: o que a loja cobra POR COBRANÇA (anual = valor do ano). */
 export function priceForUser(u: AppUser): number {
-  return precoDe(tierDoUsuario(u), cicloDoUsuario(u));
+  // Mensal assinado antes de 06/11/2026 segue no preço antigo (lib/precos.ts).
+  return precoDe(tierDoUsuario(u), cicloDoUsuario(u), u.assinouEm ? new Date(u.assinouEm).toISOString() : null);
 }
 
 /**
@@ -69,7 +70,7 @@ export function priceForUser(u: AppUser): number {
  * `receitaNoMes`, que é regime de caixa.
  */
 export function monthlyRevenueForUser(u: AppUser): number {
-  return precoMensalizado(tierDoUsuario(u), cicloDoUsuario(u));
+  return precoMensalizado(tierDoUsuario(u), cicloDoUsuario(u), u.assinouEm ? new Date(u.assinouEm).toISOString() : null);
 }
 
 // ── Receita de caixa ──────────────────────────────────────

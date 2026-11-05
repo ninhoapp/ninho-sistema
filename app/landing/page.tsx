@@ -13,7 +13,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { SITE_URL, STORE_ANDROID_URL, STORE_IOS_URL } from '@/lib/config';
-import { DIAS_TRIAL, PRECOS } from '@/lib/precos';
+import { DIAS_TRIAL, PRECOS, numeroBr } from '@/lib/precos';
 import { GUIAS } from '@/lib/guias';
 import { SitePage, StoreButtons, Phone, JsonLd } from '@/components/site/SiteChrome';
 import { Planos } from '@/components/site/Planos';
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
 const FAQ_LANDING = [
   {
     q: 'O Ninho é grátis?',
-    a: `Os ${DIAS_TRIAL} primeiros dias são grátis, com tudo liberado. Depois, para continuar registrando, você escolhe o plano Básico (R$ 9,90 por mês) ou o Premium (R$ 14,90 por mês), com desconto no anual. Cancele quando quiser pela App Store ou Google Play.`,
+    a: `Os ${DIAS_TRIAL} primeiros dias são grátis, com tudo liberado. Depois, para continuar registrando, você escolhe o plano Básico (R$ ${numeroBr(PRECOS.basico.mensal)} por mês) ou o Premium (R$ ${numeroBr(PRECOS.premium.mensal)} por mês), com desconto no anual. Cancele quando quiser pela App Store ou Google Play.`,
   },
   {
     q: 'Funciona no iPhone e no Android?',

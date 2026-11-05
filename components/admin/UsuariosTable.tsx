@@ -273,6 +273,7 @@ function usoClass(r: UsuarioRow): string {
 const TESTE_STYLE: Record<GrupoTeste['grupo'], string> = {
   A: 'bg-[#EFEAFB] text-[#6B52B8]',
   B: 'bg-[#FEF1DE] text-[#9A5B1E]',
+  C: 'bg-[#E3F0FC] text-[#2D6FB0]',
 };
 
 function testeTooltip(t: GrupoTeste): string {
