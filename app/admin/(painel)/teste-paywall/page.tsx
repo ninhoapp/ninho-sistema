@@ -20,11 +20,12 @@ export const dynamic = 'force-dynamic';
 
 const DIAS_GRAFICO = 28;
 
-const COR: Record<Grupo, string> = { A: '#9F86E0', B: '#F7A83C' };
+const COR: Record<Grupo, string> = { A: '#9F86E0', B: '#F7A83C', C: '#4C9BE8' };
 const COR_LIBERADO = '#4CAF8E';
 const NOME: Record<Grupo, string> = {
   A: 'Grupo A · teste do app sem cartão',
   B: 'Grupo B · planos obrigatórios, 7 dias grátis da loja',
+  C: 'Grupo C · planos com X para fechar, 7 dias grátis do app ou da loja',
 };
 
 /** fracao_b vira "3 para o A, 1 para o B" quando o rodízio é redondo
@@ -90,7 +91,7 @@ function CartaoGrupo({ r, totalSorteado }: { r: ResumoGrupo; totalSorteado: numb
   const c = r.cadastros;
   const cartao = r.comecaram_teste_loja;
   // Só o B passa pela tela obrigatória; no A, "sem cartão" é o fluxo normal.
-  const semCartao = r.grupo === 'B' ? Math.max(c - cartao, 0) : null;
+  const semCartao = r.grupo !== 'A' ? Math.max(c - cartao, 0) : null;
   return (
     <div className="rounded-2xl border border-ninho-borda bg-white p-5">
       <div className="mb-3 flex items-center gap-2">
@@ -109,6 +110,13 @@ function CartaoGrupo({ r, totalSorteado }: { r: ResumoGrupo; totalSorteado: numb
           label="Não puseram o cartão"
           valor={semCartao}
           detalhe={`${pct(semCartao, c)} dos cadastros`}
+        />
+      )}
+      {r.grupo === 'B' && r.liberados > 0 && (
+        <Linha
+          label="Saíram sem cartão"
+          valor={r.liberados}
+          detalhe={`${pct(r.liberados, c)} dos cadastros · liberados pelo cron em 30 min`}
         />
       )}
       <Linha label="Em teste da loja agora" valor={r.em_teste_loja_agora} detalhe={cartao > 0 ? 'ainda nos 7 dias grátis' : undefined} />
@@ -189,17 +197,18 @@ function CartaoLiberados({ lista }: { lista: Liberado[] | null }) {
 export default async function TestePaywallPage() {
   requireRole('admin');
   const t = await fetchTestePaywall();
-  const { A, B } = t.resumo;
-  const total = A.cadastros + B.cadastros;
+  const { A, B, C } = t.resumo;
+  const total = A.cadastros + B.cadastros + C.cadastros;
   const hoje = hojeDubai();
   const hojeA = t.diario.find((d) => d.dia === hoje && d.grupo === 'A')?.cadastros ?? 0;
   const hojeB = t.diario.find((d) => d.dia === hoje && d.grupo === 'B')?.cadastros ?? 0;
+  const hojeC = t.diario.find((d) => d.dia === hoje && d.grupo === 'C')?.cadastros ?? 0;
   const serie = cadastrosPorDia(t.diario, DIAS_GRAFICO);
 
   const status = !t.config
     ? 'Configuração do teste não encontrada'
     : t.config.ativo
-    ? `Rodízio ligado · ${proporcao(t.config.fracao_b)}`
+    ? `Rodízio ligado · ${t.config.modo === 'ABC' ? '1 para cada grupo (A, B, C)' : proporcao(t.config.fracao_b)}`
     : 'Rodízio desligado';
   // Quem entrou antes da 00088 foi pelo sorteio aleatório (1 em 3 para o B),
   // não pelo rodízio: sem este aviso, "3 para o A, 1 para o B" no selo e
@@ -210,7 +219,7 @@ export default async function TestePaywallPage() {
     <>
       <PageHeader
         title="Teste de paywall"
-        subtitle="Grupo A (7 dias de teste do app, sem cartão) lado a lado com o grupo B (tela de planos obrigatória, 7 dias grátis da loja com cartão)."
+        subtitle="Grupo A (7 dias de teste do app, sem cartão), grupo B (tela de planos obrigatória, 7 dias grátis da loja com cartão) e grupo C (tela de planos com X para fechar)."
         right={
           <span
             className={`inline-block rounded-full px-3 py-1.5 text-xs font-semibold ${
@@ -276,12 +285,26 @@ export default async function TestePaywallPage() {
               compactHint
               accent
             />
+            <StatCard
+              label="Cadastros hoje · C"
+              value={hojeC}
+              hint={`${C.cadastros} desde o início · ${pct(C.cadastros, total)} do total`}
+              compactHint
+            />
+            <StatCard
+              label="Conversão · C"
+              value={conversao(C).valor}
+              hint={conversao(C).detalhe}
+              compactHint
+              accent
+            />
           </div>
 
-          <h2 className="mb-3 text-base font-bold text-ninho-grafite">A × B × B liberado</h2>
-          <div className="mb-2 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          <h2 className="mb-3 text-base font-bold text-ninho-grafite">A × B × C × B liberado</h2>
+          <div className="mb-2 grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
             <CartaoGrupo r={A} totalSorteado={total} />
             <CartaoGrupo r={B} totalSorteado={total} />
+            <CartaoGrupo r={C} totalSorteado={total} />
             <CartaoLiberados lista={t.liberados} />
           </div>
           <p className="mb-8 text-xs text-ninho-cinza">
@@ -292,7 +315,9 @@ export default async function TestePaywallPage() {
             abre na tela de planos. <strong>B liberado</strong>: quem ficou 30 min no B sem pôr o cartão (2h até 02/11)
             ganha 7 dias sem cartão e passa para o fluxo do A; continua contando no B, e aqui aparece
             se voltou ao app (qualquer abertura depois da liberação) e se fez pelo menos 1 registro.
-            Receita por cadastro aos 60 dias entra quando a primeira turma completar 60 dias.
+            <strong>Grupo C</strong>: vê a tela de planos no fim do onboarding (anual e mensal, 7 dias
+            grátis da loja com cartão) com um X para fechar; quem fecha segue com os 7 dias do app, como o A.
+            Rodízio 1 para cada desde 05/11/2026. Receita por cadastro aos 60 dias entra quando a primeira turma completar 60 dias.
           </p>
 
           <h2 className="mb-1 text-base font-bold text-ninho-grafite">Quem pôs o cartão</h2>
@@ -334,10 +359,11 @@ export default async function TestePaywallPage() {
           </p>
           <div className="mb-8">
             <GroupedBarChart
-              data={serie.map((p) => ({ label: p.label, values: { A: p.A, B: p.B }, highlight: p.hoje }))}
+              data={serie.map((p) => ({ label: p.label, values: { A: p.A, B: p.B, C: p.C }, highlight: p.hoje }))}
               series={[
                 { key: 'A', label: 'Grupo A', color: COR.A },
                 { key: 'B', label: 'Grupo B', color: COR.B },
+                { key: 'C', label: 'Grupo C', color: COR.C },
               ]}
             />
           </div>

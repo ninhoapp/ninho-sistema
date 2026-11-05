@@ -24,7 +24,9 @@ export function diasAte(iso: string | null): number | null {
  *  (bruto, antes da taxa da loja) se vai cobrar ou já cobrou. */
 export function valorCartao(c: Cartao): { texto: string; valor: number } {
   if (!c.plano || !c.ciclo) return { texto: '—', valor: 0 };
-  const preco = precoDe(c.plano, c.ciclo);
+  // O cartão entrou 7 dias antes da 1ª cobrança; antes de 06/11 fica no mensal antigo.
+  const cartaoEm = c.cobranca_em ? new Date(new Date(c.cobranca_em).getTime() - 7 * 86400000).toISOString() : null;
+  const preco = precoDe(c.plano, c.ciclo, cartaoEm);
   if (c.pagou) return { texto: `${brl(preco)} · pago`, valor: 0 };
   if (c.renova === false) return { texto: 'R$ 0 · cancelou', valor: 0 };
   return { texto: brl(preco), valor: preco };

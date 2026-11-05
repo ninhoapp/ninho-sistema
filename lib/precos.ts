@@ -20,10 +20,19 @@
 export type PlanoTier = 'basico' | 'premium';
 export type PlanoCiclo = 'mensal' | 'anual';
 
+/** Tabela em vigor para quem assina a partir de 06/11/2026 (mensais
+ *  aumentados pelo dono em 05/11/2026; anuais iguais). */
 export const PRECOS: Record<PlanoTier, Record<PlanoCiclo, number>> = {
-  basico: { mensal: 9.9, anual: 89.9 },
-  premium: { mensal: 14.9, anual: 129.9 },
+  basico: { mensal: 12.9, anual: 89.9 },
+  premium: { mensal: 17.9, anual: 129.9 },
 };
+
+/** Dia em que o mensal novo começou a valer na App Store (Brasil). */
+export const PRECO_MENSAL_NOVO_DESDE = "2026-11-06T00:00:00-03:00";
+
+/** Mensal de quem assinou ANTES de 06/11/2026: a Apple mantém o preço antigo
+ *  para assinantes existentes (inclui quem pôs o cartão no grupo B). */
+export const PRECOS_MENSAIS_ANTIGOS: Record<PlanoTier, number> = { basico: 9.9, premium: 14.9 };
 
 export const PLANO_LABEL: Record<PlanoTier, string> = {
   basico: 'Básico',
@@ -31,14 +40,20 @@ export const PLANO_LABEL: Record<PlanoTier, string> = {
 };
 
 /** Preço de tabela de um tier + ciclo. */
-export function precoDe(tier: PlanoTier, ciclo: PlanoCiclo): number {
+export function precoDe(tier: PlanoTier, ciclo: PlanoCiclo, assinouEm?: string | null): number {
+  // Sem data (pagou antes de purchase_verifications existir) também é antigo.
+  if (ciclo === "mensal" && assinouEm !== undefined && (!assinouEm || assinouEm < PRECO_MENSAL_NOVO_DESDE_ISO)) {
+    return PRECOS_MENSAIS_ANTIGOS[tier];
+  }
   return PRECOS[tier][ciclo];
 }
 
+const PRECO_MENSAL_NOVO_DESDE_ISO = new Date(PRECO_MENSAL_NOVO_DESDE).toISOString();
+
 /** Quanto esse plano vale POR MÊS — anual entra rateado por 12, pra não
  *  inflar o mês em que a loja cobrou os 12 de uma vez. */
-export function precoMensalizado(tier: PlanoTier, ciclo: PlanoCiclo): number {
-  const p = precoDe(tier, ciclo);
+export function precoMensalizado(tier: PlanoTier, ciclo: PlanoCiclo, assinouEm?: string | null): number {
+  const p = precoDe(tier, ciclo, assinouEm);
   return ciclo === 'anual' ? p / 12 : p;
 }
 
