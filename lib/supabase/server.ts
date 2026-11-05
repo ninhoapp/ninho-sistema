@@ -19,6 +19,17 @@ import { createClient } from '@supabase/supabase-js';
 const authOpts = { persistSession: false, autoRefreshToken: false } as const;
 
 /**
+ * Nunca usar o cache de `fetch` do Next.js nas consultas ao banco.
+ *
+ * Sem isto, consultas idênticas feitas em rota de API (ex.: "esse visitante já
+ * clicou no link?" em /r/<código>) voltavam a primeira resposta guardada: o
+ * 2º clique do mesmo visitante contava como único (achado em 05/11/2026), e um
+ * parceiro desativado poderia continuar com o link funcionando. O cache que o
+ * painel quer é o `unstable_cache` explícito (lib/app-users.ts), não este.
+ */
+const semCache: typeof fetch = (input, init) => fetch(input, { ...init, cache: 'no-store' });
+
+/**
  * Valida na chamada, não no import. Se fosse no topo do módulo, `next build`
  * quebraria em qualquer máquina sem .env.local — mesmo as páginas sendo todas
  * force-dynamic, o build carrega o grafo de módulos.
@@ -35,11 +46,11 @@ function creds(): { url: string; key: string } {
 // service_role) e recriá-lo a cada query custava alocação à toa em toda tela.
 function criarPainel() {
   const { url, key } = creds();
-  return createClient(url, key, { auth: authOpts, db: { schema: 'painel' } });
+  return createClient(url, key, { auth: authOpts, db: { schema: 'painel' }, global: { fetch: semCache } });
 }
 function criarApp() {
   const { url, key } = creds();
-  return createClient(url, key, { auth: authOpts });
+  return createClient(url, key, { auth: authOpts, global: { fetch: semCache } });
 }
 let _painel: ReturnType<typeof criarPainel> | null = null;
 let _app: ReturnType<typeof criarApp> | null = null;
