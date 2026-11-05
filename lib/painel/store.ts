@@ -411,13 +411,34 @@ export interface ClickInput {
   landed: string;
   visitor_hash: string | null;
   ip_hash: string | null;
+  /** Só o domínio de onde veio (ex.: l.instagram.com), nunca a URL inteira. */
   referrer: string | null;
   user_agent: string | null;
 }
 
-/** Grava o clique e devolve o id (= click_id que o app manda de volta). */
+/**
+ * Grava o clique e devolve o id (= click_id que o app manda de volta).
+ *
+ * Marca se é o 1º clique desse visitante para esse parceiro: o visitor_hash é
+ * apagado com 30 dias (painel.limpar_cliques_parceiros, migration 00098) e é
+ * essa marca que mantém a contagem de cliques únicos depois disso.
+ */
 export async function logClick(input: ClickInput): Promise<string | null> {
-  const { data, error } = await painelDb().from('link_clicks').insert(input).select('id').single();
+  const sb = painelDb();
+  let primeiro = true;
+  if (input.visitor_hash) {
+    const { count } = await sb
+      .from('link_clicks')
+      .select('id', { count: 'exact', head: true })
+      .eq('promo_code', input.promo_code)
+      .eq('visitor_hash', input.visitor_hash);
+    primeiro = !count;
+  }
+  const { data, error } = await sb
+    .from('link_clicks')
+    .insert({ ...input, primeiro_do_visitante: primeiro })
+    .select('id')
+    .single();
   if (error) console.error('[painel] link_clicks falhou:', error.message);
   return (data as { id: string } | null)?.id ?? null;
 }
@@ -435,35 +456,27 @@ function statsVazio(): ClickStats {
 }
 
 /**
- * Cliques, cliques únicos (por visitor_hash) e por aparelho, de TODOS os
- * parceiros numa leitura só (paginada: passa de 1.000 linhas rápido).
+ * Cliques, cliques únicos e por aparelho, de TODOS os parceiros numa leitura
+ * só (paginada: passa de 1.000 linhas rápido). Único = `primeiro_do_visitante`,
+ * marcado na hora do clique, porque o visitor_hash some com 30 dias.
  */
 export async function clickStatsPorCodigo(): Promise<Map<string, ClickStats>> {
-  const { data } = await lerTudo<{ promo_code: string; visitor_hash: string | null; device: string | null }>(
+  const { data } = await lerTudo<{ promo_code: string; primeiro_do_visitante: boolean; device: string | null }>(
     'link_clicks',
     (de, ate) =>
-      painelDb().from('link_clicks').select('promo_code,visitor_hash,device').order('id').range(de, ate),
+      painelDb().from('link_clicks').select('promo_code,primeiro_do_visitante,device').order('id').range(de, ate),
   );
   const out = new Map<string, ClickStats>();
-  const unicos = new Map<string, Set<string>>();
   for (const r of data) {
     const c = r.promo_code.toUpperCase();
     const st = out.get(c) ?? statsVazio();
     st.total++;
+    if (r.primeiro_do_visitante) st.unique++;
     if (r.device === 'ios') st.ios++;
     else if (r.device === 'android') st.android++;
     else if (r.device === 'desktop') st.desktop++;
     out.set(c, st);
-    if (r.visitor_hash) {
-      const set = unicos.get(c) ?? new Set<string>();
-      set.add(r.visitor_hash);
-      unicos.set(c, set);
-    }
   }
-  unicos.forEach((set, c) => {
-    const st = out.get(c);
-    if (st) st.unique = set.size;
-  });
   return out;
 }
 

@@ -25,6 +25,15 @@ function semCache(res: NextResponse): NextResponse {
   return res;
 }
 
+function dominio(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.slice(0, 120) || null;
+  } catch {
+    return null;
+  }
+}
+
 function escaparHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
@@ -89,7 +98,8 @@ export async function GET(req: NextRequest, { params }: { params: { code: string
       landed: previa.landed,
       visitor_hash: ip ? visitorHash(ip, ua) : null,
       ip_hash: ipHash(ip),
-      referrer: req.headers.get('referer'),
+      // Só o domínio: a URL inteira pode carregar identificador de quem clicou.
+      referrer: dominio(req.headers.get('referer')),
       user_agent: ua.slice(0, 500),
     })) || '';
   const { url } = destinoDoLink(codigo, device, clickId);
