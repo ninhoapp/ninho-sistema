@@ -173,10 +173,11 @@ export function commissionLabel(p: Perfil): string {
     p.commission_type === 'valor'
       ? `${formatBRL(Number(p.commission_amount) || 0)} / assinante`
       : `${Number(p.commission_percent) || 0}% da assinatura`;
-  const dur =
-    p.commission_duration_months && p.commission_duration_months > 0
-      ? `por ${p.commission_duration_months} ${p.commission_duration_months === 1 ? 'mês' : 'meses'}`
-      : 'vitalícia';
+  const n = p.commission_duration_months && p.commission_duration_months > 0 ? p.commission_duration_months : null;
+  // O anual consome 12 meses de duração numa cobrança só: com até 12 meses, paga 1x.
+  const dur = n
+    ? `por ${n} ${n === 1 ? 'mês' : 'meses'} no mensal${n <= 12 ? ' · 1x no anual' : ''}`
+    : 'vitalícia';
   return `${base} · ${dur}`;
 }
 

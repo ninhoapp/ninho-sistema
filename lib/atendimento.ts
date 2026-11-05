@@ -275,3 +275,109 @@ export async function excluirAprendizado(id: string): Promise<void> {
   const { error } = await appDb().from('atendimento_aprendizado').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+// ── Resgate: por que não assinaram (ENG-007, migration 00097 do Ninho-expo) ──
+// A Nina puxa conversa com quem terminou o teste e não assinou; o motivo que
+// ela entendeu chega aqui e no alerta do topo do painel até o dono marcar
+// como visto. Antes da migration a tabela não existe: tudo volta vazio.
+
+export const NOME_MOTIVO: Record<string, string> = {
+  preco: 'Preço',
+  funcionalidade: 'Falta um recurso',
+  problema: 'Algo não funcionou',
+  nao_precisa: 'Não precisa mais',
+  sem_tempo: 'Sem tempo',
+  outro_app: 'Usa outro app',
+  nao_quer_contato: 'Não quer contato',
+  outro: 'Outro',
+};
+
+export interface Resgate {
+  id: string;
+  profile_id: string;
+  registros: number;
+  app_version: string | null;
+  iniciado_em: string;
+  respondeu_em: string | null;
+  motivo: string | null;
+  motivo_resumo: string | null;
+  motivo_em: string | null;
+  codigo_oferecido: string | null;
+  visto_pelo_dono_em: string | null;
+  teste: boolean;
+  nome: string | null;
+  email: string | null;
+}
+
+export interface ResumoResgate {
+  iniciados: number;
+  responderam: number;
+  comMotivo: number;
+  codigos: number;
+  porMotivo: Record<string, number>;
+  ativo: boolean | null;
+}
+
+const COLUNAS_RESGATE =
+  'id, profile_id, registros, app_version, iniciado_em, respondeu_em, motivo, motivo_resumo, motivo_em, codigo_oferecido, visto_pelo_dono_em, teste';
+
+async function comNomes(linhas: Omit<Resgate, 'nome' | 'email'>[]): Promise<Resgate[]> {
+  if (linhas.length === 0) return [];
+  const ids = [...new Set(linhas.map((l) => l.profile_id))];
+  const [{ data: perfis }, emails] = await Promise.all([
+    appDb().from('profiles').select('id, full_name').in('id', ids),
+    emailsDe(ids),
+  ]);
+  const nomes = new Map(((perfis ?? []) as { id: string; full_name: string | null }[]).map((p) => [p.id, p.full_name]));
+  return linhas.map((l) => ({ ...l, nome: nomes.get(l.profile_id) ?? null, email: emails.get(l.profile_id) ?? null }));
+}
+
+/** Motivos novos (ainda não vistos) para a faixa do topo do painel. */
+export async function fetchAlertaResgate(): Promise<{ novos: number; ultimos: Resgate[] }> {
+  const { data, error, count } = await appDb()
+    .from('atendimento_resgates')
+    .select(COLUNAS_RESGATE, { count: 'exact' })
+    .not('motivo', 'is', null)
+    .neq('motivo', 'nao_quer_contato')
+    .is('visto_pelo_dono_em', null)
+    .order('motivo_em', { ascending: false })
+    .limit(3);
+  if (error) return { novos: 0, ultimos: [] };
+  return { novos: count ?? 0, ultimos: await comNomes((data ?? []) as Omit<Resgate, 'nome' | 'email'>[]) };
+}
+
+export async function fetchResgates(limite = 60): Promise<Resgate[]> {
+  const { data, error } = await appDb()
+    .from('atendimento_resgates')
+    .select(COLUNAS_RESGATE)
+    .order('iniciado_em', { ascending: false })
+    .limit(limite);
+  if (error) return [];
+  return comNomes((data ?? []) as Omit<Resgate, 'nome' | 'email'>[]);
+}
+
+export async function fetchResumoResgate(): Promise<ResumoResgate> {
+  const db = appDb();
+  const [{ data }, { data: cfg }] = await Promise.all([
+    db.from('atendimento_resgates').select('respondeu_em, motivo, codigo_oferecido').eq('teste', false),
+    db.from('nina_resgate_config').select('ativo').eq('id', true).maybeSingle(),
+  ]);
+  const linhas = (data ?? []) as { respondeu_em: string | null; motivo: string | null; codigo_oferecido: string | null }[];
+  const porMotivo: Record<string, number> = {};
+  for (const l of linhas) if (l.motivo) porMotivo[l.motivo] = (porMotivo[l.motivo] ?? 0) + 1;
+  return {
+    iniciados: linhas.length,
+    responderam: linhas.filter((l) => l.respondeu_em).length,
+    comMotivo: linhas.filter((l) => l.motivo).length,
+    codigos: linhas.filter((l) => l.codigo_oferecido).length,
+    porMotivo,
+    ativo: (cfg as { ativo: boolean } | null)?.ativo ?? null,
+  };
+}
+
+export async function marcarResgateVisto(id: string | null): Promise<void> {
+  let q = appDb().from('atendimento_resgates').update({ visto_pelo_dono_em: new Date().toISOString() }).is('visto_pelo_dono_em', null);
+  q = id ? q.eq('id', id) : q.not('motivo', 'is', null);
+  const { error } = await q;
+  if (error) throw new Error(error.message);
+}

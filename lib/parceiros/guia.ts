@@ -180,12 +180,12 @@ export const FAQ: Item[] = [
   {
     titulo: 'E se o assinante cancelar depois?',
     texto:
-      'O que a loja já cobrou continua valendo. Depois do cancelamento não há novas cobranças, então não há nova comissão.',
+      'Se a loja já cobrou a primeira mensalidade ou a anuidade, a sua comissão está garantida. Quem cancela ainda nos 7 dias grátis não gera comissão.',
   },
   {
-    titulo: 'Assinante do plano anual paga todo mês?',
+    titulo: 'Quanto eu ganho por assinante?',
     texto:
-      'Não. A loja cobra o ano de uma vez, e a comissão também entra uma vez por ano, no mês da cobrança.',
+      'No padrão, 25% do preço cheio da assinatura, sem descontar a taxa da loja: no plano mensal, sobre a primeira mensalidade; no plano anual, sobre a anuidade, uma única vez. Os valores de cada mês aparecem na sua tela de resultados.',
   },
   {
     titulo: 'Tem valor mínimo para receber?',

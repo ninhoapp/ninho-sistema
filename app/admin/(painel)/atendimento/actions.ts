@@ -7,6 +7,7 @@ import {
   alternarAprendizado,
   descartarPendencia,
   excluirAprendizado,
+  marcarResgateVisto,
   responderPendencia,
 } from '@/lib/atendimento';
 
@@ -70,4 +71,13 @@ export async function excluir(fd: FormData): Promise<void> {
   requireRole('admin');
   await excluirAprendizado(String(fd.get('id') ?? ''));
   revalidatePath(CAMINHO);
+}
+
+/** Resgate: tira o motivo do alerta do topo (sem id = todos). */
+export async function marcarVisto(fd: FormData): Promise<void> {
+  requireRole('admin');
+  const id = String(fd.get('id') ?? '');
+  await marcarResgateVisto(id || null);
+  revalidatePath(CAMINHO);
+  revalidatePath('/admin', 'layout');
 }

@@ -4,14 +4,18 @@ import {
   fetchPendencias,
   fetchResumoAtendimento,
   fetchCustoAtendimento,
+  fetchResgates,
+  fetchResumoResgate,
   NOME_CATEGORIA,
+  NOME_MOTIVO,
   type Pendencia,
+  type Resgate,
 } from '@/lib/atendimento';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
 import { Notice } from '@/components/admin/Notice';
 import { EnsinarForm, ResponderForm } from '@/components/admin/AtendimentoForms';
-import { alternar, descartar, excluir } from './actions';
+import { alternar, descartar, excluir, marcarVisto } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,6 +90,34 @@ function CartaoPendencia({ p }: { p: Pendencia }) {
   );
 }
 
+function LinhaResgate({ r }: { r: Resgate }) {
+  const novo = Boolean(r.motivo) && !r.visto_pelo_dono_em;
+  const situacao = r.motivo ? (NOME_MOTIVO[r.motivo] ?? r.motivo) : r.respondeu_em ? 'Respondeu, sem motivo ainda' : 'Ainda não respondeu';
+  return (
+    <div className={`flex flex-wrap items-start gap-3 border-b border-ninho-borda p-4 text-sm last:border-b-0 ${novo ? 'bg-ninho-roxo-suave/40' : ''}`}>
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold text-ninho-grafite">
+          {situacao}
+          {r.codigo_oferecido ? <span className="ml-2 rounded-pill bg-ninho-lavanda px-2 py-0.5 text-xs text-ninho-roxo-escuro">recebeu o código</span> : null}
+          {r.teste ? <span className="ml-2 rounded-pill bg-ninho-nuvem px-2 py-0.5 text-xs text-ninho-cinza">teste</span> : null}
+        </p>
+        {r.motivo_resumo && <p className="mt-1 whitespace-pre-wrap text-ninho-grafite">{r.motivo_resumo}</p>}
+        <p className="mt-1 text-xs text-ninho-cinza">
+          {r.nome ?? 'Sem nome'} · {r.email ?? 'sem e-mail'} · {r.registros} registros · app {r.app_version ?? '?'} · puxada em {quando(r.iniciado_em)}
+        </p>
+      </div>
+      {novo && (
+        <form action={marcarVisto}>
+          <input type="hidden" name="id" value={r.id} />
+          <button type="submit" className="shrink-0 text-xs font-semibold text-ninho-roxo hover:underline">
+            Marcar como visto
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
 export default async function AtendimentoPage() {
   requireRole('admin');
 
@@ -99,7 +131,9 @@ export default async function AtendimentoPage() {
       fetchCustoAtendimento(1),
       fetchCustoAtendimento(30),
     ]);
-    dados = { abertas, respondidas, aprendizados, resumo, custoHoje, custo30 };
+    // Resgate (migration 00097): sem a tabela, a seção só não aparece.
+    const [resgates, resumoResgate] = await Promise.all([fetchResgates(), fetchResumoResgate()]);
+    dados = { abertas, respondidas, aprendizados, resumo, custoHoje, custo30, resgates, resumoResgate };
   } catch (e) {
     return (
       <>
@@ -112,7 +146,7 @@ export default async function AtendimentoPage() {
     );
   }
 
-  const { abertas, respondidas, aprendizados, resumo, custoHoje, custo30 } = dados;
+  const { abertas, respondidas, aprendizados, resumo, custoHoje, custo30, resgates, resumoResgate } = dados;
   return (
     <>
       <PageHeader
@@ -154,6 +188,54 @@ export default async function AtendimentoPage() {
           </div>
         )}
       </section>
+
+      {resumoResgate.ativo !== null && (
+        <section id="resgates" className="mb-10">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-bold text-ninho-grafite">Por que não assinaram</h2>
+            <span
+              className={`rounded-pill px-2.5 py-1 text-xs font-semibold ${
+                resumoResgate.ativo ? 'bg-emerald-100 text-emerald-800' : 'bg-ninho-nuvem text-ninho-cinza'
+              }`}
+            >
+              {resumoResgate.ativo ? 'Nina puxando conversa' : 'Desligado'}
+            </span>
+          </div>
+          <p className="mb-3 text-sm text-ninho-cinza">
+            A Nina manda uma mensagem (uma vez só) para quem terminou o teste há mais de 1 dia, usou bastante e não assinou. O motivo que ela entendeu aparece aqui e no topo do painel até você marcar como visto.
+          </p>
+          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatCard label="Conversas puxadas" value={resumoResgate.iniciados} />
+            <StatCard label="Responderam" value={resumoResgate.responderam} />
+            <StatCard label="Contaram o motivo" value={resumoResgate.comMotivo} />
+            <StatCard label="Receberam o código" value={resumoResgate.codigos} />
+          </div>
+          {Object.keys(resumoResgate.porMotivo).length > 0 && (
+            <p className="mb-3 text-sm text-ninho-grafite">
+              {Object.entries(resumoResgate.porMotivo)
+                .sort((a, b) => b[1] - a[1])
+                .map(([m, n]) => `${NOME_MOTIVO[m] ?? m}: ${n}`)
+                .join(' · ')}
+            </p>
+          )}
+          {resgates.some((r) => r.motivo && !r.visto_pelo_dono_em) && (
+            <form action={marcarVisto} className="mb-3">
+              <button type="submit" className="text-xs font-semibold text-ninho-roxo hover:underline">
+                Marcar todos como vistos
+              </button>
+            </form>
+          )}
+          {resgates.length === 0 ? (
+            <p className="rounded-2xl border border-ninho-borda bg-white p-5 text-sm text-ninho-cinza">Nenhuma conversa puxada ainda.</p>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-ninho-borda bg-white">
+              {resgates.map((r) => (
+                <LinhaResgate key={r.id} r={r} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="mb-10">
         <h2 className="mb-1 text-lg font-bold text-ninho-grafite">O que a Nina aprendeu ({aprendizados.filter((a) => a.ativo).length} ativos)</h2>

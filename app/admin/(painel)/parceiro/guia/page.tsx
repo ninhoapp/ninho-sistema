@@ -297,10 +297,11 @@ export default function GuiaParceiroPage() {
         <Sub>Como a comissão é calculada</Sub>
         <Lista
           itens={[
-            'A comissão é combinada com cada parceiro: uma porcentagem da assinatura ou um valor fixo em reais por assinante, por um número de meses ou para sempre (vitalícia). A sua aparece na sua tela de resultados.',
+            'A comissão padrão é de 25% do preço cheio da assinatura (o preço da loja, sem descontar a taxa da Apple ou do Google) de cada pessoa que veio por você.',
+            'Plano mensal: 25% da primeira mensalidade cobrada (1 mês).',
+            'Plano anual: 25% da anuidade, uma única vez.',
             'Só conta quando a Apple ou o Google cobram de verdade. Quem cancela durante os 7 dias grátis não gera comissão.',
-            'Plano mensal: cada mês cobrado entra, dentro do prazo do seu acordo.',
-            'Plano anual: a loja cobra o ano de uma vez, então a comissão entra uma vez só por ano.',
+            'Se o seu acordo for diferente do padrão, vale o que está na sua tela de resultados.',
           ]}
         />
 

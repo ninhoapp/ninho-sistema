@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { fetchAlertaAtendimento } from '@/lib/atendimento';
+import { fetchAlertaAtendimento, fetchAlertaResgate, NOME_MOTIVO } from '@/lib/atendimento';
 
 /**
  * Faixa vermelha no topo de TODAS as páginas do painel enquanto houver
@@ -8,6 +8,15 @@ import { fetchAlertaAtendimento } from '@/lib/atendimento';
  * consulta falhar, não mostra nada: o alerta não pode derrubar o painel.
  */
 export async function AlertaAtendimento() {
+  return (
+    <>
+      <FaixaPendencias />
+      <FaixaResgate />
+    </>
+  );
+}
+
+async function FaixaPendencias() {
   let alerta: Awaited<ReturnType<typeof fetchAlertaAtendimento>>;
   try {
     alerta = await fetchAlertaAtendimento();
@@ -36,6 +45,46 @@ export async function AlertaAtendimento() {
         {texto}. A pessoa espera em até 48 horas.
       </span>
       <span className="shrink-0 rounded-pill bg-white px-3 py-1 text-xs text-red-700">Responder</span>
+    </Link>
+  );
+}
+
+/**
+ * Motivos de quem não assinou, que a Nina ouviu na conversa de resgate
+ * (pedido de 05/11/2026: ver no topo qual foi a justificativa de cada um).
+ * Fica até o dono marcar como visto em /admin/atendimento.
+ */
+async function FaixaResgate() {
+  let alerta: Awaited<ReturnType<typeof fetchAlertaResgate>>;
+  try {
+    alerta = await fetchAlertaResgate();
+  } catch {
+    return null;
+  }
+  if (alerta.novos === 0) return null;
+
+  return (
+    <Link
+      href="/admin/atendimento#resgates"
+      className="mb-4 block rounded-2xl border border-ninho-roxo bg-ninho-roxo-suave px-4 py-3 text-sm text-ninho-grafite shadow-sm transition hover:bg-ninho-lavanda"
+    >
+      <span className="flex items-center justify-between gap-3">
+        <span className="font-semibold text-ninho-roxo-escuro">
+          {alerta.novos === 1
+            ? '1 pessoa contou à Nina por que não assinou'
+            : `${alerta.novos} pessoas contaram à Nina por que não assinaram`}
+        </span>
+        <span className="shrink-0 rounded-pill bg-white px-3 py-1 text-xs font-semibold text-ninho-roxo-escuro">Ver</span>
+      </span>
+      <ul className="mt-2 flex flex-col gap-1">
+        {alerta.ultimos.map((r) => (
+          <li key={r.id} className="truncate">
+            <span className="font-semibold">{NOME_MOTIVO[r.motivo ?? ''] ?? r.motivo}</span>
+            {r.motivo_resumo ? ` · ${r.motivo_resumo}` : ''}
+            <span className="text-ninho-cinza"> · {r.nome ?? 'Sem nome'}</span>
+          </li>
+        ))}
+      </ul>
     </Link>
   );
 }

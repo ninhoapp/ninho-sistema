@@ -77,8 +77,13 @@ function CampoCodigo({ p }: { p?: Perfil }) {
   );
 }
 
+/** Padrão do parceiro (pedido do dono, 05/11/2026): 25% — 1 mês no plano
+ *  mensal e uma única vez no anual (o anual consome 12 meses de duração numa
+ *  cobrança só, ver lib/parceiros.ts). */
+const PADRAO_PARCEIRO = { percent: 25, meses: 1 };
+
 /** Campos de comissão — conversor e parceiro. */
-function CamposComissao({ p }: { p?: Perfil }) {
+function CamposComissao({ p, parceiroNovo = false }: { p?: Perfil; parceiroNovo?: boolean }) {
   const [tipo, setTipo] = useState<'valor' | 'percentual'>(p?.commission_type ?? 'percentual');
   return (
     <div className="grid gap-3 sm:grid-cols-3">
@@ -103,7 +108,7 @@ function CamposComissao({ p }: { p?: Perfil }) {
             step="0.01"
             min="0"
             max="100"
-            defaultValue={p?.commission_percent ?? 0}
+            defaultValue={p?.commission_percent ?? (parceiroNovo ? PADRAO_PARCEIRO.percent : 0)}
             className={`${inputCls} mt-1`}
           />
         </label>
@@ -127,10 +132,15 @@ function CamposComissao({ p }: { p?: Perfil }) {
           type="number"
           min="0"
           placeholder="vazio = vitalícia"
-          defaultValue={p?.commission_duration_months ?? ''}
+          defaultValue={p?.commission_duration_months ?? (parceiroNovo ? PADRAO_PARCEIRO.meses : '')}
           className={`${inputCls} mt-1`}
         />
       </label>
+      {parceiroNovo && (
+        <p className="text-[11px] text-ninho-roxo-escuro sm:col-span-3">
+          Padrão do parceiro: 25% por 1 mês no plano mensal e 25% uma única vez no anual.
+        </p>
+      )}
     </div>
   );
 }
@@ -182,7 +192,7 @@ function FormNovo() {
         </div>
       </label>
       {role === 'influencer' && <CampoCodigo />}
-      {role !== 'admin' && <CamposComissao />}
+      {role !== 'admin' && <CamposComissao key={role} parceiroNovo={role === 'influencer'} />}
       <div>
         <Submit label="Criar perfil" />
       </div>

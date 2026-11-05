@@ -502,5 +502,10 @@ export async function atribuirParceiro(
   const { error } = await sb
     .from('indicacao_parceiro')
     .upsert({ profile_id: profileId, promo_code: code, click_id: null, metodo: 'manual' }, { onConflict: 'profile_id' });
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  // Veio de parceiro = Grupo A (migration 00098): quem estava no B sem cartão
+  // ganha os 7 dias grátis. Falhar aqui não desfaz a atribuição.
+  const grupo = await sb.rpc('parceiro_ir_para_grupo_a', { p_profile: profileId });
+  if (grupo.error) console.error('[painel] parceiro_ir_para_grupo_a falhou:', grupo.error.message);
+  return { ok: true };
 }
