@@ -2,14 +2,16 @@
  * Ninho · Acesso às tabelas do painel (schema `painel`, service_role).
  * Server-only.
  *
- * Diferenças em relação ao SOMI, por o Ninho não ter influencer:
- *  - sem `promo_code`, `play_url`, `apple_url` (código de divulgação);
- *  - sem `link_clicks` / `install_events` (atribuição de instalação).
- * A comissão do conversor sai dos leads que ele marca como convertido em
- * `lead_outcomes` — o mesmo caminho que o SOMI já usa pro papel conversor.
+ * Dois tipos de quem recebe comissão:
+ *  - conversor: sobre os leads que ele marca como convertido em `lead_outcomes`;
+ *  - influencer (parceiro, desde 05/11/2026, igual ao SOMI): sobre as contas
+ *    atribuídas ao `promo_code` dele em `public.indicacao_parceiro`. Os cliques
+ *    do link /r/<código> ficam em `link_clicks` e as instalações em
+ *    `install_events` (migration 00096 do app).
  */
 import { randomUUID } from 'crypto';
-import { painelDb } from '@/lib/supabase/server';
+import { painelDb, appDb } from '@/lib/supabase/server';
+import { lerTudo } from '@/lib/supabase/paginar';
 import { hashPassword } from '@/lib/auth/password';
 import type { Role } from '@/lib/auth/session';
 
@@ -26,8 +28,19 @@ export interface Perfil {
   commission_percent: number; // % da assinatura (quando type='percentual')
   commission_duration_months: number | null; // null = vitalícia
   pix_key: string | null;
+  /** Código do parceiro (só papel influencer). Link: /r/<código>. */
+  promo_code: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Perfil sem o hash da senha — é o que pode ir para um Client Component. */
+export type PerfilView = Omit<Perfil, 'password_hash'>;
+
+export function semSenha(p: Perfil): PerfilView {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { password_hash, ...resto } = p;
+  return resto;
 }
 
 export interface Cost {
@@ -62,19 +75,28 @@ export interface LeadOutcome {
  * e aí se perde muito tempo procurando no lugar errado.
  */
 export async function findPerfilByLogin(login: string): Promise<Perfil | null> {
-  const sb = painelDb();
   const value = login.trim().toLowerCase();
-  const { data, error } = await sb
-    .from('perfis')
-    .select('*')
-    .or(`username.eq.${value},email.eq.${value}`)
-    .eq('active', true)
-    .limit(1)
-    .maybeSingle();
-  if (error) {
-    throw new Error(`painel.perfis: ${error.message}${error.hint ? ` (${error.hint})` : ''}`);
+  // Login legítimo é usuário ou e-mail. Nada além disso precisa passar — e
+  // NÃO se interpola o texto num `.or()`: ele recebe filtro cru do PostgREST,
+  // e um login como `x,role.eq.admin` injetaria um filtro (falha que o SOMI
+  // já corrigiu). Duas consultas com `.eq()`, que é parametrizado.
+  if (!value || value.length > 254 || !/^[a-z0-9._@+-]+$/.test(value)) return null;
+
+  const sb = painelDb();
+  for (const coluna of ['username', 'email'] as const) {
+    const { data, error } = await sb
+      .from('perfis')
+      .select('*')
+      .eq(coluna, value)
+      .eq('active', true)
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      throw new Error(`painel.perfis: ${error.message}${error.hint ? ` (${error.hint})` : ''}`);
+    }
+    if (data) return data as Perfil;
   }
-  return (data as Perfil) ?? null;
+  return null;
 }
 
 export async function getPerfil(id: string): Promise<Perfil | null> {
@@ -99,9 +121,11 @@ export async function createPerfil(input: {
   commission_amount?: number;
   commission_percent?: number;
   commission_duration_months?: number | null;
+  promo_code?: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
   const sb = painelDb();
   const { error } = await sb.from('perfis').insert({
+    promo_code: normalizarCodigo(input.promo_code),
     username: input.username.trim().toLowerCase(),
     email: input.email?.trim().toLowerCase() || null,
     password_hash: hashPassword(input.password),
@@ -113,7 +137,8 @@ export async function createPerfil(input: {
     commission_duration_months: input.commission_duration_months ?? null,
   });
   if (error) {
-    if (error.code === '23505') return { ok: false, error: 'Esse usuário já está em uso.' };
+    if (error.code === '23505') return { ok: false, error: 'Esse usuário, e-mail ou código já está em uso.' };
+    if (error.code === '23514') return { ok: false, error: 'Código inválido: use de 2 a 40 letras, números, ponto, hífen ou _.' };
     return { ok: false, error: error.message };
   }
   return { ok: true };
@@ -133,6 +158,7 @@ export async function updatePerfil(
       | 'commission_duration_months'
       | 'active'
       | 'pix_key'
+      | 'promo_code'
     >
   >
 ): Promise<{ ok: boolean; error?: string }> {
@@ -142,7 +168,8 @@ export async function updatePerfil(
     .update({ ...patch, updated_at: new Date().toISOString() })
     .eq('id', id);
   if (error) {
-    if (error.code === '23505') return { ok: false, error: 'Esse usuário já está em uso.' };
+    if (error.code === '23505') return { ok: false, error: 'Esse usuário, e-mail ou código já está em uso.' };
+    if (error.code === '23514') return { ok: false, error: 'Código inválido: use de 2 a 40 letras, números, ponto, hífen ou _.' };
     return { ok: false, error: error.message };
   }
   return { ok: true };
@@ -345,5 +372,135 @@ export async function hideLead(profileId: string, perfilId: string | null, reaso
 export async function unhideLead(profileId: string) {
   const sb = painelDb();
   const { error } = await sb.from('lead_hidden').delete().eq('profile_id', profileId);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+// ── Parceiros: código, cliques e instalações ──────────────
+/** Formato aceito de código de parceiro (igual à constraint do banco). */
+export const PROMO_CODE_RE = /^[A-Z0-9._-]{2,40}$/;
+
+/** Maiúsculas, sem espaço; vazio vira null. */
+export function normalizarCodigo(v: string | null | undefined): string | null {
+  const c = (v ?? '').trim().toUpperCase();
+  return c ? c : null;
+}
+
+/**
+ * Parceiro ativo pelo código da URL (/r/<codigo>). Valida o formato antes:
+ * sem isso, `%` ou `_` num `.ilike()` casariam qualquer parceiro (falha que
+ * o SOMI teve). O código é gravado sempre em maiúsculas, então `.eq()` basta.
+ */
+export async function findParceiroPorCodigo(code: string): Promise<Perfil | null> {
+  const value = code.trim().toUpperCase();
+  if (!PROMO_CODE_RE.test(value)) return null;
+  const { data } = await painelDb()
+    .from('perfis')
+    .select('*')
+    .eq('promo_code', value)
+    .eq('role', 'influencer')
+    .eq('active', true)
+    .limit(1)
+    .maybeSingle();
+  return (data as Perfil) ?? null;
+}
+
+export interface ClickInput {
+  perfil_id: string;
+  promo_code: string;
+  device: string;
+  landed: string;
+  visitor_hash: string | null;
+  ip_hash: string | null;
+  referrer: string | null;
+  user_agent: string | null;
+}
+
+/** Grava o clique e devolve o id (= click_id que o app manda de volta). */
+export async function logClick(input: ClickInput): Promise<string | null> {
+  const { data, error } = await painelDb().from('link_clicks').insert(input).select('id').single();
+  if (error) console.error('[painel] link_clicks falhou:', error.message);
+  return (data as { id: string } | null)?.id ?? null;
+}
+
+export interface ClickStats {
+  total: number;
+  unique: number;
+  ios: number;
+  android: number;
+  desktop: number;
+}
+
+function statsVazio(): ClickStats {
+  return { total: 0, unique: 0, ios: 0, android: 0, desktop: 0 };
+}
+
+/**
+ * Cliques, cliques únicos (por visitor_hash) e por aparelho, de TODOS os
+ * parceiros numa leitura só (paginada: passa de 1.000 linhas rápido).
+ */
+export async function clickStatsPorCodigo(): Promise<Map<string, ClickStats>> {
+  const { data } = await lerTudo<{ promo_code: string; visitor_hash: string | null; device: string | null }>(
+    'link_clicks',
+    (de, ate) =>
+      painelDb().from('link_clicks').select('promo_code,visitor_hash,device').order('id').range(de, ate),
+  );
+  const out = new Map<string, ClickStats>();
+  const unicos = new Map<string, Set<string>>();
+  for (const r of data) {
+    const c = r.promo_code.toUpperCase();
+    const st = out.get(c) ?? statsVazio();
+    st.total++;
+    if (r.device === 'ios') st.ios++;
+    else if (r.device === 'android') st.android++;
+    else if (r.device === 'desktop') st.desktop++;
+    out.set(c, st);
+    if (r.visitor_hash) {
+      const set = unicos.get(c) ?? new Set<string>();
+      set.add(r.visitor_hash);
+      unicos.set(c, set);
+    }
+  }
+  unicos.forEach((set, c) => {
+    const st = out.get(c);
+    if (st) st.unique = set.size;
+  });
+  return out;
+}
+
+export function statsDe(mapa: Map<string, ClickStats>, code: string | null): ClickStats {
+  return (code && mapa.get(code.toUpperCase())) || statsVazio();
+}
+
+/** Instalações atribuídas (métrica "Downloads") por código. */
+export async function installsPorCodigo(): Promise<Map<string, number>> {
+  const { data } = await lerTudo<{ promo_code: string }>('install_events', (de, ate) =>
+    painelDb().from('install_events').select('promo_code').order('id').range(de, ate),
+  );
+  const out = new Map<string, number>();
+  for (const r of data) {
+    const c = r.promo_code.toUpperCase();
+    out.set(c, (out.get(c) ?? 0) + 1);
+  }
+  return out;
+}
+
+/**
+ * Atribuição manual pelo painel (service_role): grava, troca ou remove o
+ * parceiro de uma conta. É o único caminho que pode sobrescrever.
+ */
+export async function atribuirParceiro(
+  profileId: string,
+  promoCode: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const sb = appDb();
+  const code = normalizarCodigo(promoCode);
+  if (!code) {
+    const { error } = await sb.from('indicacao_parceiro').delete().eq('profile_id', profileId);
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }
+  if (!PROMO_CODE_RE.test(code)) return { ok: false, error: 'Código inválido.' };
+  const { error } = await sb
+    .from('indicacao_parceiro')
+    .upsert({ profile_id: profileId, promo_code: code, click_id: null, metodo: 'manual' }, { onConflict: 'profile_id' });
   return error ? { ok: false, error: error.message } : { ok: true };
 }

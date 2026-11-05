@@ -1,4 +1,4 @@
-import { requireSession } from '@/lib/auth/guard';
+import { requireSessionAtiva } from '@/lib/auth/guard';
 import { getPerfil } from '@/lib/painel/store';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { Notice } from '@/components/admin/Notice';
@@ -11,10 +11,11 @@ export const dynamic = 'force-dynamic';
 const ROLE_LABEL: Record<string, string> = {
   admin: 'Administrador',
   conversor: 'Conversor',
+  influencer: 'Parceiro',
 };
 
 export default async function ContaPage() {
-  const session = requireSession();
+  const session = await requireSessionAtiva();
   const perfil = await getPerfil(session.sub);
 
   return (
@@ -51,7 +52,7 @@ export default async function ContaPage() {
         <ChangePasswordForm />
       </section>
 
-      {session.role === 'conversor' && (
+      {(session.role === 'conversor' || session.role === 'influencer') && (
         <section>
           <h2 className="mb-1 text-base font-bold text-ninho-grafite">Chave PIX</h2>
           <p className="mb-4 text-sm text-ninho-cinza">

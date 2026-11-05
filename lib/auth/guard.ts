@@ -38,3 +38,24 @@ export function requireRole(roles: Role | Role[]): SessionData {
   }
   return s;
 }
+
+/**
+ * Sessão válida E perfil ainda ativo no banco, com o papel do banco.
+ *
+ * O cookie vale 7 dias e só prova quem a pessoa ERA. Parceiro (influencer) é
+ * gente de fora: desativar ou excluir precisa cortar o acesso na hora, não
+ * daqui a uma semana (mesma correção que o SOMI já fez no guard dele).
+ * Use em toda tela e ação que um parceiro ou conversor acessa.
+ */
+export async function requireSessionAtiva(roles?: Role | Role[]): Promise<SessionData> {
+  const s = requireSession();
+  const { getPerfil } = await import('@/lib/painel/store');
+  const perfil = await getPerfil(s.sub);
+  if (!perfil || !perfil.active) redirect('/admin/login?erro=sessao');
+  const atual: SessionData = { ...s, role: perfil.role, username: perfil.username, name: perfil.display_name };
+  if (roles) {
+    const allowed = Array.isArray(roles) ? roles : [roles];
+    if (!allowed.includes(atual.role)) redirect('/admin');
+  }
+  return atual;
+}

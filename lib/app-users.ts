@@ -61,6 +61,11 @@ export interface AppUser {
   /** Id da campanha do Apple Ads, quando `origem === 'apple_ads'`. O nome
    *  da campanha está no painel do Apple Ads — a Apple só devolve o id. */
   appleAdsCampaignId: number | null;
+  /** Código do parceiro (influenciador) que trouxe a conta, em maiúsculas.
+   *  Null = não veio de parceiro. Fonte: public.indicacao_parceiro (00096). */
+  parceiroCodigo: string | null;
+  /** link = link rastreado; codigo = digitou no app; manual = o dono atribuiu. */
+  parceiroMetodo: 'link' | 'codigo' | 'manual' | null;
 }
 
 import { appDbConfigured, type StatusConta } from '@/lib/status-conta';
@@ -245,13 +250,34 @@ async function fetchAppleAds(): Promise<Map<string, AppleAdsRow>> {
   return out;
 }
 
+interface IndicacaoRow {
+  profile_id: string;
+  promo_code: string;
+  metodo: 'link' | 'codigo' | 'manual';
+}
+
+/** Parceiro de cada conta. Falha não derruba o painel: ninguém aparece com
+ *  parceiro (e o erro vai pro log). */
+async function fetchIndicacoes(): Promise<Map<string, IndicacaoRow>> {
+  const out = new Map<string, IndicacaoRow>();
+  const { data, error } = await lerTudo<IndicacaoRow>('indicacao_parceiro', (de, ate) =>
+    appDb().from('indicacao_parceiro').select('profile_id,promo_code,metodo').order('profile_id').range(de, ate),
+  );
+  if (error) {
+    console.error('[painel] indicacao_parceiro falhou:', error.message);
+    return out;
+  }
+  for (const r of (data as IndicacaoRow[] | null) ?? []) out.set(r.profile_id, r);
+  return out;
+}
+
 async function fetchAppUsersRaw(): Promise<AppUser[]> {
   if (!appDbConfigured()) return [];
   const sb = appDb();
 
   // profiles e a view não têm FK declarada entre si, então PostgREST não faz o
   // embed — busca separado e junta aqui.
-  const [profilesRes, estadosRes, efetivosRes, nascimentos, assinouEm, appleAds] = await Promise.all([
+  const [profilesRes, estadosRes, efetivosRes, nascimentos, assinouEm, appleAds, indicacoes] = await Promise.all([
     lerTudo<ProfileRow>('profiles', (de, ate) =>
       sb
         .from('profiles')
@@ -272,6 +298,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
     fetchPrimeiroNascimento(),
     fetchAssinouEm(),
     fetchAppleAds(),
+    fetchIndicacoes(),
   ]);
 
   // O e-mail vem de `usuarios_admin` (que lê auth.users). A API admin de auth
@@ -291,6 +318,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
     const teste = ajustarTesteLoja(e, corrigirChurnPorData(e), assinouEm.get(p.id) ?? null);
     const estadoProprio = teste.estado;
     const apple = appleAds.get(p.id);
+    const ind = indicacoes.get(p.id);
     return {
       id: p.id,
       name: p.full_name,
@@ -326,6 +354,8 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
       appleAdsCampaignId: appleAdsValido(apple?.atribuido === true, apple?.campaign_id ?? null)
         ? apple!.campaign_id
         : null,
+      parceiroCodigo: ind ? ind.promo_code.toUpperCase() : null,
+      parceiroMetodo: ind?.metodo ?? null,
     };
   });
 }
@@ -342,7 +372,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
  *  - `cache` do React: dentro de uma mesma requisição não vai ao banco 2x.
  */
 export const fetchAppUsers = cache(
-  unstable_cache(fetchAppUsersRaw, ['app-users-v3'], { revalidate: 60, tags: [APP_USERS_TAG] })
+  unstable_cache(fetchAppUsersRaw, ['app-users-v4'], { revalidate: 60, tags: [APP_USERS_TAG] })
 );
 
 /**

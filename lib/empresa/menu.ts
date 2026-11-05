@@ -58,6 +58,8 @@ export const MENU_ADMIN: GrupoMenu[] = [
     id: 'cre', nome: 'Crescimento', cor: COR_SETOR.cre, equipe: '/admin/empresa/cre',
     abas: [
       { href: '/admin/crescimento', label: 'KPI de crescimento' },
+      { href: '/admin/parceiros', label: 'Parceiros' },
+      { href: '/admin/parceiro/guia', label: 'Guia do parceiro' },
       { href: '/admin/instagram', label: 'Instagram' },
     ],
   },

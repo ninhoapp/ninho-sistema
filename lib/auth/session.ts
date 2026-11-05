@@ -5,9 +5,10 @@
  * Payload: { sub, username, role, name }. Validade 7 dias.
  * Server-only (usa next/headers + crypto).
  *
- * Papéis: 'admin' e 'conversor'. O Ninho não tem influencer — não há links de
- * divulgação nem atribuição de instalação. A comissão do conversor sai dos
- * leads que ele marca como convertido (lead_outcomes), não de código promo.
+ * Papéis: 'admin', 'conversor' e 'influencer' (parceiro com link rastreável,
+ * desde 05/11/2026 — mesmo sistema do SOMI). A comissão do conversor sai dos
+ * leads que ele marca como convertido (lead_outcomes); a do parceiro, das
+ * contas atribuídas ao código dele (public.indicacao_parceiro).
  */
 import { cookies } from 'next/headers';
 import { createHmac, timingSafeEqual } from 'crypto';
@@ -15,7 +16,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 export const SESSION_COOKIE = 'ninho_admin_session';
 const MAX_AGE = 60 * 60 * 24 * 7; // 7 dias
 
-export type Role = 'admin' | 'conversor';
+export type Role = 'admin' | 'conversor' | 'influencer';
 
 export interface SessionData {
   sub: string; // id do perfil na tabela do painel
@@ -87,5 +88,7 @@ export function clearSessionCookie() {
 
 /** Rota destino conforme papel. */
 export function homeForRole(role: Role): string {
-  return role === 'admin' ? '/admin/visao-geral' : '/admin/conversor';
+  if (role === 'admin') return '/admin/visao-geral';
+  if (role === 'influencer') return '/admin/parceiro';
+  return '/admin/conversor';
 }

@@ -11,15 +11,20 @@ interface NavItem {
 }
 
 /**
- * O Ninho não tem influencer — só admin e conversor. Por isso não existem
- * aqui as entradas de "Parceiros"/"Influenciadores" nem nada ligado a link
- * de divulgação ou atribuição de instalação.
+ * Três papéis: admin, conversor e parceiro (influencer, desde 05/11/2026).
+ * Conversor e parceiro veem só o próprio painel e a conta.
  *
  * O admin vê o menu organizado pelos setores do prédio (lib/empresa/menu.ts):
  * cada setor abre a equipe dele e lista as abas que são dele.
  */
 const CONVERSOR: NavItem[] = [
   { href: '/admin/conversor', label: 'Meu painel' },
+  { href: '/admin/conta', label: 'Minha conta' },
+];
+
+const PARCEIRO: NavItem[] = [
+  { href: '/admin/parceiro', label: 'Meus resultados' },
+  { href: '/admin/parceiro/guia', label: 'Guia do parceiro' },
   { href: '/admin/conta', label: 'Minha conta' },
 ];
 
@@ -35,7 +40,7 @@ export function SidebarNav({ role }: { role: Role }) {
   if (role !== 'admin') {
     return (
       <nav className="flex flex-col gap-1">
-        {CONVERSOR.map((i) => (
+        {(role === 'influencer' ? PARCEIRO : CONVERSOR).map((i) => (
           <Link key={i.href} href={i.href} className={item(pathname === i.href)}>{i.label}</Link>
         ))}
       </nav>

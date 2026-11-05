@@ -1,5 +1,5 @@
 import { requireRole } from '@/lib/auth/guard';
-import { listPerfis } from '@/lib/painel/store';
+import { listPerfis, semSenha } from '@/lib/painel/store';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { PerfisManager } from '@/components/admin/PerfisManager';
 
@@ -13,9 +13,9 @@ export default async function PerfisPage() {
     <>
       <PageHeader
         title="Gerenciar perfis"
-        subtitle="Quem tem acesso ao painel. É aqui que se cria o login do conversor e se define a comissão dele."
+        subtitle="Quem tem acesso ao painel. É aqui que se cria o login do conversor ou do parceiro (influenciador), com o código e a comissão."
       />
-      <PerfisManager perfis={perfis} meuId={session.sub} />
+      <PerfisManager perfis={perfis.map(semSenha)} meuId={session.sub} />
     </>
   );
 }

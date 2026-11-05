@@ -9,7 +9,8 @@ import {
   removerPerfil,
   type ActionState,
 } from '@/app/admin/(painel)/admin-actions';
-import type { Perfil } from '@/lib/painel/store';
+import type { PerfilView as Perfil } from '@/lib/painel/store';
+import type { Role } from '@/lib/auth/session';
 import { PasswordInput } from '@/components/admin/PasswordInput';
 
 const inputCls =
@@ -40,7 +41,43 @@ function Msg({ state }: { state: ActionState }) {
   return null;
 }
 
-/** Campos de comissão — só fazem sentido para conversor. */
+const ROLE_LABEL: Record<Role, string> = {
+  admin: 'Administrador',
+  conversor: 'Conversor',
+  influencer: 'Parceiro',
+};
+
+/** Código do parceiro — vira o link /r/<código>. */
+function CampoCodigo({ p }: { p?: Perfil }) {
+  const [codigo, setCodigo] = useState(p?.promo_code ?? '');
+  const limpo = codigo.trim().toLowerCase();
+  return (
+    <label className="text-xs text-ninho-cinza">
+      Código do parceiro (sem espaço, ex.: MARIANA)
+      <input
+        name="promo_code"
+        value={codigo}
+        onChange={(e) => setCodigo(e.target.value.toUpperCase().replace(/\s/g, ''))}
+        maxLength={40}
+        className={`${inputCls} mt-1 font-mono uppercase`}
+        placeholder="MARIANA"
+        autoCapitalize="characters"
+      />
+      {limpo && (
+        <span className="mt-1 block text-[11px] text-ninho-roxo-escuro">
+          Link: www.useninho.com.br/r/{limpo}
+        </span>
+      )}
+      {p && (
+        <span className="mt-1 block text-[11px] text-ninho-cinza">
+          Trocar o código desliga o link antigo e as contas já atribuídas ao código antigo deixam de contar para ele.
+        </span>
+      )}
+    </label>
+  );
+}
+
+/** Campos de comissão — conversor e parceiro. */
 function CamposComissao({ p }: { p?: Perfil }) {
   const [tipo, setTipo] = useState<'valor' | 'percentual'>(p?.commission_type ?? 'percentual');
   return (
@@ -100,7 +137,7 @@ function CamposComissao({ p }: { p?: Perfil }) {
 
 function FormNovo() {
   const [state, action] = useFormState<ActionState, FormData>(criarPerfil, {});
-  const [role, setRole] = useState<'admin' | 'conversor'>('conversor');
+  const [role, setRole] = useState<Role>('conversor');
 
   return (
     <form action={action} className="flex flex-col gap-3 rounded-2xl border border-ninho-borda bg-white p-5">
@@ -129,10 +166,11 @@ function FormNovo() {
           <select
             name="role"
             value={role}
-            onChange={(e) => setRole(e.target.value as 'admin' | 'conversor')}
+            onChange={(e) => setRole(e.target.value as Role)}
             className={`${inputCls} mt-1`}
           >
             <option value="conversor">Conversor</option>
+            <option value="influencer">Parceiro (influenciador)</option>
             <option value="admin">Administrador</option>
           </select>
         </label>
@@ -143,7 +181,8 @@ function FormNovo() {
           <PasswordInput name="password" placeholder="Senha inicial" autoComplete="new-password" />
         </div>
       </label>
-      {role === 'conversor' && <CamposComissao />}
+      {role === 'influencer' && <CampoCodigo />}
+      {role !== 'admin' && <CamposComissao />}
       <div>
         <Submit label="Criar perfil" />
       </div>
@@ -172,7 +211,8 @@ function FormEditar({ p, ehVoce }: { p: Perfil; ehVoce: boolean }) {
         </span>
         <span className="flex items-center gap-2">
           <span className="rounded-pill bg-ninho-roxo-suave px-2.5 py-1 text-[11px] font-semibold text-ninho-roxo-escuro">
-            {p.role === 'admin' ? 'Administrador' : 'Conversor'}
+            {ROLE_LABEL[p.role]}
+            {p.promo_code ? ` · ${p.promo_code}` : ''}
           </span>
           {!p.active && (
             <span className="rounded-pill bg-ninho-nuvem px-2.5 py-1 text-[11px] text-ninho-cinza">
@@ -207,7 +247,8 @@ function FormEditar({ p, ehVoce }: { p: Perfil; ehVoce: boolean }) {
                 />
               </label>
             </div>
-            {p.role === 'conversor' && <CamposComissao p={p} />}
+            {p.role === 'influencer' && <CampoCodigo p={p} />}
+            {p.role !== 'admin' && <CamposComissao p={p} />}
             <label className="flex items-center gap-2 text-sm text-ninho-grafite">
               <input type="checkbox" name="active" defaultChecked={p.active} />
               Perfil ativo (desmarcar bloqueia o login)

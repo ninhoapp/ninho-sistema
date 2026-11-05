@@ -9,6 +9,7 @@ import { Notice } from '@/components/admin/Notice';
 import { Tabela, Td } from '@/components/admin/Tabela';
 import { ExportExcelButton } from '@/components/admin/ExportExcelButton';
 import { IconCash, IconClock, IconUsers } from '@/components/admin/icons';
+import { repasseConfirmado, repasseDoParceiro, competencias, confirmadoDaCompetencia } from '@/lib/parceiros';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,22 @@ export default async function RepassesPage() {
   const semPix = repasses.filter((r) => r.consolidado > 0 && !r.perfil.pix_key);
   const sched = repasseSchedule();
 
+  // Parceiros (influenciadores): comissão por cobrança da loja (lib/parceiros.ts).
+  const comp = competencias();
+  const parceiros = perfis
+    .filter((p) => p.role === 'influencer')
+    .map((p) => {
+      const conf = repasseConfirmado(p, users);
+      return {
+        perfil: p,
+        pagantes: repasseDoParceiro(p, users).pagantes,
+        aPagar: confirmadoDaCompetencia(conf, comp.fechada),
+        emAberto: confirmadoDaCompetencia(conf, comp.aberta),
+      };
+    })
+    .filter((r) => r.pagantes > 0 || r.aPagar > 0 || r.emAberto > 0);
+  const totalParceiros = parceiros.reduce((s, r) => s + r.aPagar, 0);
+
   const paraExcel = repasses.map((r) => ({
     Conversor: r.perfil.display_name,
     Usuário: r.perfil.username,
@@ -37,13 +54,24 @@ export default async function RepassesPage() {
     Pagando: r.pagantes,
     'A pagar': r.consolidado,
     Previsto: r.previsao,
-  }));
+  })).concat(
+    parceiros.map((r) => ({
+      Conversor: `${r.perfil.display_name} (parceiro ${r.perfil.promo_code ?? ''})`,
+      Usuário: r.perfil.username,
+      Comissão: commissionLabel(r.perfil),
+      'Chave PIX': r.perfil.pix_key || '',
+      Convertidos: 0,
+      Pagando: r.pagantes,
+      'A pagar': r.aPagar,
+      Previsto: r.emAberto,
+    })),
+  );
 
   return (
     <>
       <PageHeader
         title="Repasses"
-        subtitle="Quanto pagar a cada conversor. A comissão sai dos leads que ele marcou como convertido e que hoje estão pagando."
+        subtitle="Quanto pagar a cada conversor e a cada parceiro. Conversor: leads que ele marcou como convertido e que hoje pagam. Parceiro: cobranças da loja nas contas que vieram do link ou do código dele."
         right={<ExportExcelButton rows={paraExcel} filename="ninho-repasses" sheetName="Repasses" />}
       />
 
@@ -97,6 +125,30 @@ export default async function RepassesPage() {
               {formatBRL(r.consolidado)}
             </Td>
             <Td className="whitespace-nowrap text-ninho-cinza">{formatBRL(r.previsao)}</Td>
+          </tr>
+        ))}
+      </Tabela>
+
+      <h2 className="mb-3 mt-8 text-base font-bold text-ninho-grafite">Parceiros (influenciadores)</h2>
+      <p className="mb-3 text-sm text-ninho-cinza">
+        A pagar = cobranças de {sched.consolidado.competencia} (Pix {fmtData(sched.consolidado.pagamentoEm)}). Em aberto =
+        cobranças de {sched.aberto.competencia} até agora. Total a pagar aos parceiros: {formatBRL(totalParceiros)}.
+      </p>
+      <Tabela
+        headers={['Parceiro', 'Código', 'Comissão', 'Chave PIX', 'Pagando', 'A pagar', 'Em aberto']}
+        vazio="Nenhum parceiro com valor ainda. Os números de cada um ficam em Crescimento > Parceiros."
+      >
+        {parceiros.map((r) => (
+          <tr key={r.perfil.id}>
+            <Td className="font-medium">{r.perfil.display_name}</Td>
+            <Td className="font-mono text-xs text-ninho-roxo-escuro">{r.perfil.promo_code || '—'}</Td>
+            <Td className="text-xs text-ninho-cinza">{commissionLabel(r.perfil)}</Td>
+            <Td className="font-mono text-xs">
+              {r.perfil.pix_key || <span className="text-red-500">não cadastrada</span>}
+            </Td>
+            <Td>{r.pagantes}</Td>
+            <Td className="whitespace-nowrap font-semibold text-ninho-roxo-escuro">{formatBRL(r.aPagar)}</Td>
+            <Td className="whitespace-nowrap text-ninho-cinza">{formatBRL(r.emAberto)}</Td>
           </tr>
         ))}
       </Tabela>

@@ -21,6 +21,9 @@ import {
   addOutcome,
   hideLead,
   unhideLead,
+  atribuirParceiro,
+  normalizarCodigo,
+  PROMO_CODE_RE,
   type LeadOutcome,
 } from '@/lib/painel/store';
 import { resetCostsMonth, resetConversorStats, resetLeadsOcultos } from '@/lib/reset';
@@ -47,13 +50,19 @@ export async function criarPerfil(_prev: ActionState, fd: FormData): Promise<Act
 
   if (!username || !display_name) return { error: 'Usuário e nome são obrigatórios.' };
   if (password.length < 8) return { error: 'A senha precisa ter ao menos 8 caracteres.' };
-  if (role !== 'admin' && role !== 'conversor') return { error: 'Papel inválido.' };
+  if (role !== 'admin' && role !== 'conversor' && role !== 'influencer') return { error: 'Papel inválido.' };
+  const promo_code = role === 'influencer' ? normalizarCodigo(String(fd.get('promo_code') || '')) : null;
+  if (role === 'influencer') {
+    if (!promo_code) return { error: 'O parceiro precisa de um código (ex.: MARIANA). Ele vira o link /r/mariana.' };
+    if (!PROMO_CODE_RE.test(promo_code)) return { error: 'Código inválido: use de 2 a 40 letras, números, ponto, hífen ou _ (sem espaço).' };
+  }
 
   const res = await createPerfil({
     username,
     display_name,
     password,
     role,
+    promo_code,
     email: String(fd.get('email') || '').trim() || null,
     commission_type: (String(fd.get('commission_type') || 'percentual') as 'valor' | 'percentual'),
     commission_amount: num(fd.get('commission_amount')),
@@ -66,6 +75,7 @@ export async function criarPerfil(_prev: ActionState, fd: FormData): Promise<Act
 
   revalidatePath('/admin/perfis');
   revalidatePath('/admin/conversores');
+  revalidatePath('/admin/parceiros');
   return { ok: true };
 }
 
@@ -74,7 +84,15 @@ export async function salvarPerfil(_prev: ActionState, fd: FormData): Promise<Ac
   const id = String(fd.get('id') || '');
   if (!id) return { error: 'Perfil não informado.' };
 
+  // Código só existe para parceiro; o campo só vem no formulário dele.
+  const temCodigo = fd.has('promo_code');
+  const promo_code = normalizarCodigo(String(fd.get('promo_code') || ''));
+  if (temCodigo && (!promo_code || !PROMO_CODE_RE.test(promo_code))) {
+    return { error: 'Código inválido: use de 2 a 40 letras, números, ponto, hífen ou _ (sem espaço).' };
+  }
+
   const res = await updatePerfil(id, {
+    ...(temCodigo ? { promo_code } : {}),
     display_name: String(fd.get('display_name') || '').trim(),
     email: String(fd.get('email') || '').trim() || null,
     commission_type: String(fd.get('commission_type') || 'percentual') as 'valor' | 'percentual',
@@ -89,6 +107,7 @@ export async function salvarPerfil(_prev: ActionState, fd: FormData): Promise<Ac
 
   revalidatePath('/admin/perfis');
   revalidatePath('/admin/conversores');
+  revalidatePath('/admin/parceiros');
   return { ok: true };
 }
 
@@ -355,4 +374,31 @@ export async function reexibirLead(fd: FormData) {
   await unhideLead(String(fd.get('profile_id') || ''));
   revalidatePath('/admin/conversor');
   revalidatePath('/admin/leads');
+}
+
+// ── Parceiros: atribuição manual ──────────────────────────
+/**
+ * Liga (ou desliga) uma conta a um parceiro. Muda de quem é a comissão, então
+ * pede a senha do admin (regra do painel para ação que altera dado).
+ */
+export async function atribuirParceiroAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const session = requireRole('admin');
+  const profileId = String(fd.get('profile_id') || '');
+  const code = normalizarCodigo(String(fd.get('promo_code') || ''));
+  const senha = String(fd.get('senha') || '');
+  if (!profileId) return { error: 'Conta não informada.' };
+  if (!senha) return { error: 'Informe sua senha para confirmar.' };
+
+  const perfil = await getPerfil(session.sub);
+  if (!perfil || !verifyPassword(senha, perfil.password_hash)) {
+    return { error: 'Senha incorreta. Nada foi alterado.' };
+  }
+
+  const res = await atribuirParceiro(profileId, code);
+  if (!res.ok) return { error: res.error || 'Falha ao salvar.' };
+
+  revalidateTag(APP_USERS_TAG);
+  revalidatePath('/admin/parceiros');
+  revalidatePath('/admin/repasses');
+  return { ok: true };
 }

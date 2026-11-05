@@ -27,6 +27,7 @@ import { BarChart } from '@/components/admin/BarChart';
 import { MonthFilter } from '@/components/admin/MonthFilter';
 import { VerticalBarChart } from '@/components/admin/VerticalBarChart';
 import { bucketByMonth, ultimosMeses } from '@/lib/dashboard-charts';
+import { repasseConfirmado } from '@/lib/parceiros';
 import { IconCash, IconCard, IconServer, IconScale } from '@/components/admin/icons';
 import { ORIGENS, ORIGEM_COR, ORIGEM_LABEL } from '@/lib/origem';
 import type { AppUser } from '@/lib/app-users';
@@ -76,13 +77,21 @@ export default async function FaturamentoPage({
   // cancelou depois de pagar ainda pôs dinheiro no caixa naquele mês.
   const receitaBruta = receitaBrutaDoMes(users, mes);
   const receitaLiquida = liquido(receitaBruta);
-  const pnl = buildPnL(receitaLiquida, custos, repasses, mes);
+  // Parceiros (influenciadores): comissão das cobranças do mês (competência),
+  // a mesma conta da tela Repasses. Entra no lucro como mais um repasse.
+  const parceirosConf = perfis.filter((p) => p.role === 'influencer').map((p) => ({ perfil: p, conf: repasseConfirmado(p, users) }));
+  const comoRepasse = (perfil: (typeof perfis)[number], valor: number) => ({
+    perfil, convertidos: 0, pagantes: 0, trials: 0, consolidado: valor, previsao: 0,
+  });
+  const repassesMes = repasses.concat(parceirosConf.map((x) => comoRepasse(x.perfil, x.conf.porCompetencia[mes] ?? 0)));
+  const repassesAcum = repasses.concat(parceirosConf.map((x) => comoRepasse(x.perfil, x.conf.total)));
+  const pnl = buildPnL(receitaLiquida, custos, repassesMes, mes);
 
   // Acumulado desde a primeira cobrança. `buildPnL` e `custosDoMes` sem mês
   // somam tudo — é a mesma conta do bloco mensal, só sem o recorte.
   const receitaBrutaAcum = receitaBrutaTotal(users);
   const receitaLiquidaAcum = liquido(receitaBrutaAcum);
-  const pnlAcum = buildPnL(receitaLiquidaAcum, custos, repasses);
+  const pnlAcum = buildPnL(receitaLiquidaAcum, custos, repassesAcum);
   const desdeMes = primeiroMesComReceita(users);
 
   // MRR continua existindo ao lado, como leitura de recorrência: é o que se

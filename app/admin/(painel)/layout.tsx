@@ -1,4 +1,4 @@
-import { requireSession } from '@/lib/auth/guard';
+import { requireSession, requireSessionAtiva } from '@/lib/auth/guard';
 import { signOut } from '@/app/admin/actions';
 import { AdminLogo } from '@/components/admin/AdminLogo';
 import { SidebarNav } from '@/components/admin/SidebarNav';
@@ -11,10 +11,15 @@ export const dynamic = 'force-dynamic';
 const ROLE_LABEL: Record<string, string> = {
   admin: 'Administrador',
   conversor: 'Conversor',
+  influencer: 'Parceiro',
 };
 
-export default function PainelLayout({ children }: { children: React.ReactNode }) {
-  const session = requireSession();
+export default async function PainelLayout({ children }: { children: React.ReactNode }) {
+  // Parceiro e conversor são gente de fora: confere no banco se o perfil
+  // ainda existe e está ativo (desativar corta o acesso na hora). O admin
+  // fica só no cookie, para o painel não travar se o banco piscar.
+  const cookie = requireSession();
+  const session = cookie.role === 'admin' ? cookie : await requireSessionAtiva();
 
   return (
     <div className="min-h-screen bg-ninho-nuvem text-ninho-grafite">
