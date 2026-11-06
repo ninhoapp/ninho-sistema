@@ -136,3 +136,29 @@ export function destinoDoLink(code: string, device: Device, clickId: string): { 
 export function ehNavegadorEmbutido(ua: string): boolean {
   return /Instagram|FBAN|FBAV|FB_IAB|musical_ly|TikTok|BytedanceWebview/i.test(ua);
 }
+
+/**
+ * Safari de verdade no iPhone (não Chrome, Firefox, Edge nem navegador de
+ * app). É o único que esconde o IP com a Retransmissão Privada do iCloud.
+ */
+export function ehSafariIphone(ua: string): boolean {
+  return (
+    /iPhone|iPad|iPod/i.test(ua) &&
+    /Version\/[\d.]+.*Safari\//.test(ua) &&
+    !/CriOS|FxiOS|EdgiOS|OPiOS|GSA\/|YaBrowser|DuckDuckGo/i.test(ua) &&
+    !ehNavegadorEmbutido(ua)
+  );
+}
+
+/** Domínio dos links rastreados (o app só aceita link copiado daqui). */
+export const DOMINIO_LINKS = 'www.useninho.com.br';
+
+/**
+ * O que a página copia para o app ler na 1ª abertura:
+ * https://www.useninho.com.br/r/<código>?c=<id do clique>.
+ */
+export function linkParaCopiar(codigo: string, clickId: string): string {
+  const u = new URL(`https://${DOMINIO_LINKS}/r/${encodeURIComponent(codigo)}`);
+  if (clickId) u.searchParams.set('c', clickId);
+  return u.toString();
+}
