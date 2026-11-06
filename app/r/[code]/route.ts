@@ -15,7 +15,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { detectDevice, LANDING_URL } from '@/lib/config';
 import { findParceiroPorCodigo, logClick } from '@/lib/painel/store';
-import { destinoDoLink, ehNavegadorEmbutido, ipDe, ipHash, visitorHash } from '@/lib/atribuicao';
+import { destinoDoLink, ehNavegadorEmbutido, familiaDoIp, ipDe, ipHash, visitorHash } from '@/lib/atribuicao';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,6 +103,11 @@ export async function GET(req: NextRequest, { params }: { params: { code: string
       user_agent: ua.slice(0, 500),
     })) || '';
   const { url } = destinoDoLink(codigo, device, clickId);
+  // Diagnóstico (a Vercel guarda 1 h): par do "[track/match]" do app.
+  console.log(
+    '[r] clique',
+    JSON.stringify({ codigo, click: clickId, ip: (ipHash(ip) || '').slice(0, 8), familia: familiaDoIp(ip), device }),
+  );
 
   const res =
     device === 'ios' && ehNavegadorEmbutido(ua)

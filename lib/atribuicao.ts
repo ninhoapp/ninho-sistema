@@ -54,14 +54,44 @@ export function ipDe(headers: Headers): string {
   return headers.get('x-forwarded-for')?.split(',')[0]?.trim() || headers.get('x-real-ip') || '';
 }
 
-/** Hash gravado no clique — só o IP, porque o User-Agent do app é outro. */
-export function ipHash(ip: string): string | null {
-  return ip ? sha(ip, salAtual()) : null;
+/**
+ * Parte do IP que identifica a rede. IPv4: o endereço inteiro. IPv6: só os
+ * primeiros 64 bits (/64), porque o iPhone troca a parte final do endereço
+ * (endereços temporários de privacidade) e o Safari e o app podem sair com
+ * finais diferentes na mesma rede.
+ */
+export function redeDoIp(ip: string): string {
+  const limpo = ip.trim().toLowerCase().replace(/^\[|\]$/g, '').split('%')[0];
+  if (!limpo.includes(':')) return limpo;
+  if (limpo.startsWith('::ffff:') && limpo.includes('.')) return limpo.slice(7); // IPv4 dentro de IPv6
+  const [ini, fim = ''] = limpo.split('::');
+  const a = ini ? ini.split(':') : [];
+  const b = limpo.includes('::') ? (fim ? fim.split(':') : []) : [];
+  const grupos = limpo.includes('::') ? [...a, ...Array(Math.max(0, 8 - a.length - b.length)).fill('0'), ...b] : a;
+  if (grupos.length < 4) return limpo;
+  return grupos.slice(0, 4).map((g) => (parseInt(g || '0', 16) || 0).toString(16)).join(':') + '::/64';
 }
 
-/** Todos os hashes possíveis desse IP (sal atual + legados), para a leitura. */
+/** 'v4' | 'v6' | 'nenhum' — só para o log de diagnóstico. */
+export function familiaDoIp(ip: string): 'v4' | 'v6' | 'nenhum' {
+  if (!ip) return 'nenhum';
+  return redeDoIp(ip).includes(':') ? 'v6' : 'v4';
+}
+
+/** Hash gravado no clique — só a rede do IP, porque o User-Agent do app é outro. */
+export function ipHash(ip: string): string | null {
+  return ip ? sha(redeDoIp(ip), salAtual()) : null;
+}
+
+/**
+ * Todos os hashes possíveis desse IP para a leitura: rede (/64 no IPv6) e,
+ * para cliques gravados antes dessa mudança, o endereço inteiro; em cada
+ * sal (atual + legados).
+ */
 export function ipHashesParaLeitura(ip: string): string[] {
-  return ip ? saisParaLeitura().map((s) => sha(ip, s)) : [];
+  if (!ip) return [];
+  const formas = Array.from(new Set([redeDoIp(ip), ip.trim()]));
+  return Array.from(new Set(saisParaLeitura().flatMap((s) => formas.map((f) => sha(f, s)))));
 }
 
 /** Visitante único = IP + navegador. */

@@ -14,7 +14,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { painelDb } from '@/lib/supabase/server';
-import { ipDe, ipHashesParaLeitura, JANELA_DIAS } from '@/lib/atribuicao';
+import { familiaDoIp, ipDe, ipHash, ipHashesParaLeitura, JANELA_DIAS } from '@/lib/atribuicao';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,8 +31,16 @@ export async function OPTIONS() {
 
 export async function POST(req: NextRequest) {
   try {
-    const hashes = ipHashesParaLeitura(ipDe(req.headers));
-    if (hashes.length === 0) return NextResponse.json({ ref: null }, { headers: CORS });
+    const ip = ipDe(req.headers);
+    const ua = req.headers.get('user-agent') || '';
+    // Diagnóstico (a Vercel guarda 1 h): compare o `ip` daqui com o do
+    // "[r] clique" do mesmo teste. Só o começo do hash, nunca o IP.
+    const diag = { ip: (ipHash(ip) || '').slice(0, 8), familia: familiaDoIp(ip), ua: ua.slice(0, 80) };
+    const hashes = ipHashesParaLeitura(ip);
+    if (hashes.length === 0) {
+      console.log('[track/match] sem IP', JSON.stringify(diag));
+      return NextResponse.json({ ref: null }, { headers: CORS });
+    }
 
     const desde = new Date(Date.now() - JANELA_DIAS * 86_400_000).toISOString();
     const sb = painelDb();
@@ -46,9 +54,12 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    if (!data?.promo_code) return NextResponse.json({ ref: null }, { headers: CORS });
+    if (!data?.promo_code) {
+      console.log('[track/match] nenhum clique desse IP', JSON.stringify(diag));
+      return NextResponse.json({ ref: null }, { headers: CORS });
+    }
+    console.log('[track/match] casou', JSON.stringify({ ...diag, codigo: data.promo_code, click: data.id }));
 
-    const ua = req.headers.get('user-agent') || '';
     const platform = /android|okhttp/i.test(ua) ? 'android' : /iphone|ipad|ios|darwin|cfnetwork/i.test(ua) ? 'ios' : null;
     const { error } = await sb
       .from('install_events')
