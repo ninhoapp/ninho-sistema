@@ -8,6 +8,10 @@ import {
   consultoraDoPerfil,
   familiasDa,
   fichaDe,
+  baseComissoes,
+  eventosDosLinks,
+  funilDaConsultora,
+  ultimosMesesFunil,
   pedidosVinculoDa,
   montarGanhos,
   rotinaDe,
@@ -16,6 +20,8 @@ import {
   type Ficha,
 } from '@/lib/consultoras';
 import { TelefonePais } from '@/components/TelefonePais';
+import { FunilTabela } from '@/components/consultoras/Funil';
+import { mesNoPainel } from '@/lib/dashboard-charts';
 import { telefoneLegivel } from '@/lib/telefone';
 import {
   PCT_DIRETO,
@@ -72,7 +78,7 @@ export default async function ConsultoraPage({ searchParams }: { searchParams: B
 
   let corpo: React.ReactNode;
   if (aba === 'rotina' || aba === 'semana') corpo = await Rotina({ c, sp: searchParams, semana: aba === 'semana' });
-  else if (aba === 'convidar') corpo = <Convidar c={c} />;
+  else if (aba === 'convidar') corpo = await Convidar({ c });
   else if (aba === 'ganhos') corpo = await Ganhos({ c, mes: searchParams.mes });
   else if (aba === 'indicar') corpo = await Indicar({ c });
   else if (aba === 'perfil') corpo = await Perfil({ c });
@@ -555,7 +561,9 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
 }
 
 // ── Convidar ──────────────────────────────────────────────
-function Convidar({ c }: { c: Consultora }) {
+async function Convidar({ c }: { c: Consultora }) {
+  const [base, eventos] = await Promise.all([baseComissoes(), eventosDosLinks()]);
+  const funil = funilDaConsultora(c.id, base.familias, eventos, ultimosMesesFunil(6));
   const link = `${SITE_URL}/c/${(c.codigo ?? '').toLowerCase()}`;
   const msg = `Oi! Para eu acompanhar a rotina do seu bebê, baixe o Ninho por este link: ${link}`;
   return (
@@ -595,13 +603,16 @@ function Convidar({ c }: { c: Consultora }) {
           <button className={`${botao.grad} mt-4`} disabled={c.estado !== 'ativa'}>Enviar convite</button>
         </form>
       </Card>
+      <Card titulo="Funil do seu link" direita="últimos 6 meses" className="mt-4">
+        <FunilTabela meses={funil} indisponivel={!eventos} />
+      </Card>
     </>
   );
 }
 
 // ── Ganhos ────────────────────────────────────────────────
 async function Ganhos({ c, mes }: { c: Consultora; mes?: string }) {
-  const g = await montarGanhos(c);
+  const [g, eventos] = await Promise.all([montarGanhos(c), eventosDosLinks()]);
   const { count: indicadas } = await appDb().from('consultoras').select('id', { count: 'exact', head: true }).eq('indicada_por', c.id);
   const meses = g.meses.map((m) => m.competencia);
   const m = mes && meses.includes(mes) ? mes : meses[0] ?? null;
@@ -632,7 +643,11 @@ async function Ganhos({ c, mes }: { c: Consultora; mes?: string }) {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi rotulo="Famílias" valor={g.resumo.familias} sub="compartilham a rotina" />
         <Kpi rotulo="Assinantes" valor={g.resumo.assinantes} sub="famílias suas que pagam hoje" />
-        <Kpi rotulo="Consultoras indicadas" valor={indicadas ?? g.resumo.indicadas} />
+        <Kpi
+          rotulo={`Cliques no seu link (${nomeMes(mesNoPainel(new Date()))})`}
+          valor={eventos ? eventos.cliques.filter((e) => e.consultora_id === c.id && mesNoPainel(e.quando) === mesNoPainel(new Date())).length : '—'}
+          sub={`${indicadas ?? g.resumo.indicadas} consultora${(indicadas ?? g.resumo.indicadas) === 1 ? '' : 's'} indicada${(indicadas ?? g.resumo.indicadas) === 1 ? '' : 's'} por você`}
+        />
         <Kpi
           verde
           rotulo={atual ? `Comissão de ${nomeMes(atual.competencia)} (R$)` : 'Comissão (R$)'}

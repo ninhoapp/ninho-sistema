@@ -447,6 +447,32 @@ export async function logClick(input: ClickInput): Promise<string | null> {
   return (data as { id: string } | null)?.id ?? null;
 }
 
+/**
+ * Clique no link /c/<código> de uma consultora (perfil_id nulo, consultora_id
+ * preenchido; migration 00112). Sem a 00112 a coluna não existe: não grava e
+ * devolve null (o link continua levando à loja).
+ */
+export async function logClickConsultora(input: Omit<ClickInput, 'perfil_id'> & { consultora_id: string }): Promise<string | null> {
+  const sb = painelDb();
+  let primeiro = true;
+  if (input.visitor_hash) {
+    const { data: anterior } = await sb
+      .from('link_clicks')
+      .select('id')
+      .eq('consultora_id', input.consultora_id)
+      .eq('visitor_hash', input.visitor_hash)
+      .limit(1);
+    primeiro = !anterior || anterior.length === 0;
+  }
+  const { data, error } = await sb
+    .from('link_clicks')
+    .insert({ ...input, perfil_id: null, primeiro_do_visitante: primeiro })
+    .select('id')
+    .single();
+  if (error) console.error('[painel] link_clicks (consultora) falhou:', error.message);
+  return (data as { id: string } | null)?.id ?? null;
+}
+
 export interface ClickStats {
   total: number;
   unique: number;
@@ -468,7 +494,8 @@ export async function clickStatsPorCodigo(): Promise<Map<string, ClickStats>> {
   const { data } = await lerTudo<{ promo_code: string; primeiro_do_visitante: boolean; device: string | null }>(
     'link_clicks',
     (de, ate) =>
-      painelDb().from('link_clicks').select('promo_code,primeiro_do_visitante,device').order('id').range(de, ate),
+      // Só cliques de parceiro: os do link /c/ da consultora têm perfil_id nulo.
+      painelDb().from('link_clicks').select('promo_code,primeiro_do_visitante,device').not('perfil_id', 'is', null).order('id').range(de, ate),
   );
   const out = new Map<string, ClickStats>();
   for (const r of data) {

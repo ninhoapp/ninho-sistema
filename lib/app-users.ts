@@ -66,6 +66,16 @@ export interface AppUser {
   parceiroCodigo: string | null;
   /** link = link rastreado; codigo = digitou no app; manual = o dono atribuiu. */
   parceiroMetodo: 'link' | 'codigo' | 'manual' | null;
+  /** Quando a conta foi atribuída ao parceiro (indicacao_parceiro.created_at). */
+  parceiroAtribuidoEm: string | null;
+  /** Quando a conta foi atribuída a uma consultora com método que gera comissão
+   *  (consultora_indicacoes: link, codigo_cadastro ou manual). */
+  consultoraAtribuidaEm: string | null;
+  /**
+   * Atribuição dupla (parceiro E consultora para a mesma conta): vale só o
+   * registro mais antigo (Henrique, 08/11/2026). Null = não é dupla.
+   */
+  atribuicaoDupla: 'vale_parceiro' | 'vale_consultora' | null;
 }
 
 import { appDbConfigured, type StatusConta } from '@/lib/status-conta';
@@ -254,6 +264,26 @@ interface IndicacaoRow {
   profile_id: string;
   promo_code: string;
   metodo: 'link' | 'codigo' | 'manual';
+  created_at: string | null;
+}
+
+/** Atribuição a consultora que gera comissão, por conta (data). Falha não derruba o painel. */
+async function fetchAtribuicaoConsultora(): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const { data, error } = await lerTudo<{ profile_id: string; criado_em: string }>('consultora_indicacoes', (de, ate) =>
+    appDb()
+      .from('consultora_indicacoes')
+      .select('profile_id,criado_em')
+      .in('metodo', ['link', 'codigo_cadastro', 'manual'])
+      .order('profile_id')
+      .range(de, ate),
+  );
+  if (error) {
+    console.error('[painel] consultora_indicacoes falhou:', error.message);
+    return out;
+  }
+  for (const r of data) out.set(r.profile_id, r.criado_em);
+  return out;
 }
 
 /** Parceiro de cada conta. Falha não derruba o painel: ninguém aparece com
@@ -261,7 +291,7 @@ interface IndicacaoRow {
 async function fetchIndicacoes(): Promise<Map<string, IndicacaoRow>> {
   const out = new Map<string, IndicacaoRow>();
   const { data, error } = await lerTudo<IndicacaoRow>('indicacao_parceiro', (de, ate) =>
-    appDb().from('indicacao_parceiro').select('profile_id,promo_code,metodo').order('profile_id').range(de, ate),
+    appDb().from('indicacao_parceiro').select('profile_id,promo_code,metodo,created_at').order('profile_id').range(de, ate),
   );
   if (error) {
     console.error('[painel] indicacao_parceiro falhou:', error.message);
@@ -271,13 +301,23 @@ async function fetchIndicacoes(): Promise<Map<string, IndicacaoRow>> {
   return out;
 }
 
+/**
+ * Parceiro E consultora na mesma conta: vale o registro mais antigo. Sem data
+ * no do parceiro (linha antiga), vale o parceiro. Empate: parceiro.
+ */
+function quemVale(parceiroEm: string | null, consultoraEm: string | null): AppUser['atribuicaoDupla'] {
+  if (parceiroEm === null || consultoraEm === null) return null;
+  if (!parceiroEm) return 'vale_parceiro';
+  return new Date(consultoraEm).getTime() < new Date(parceiroEm).getTime() ? 'vale_consultora' : 'vale_parceiro';
+}
+
 async function fetchAppUsersRaw(): Promise<AppUser[]> {
   if (!appDbConfigured()) return [];
   const sb = appDb();
 
   // profiles e a view não têm FK declarada entre si, então PostgREST não faz o
   // embed — busca separado e junta aqui.
-  const [profilesRes, estadosRes, efetivosRes, nascimentos, assinouEm, appleAds, indicacoes] = await Promise.all([
+  const [profilesRes, estadosRes, efetivosRes, nascimentos, assinouEm, appleAds, indicacoes, consultoraEm] = await Promise.all([
     lerTudo<ProfileRow>('profiles', (de, ate) =>
       sb
         .from('profiles')
@@ -299,6 +339,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
     fetchAssinouEm(),
     fetchAppleAds(),
     fetchIndicacoes(),
+    fetchAtribuicaoConsultora(),
   ]);
 
   // O e-mail vem de `usuarios_admin` (que lê auth.users). A API admin de auth
@@ -356,6 +397,9 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
         : null,
       parceiroCodigo: ind ? ind.promo_code.toUpperCase() : null,
       parceiroMetodo: ind?.metodo ?? null,
+      parceiroAtribuidoEm: ind?.created_at ?? null,
+      consultoraAtribuidaEm: consultoraEm.get(p.id) ?? null,
+      atribuicaoDupla: quemVale(ind?.created_at ?? (ind ? '' : null), consultoraEm.get(p.id) ?? null),
     };
   });
 }
@@ -372,7 +416,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
  *  - `cache` do React: dentro de uma mesma requisição não vai ao banco 2x.
  */
 export const fetchAppUsers = cache(
-  unstable_cache(fetchAppUsersRaw, ['app-users-v4'], { revalidate: 60, tags: [APP_USERS_TAG] })
+  unstable_cache(fetchAppUsersRaw, ['app-users-v5'], { revalidate: 60, tags: [APP_USERS_TAG] })
 );
 
 /**

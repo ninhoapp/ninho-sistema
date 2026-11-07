@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { requireRole, requireSessionAtiva } from '@/lib/auth/guard';
 import { verifyPassword } from '@/lib/auth/password';
+import { appDb } from '@/lib/supabase/server';
 import { atualizarFimTrial, APP_USERS_TAG } from '@/lib/app-users';
 import {
   previaExclusao,
@@ -34,6 +35,19 @@ export interface ActionState {
   ok?: boolean;
 }
 
+/**
+ * O código do parceiro não pode ser o de uma consultora: os cliques do /r/ e
+ * do /c/ ficam na mesma tabela (painel.link_clicks.promo_code).
+ */
+async function codigoDeConsultora(code: string): Promise<boolean> {
+  const { data, error } = await appDb().from('consultoras').select('id').eq('codigo', code.toUpperCase()).limit(1);
+  if (error) {
+    console.error('[admin] conferir código de consultora falhou:', error.message);
+    return false;
+  }
+  return (data?.length ?? 0) > 0;
+}
+
 function num(v: FormDataEntryValue | null): number {
   const n = Number(String(v ?? '').replace(',', '.'));
   return Number.isFinite(n) ? n : 0;
@@ -55,6 +69,7 @@ export async function criarPerfil(_prev: ActionState, fd: FormData): Promise<Act
   if (role === 'influencer') {
     if (!promo_code) return { error: 'O parceiro precisa de um código (ex.: MARIANA). Ele vira o link /r/mariana.' };
     if (!PROMO_CODE_RE.test(promo_code)) return { error: 'Código inválido: use de 2 a 40 letras, números, ponto, hífen ou _ (sem espaço).' };
+    if (await codigoDeConsultora(promo_code)) return { error: `O código ${promo_code} já é de uma consultora de sono. Escolha outro.` };
   }
 
   const res = await createPerfil({
@@ -87,6 +102,9 @@ export async function salvarPerfil(_prev: ActionState, fd: FormData): Promise<Ac
   // Código só existe para parceiro; o campo só vem no formulário dele.
   const temCodigo = fd.has('promo_code');
   const promo_code = normalizarCodigo(String(fd.get('promo_code') || ''));
+  if (temCodigo && promo_code && (await codigoDeConsultora(promo_code))) {
+    return { error: `O código ${promo_code} já é de uma consultora de sono. Escolha outro.` };
+  }
   if (temCodigo && (!promo_code || !PROMO_CODE_RE.test(promo_code))) {
     return { error: 'Código inválido: use de 2 a 40 letras, números, ponto, hífen ou _ (sem espaço).' };
   }

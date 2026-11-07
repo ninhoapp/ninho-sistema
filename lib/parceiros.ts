@@ -30,9 +30,18 @@ import {
 } from '@/lib/metrics';
 import { rotuloMes } from '@/lib/dashboard-charts';
 
+/**
+ * Contas do parceiro. Atribuição dupla (a conta também está com uma
+ * consultora): só conta aqui se o registro do parceiro for o mais antigo.
+ */
 export function contasDoParceiro(p: Perfil, users: AppUser[]): AppUser[] {
   const code = (p.promo_code || '').toUpperCase();
-  return code ? users.filter((u) => u.parceiroCodigo === code) : [];
+  return code ? users.filter((u) => u.parceiroCodigo === code && u.atribuicaoDupla !== 'vale_consultora') : [];
+}
+
+/** Contas com atribuição dupla (parceiro e consultora), para o alerta do painel. */
+export function contasComAtribuicaoDupla(users: AppUser[]): AppUser[] {
+  return users.filter((u) => u.atribuicaoDupla !== null);
 }
 
 // ── Estimado / previsão (foto de agora) ───────────────────

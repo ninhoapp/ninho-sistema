@@ -12,7 +12,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { requireRole } from '@/lib/auth/guard';
 import { verifyPassword } from '@/lib/auth/password';
-import { getPerfil } from '@/lib/painel/store';
+import { getPerfil, listPerfis } from '@/lib/painel/store';
 import { appDb, painelDb } from '@/lib/supabase/server';
 import {
   getConsultora,
@@ -117,11 +117,23 @@ function txt(fd: FormData, k: string): string {
 
 const agora = () => new Date().toISOString();
 
+/**
+ * Códigos já usados por consultoras E por parceiros: o clique do /c/ e do /r/
+ * fica na mesma tabela (painel.link_clicks.promo_code), então não pode repetir.
+ */
+async function codigosEmUso(): Promise<Set<string>> {
+  const [cs, ps] = await Promise.all([listConsultoras(), listPerfis()]);
+  return new Set([
+    ...cs.map((c) => c.codigo).filter((x): x is string => !!x),
+    ...ps.map((p) => (p.promo_code ?? '').toUpperCase()).filter(Boolean),
+  ]);
+}
+
 /** Código livre a partir de um desejado: NATHALIA, NATHALIA2, NATHALIA3... */
 async function codigoLivre(desejado: string): Promise<string | null> {
   const base = normalizarCodigo(desejado).slice(0, 18);
   if (base.length < 2) return null;
-  const usados = new Set((await listConsultoras()).map((c) => c.codigo).filter(Boolean));
+  const usados = await codigosEmUso();
   if (!usados.has(base)) return base;
   for (let i = 2; i < 100; i++) if (!usados.has(`${base}${i}`)) return `${base}${i}`;
   return null;
@@ -145,7 +157,7 @@ export async function liberarConsultora(fd: FormData) {
 
   const todas = await listConsultoras();
   if (todas.some((c) => c.email_liberado === email)) volta({ aba, erro: 'Esse e-mail já está liberado.' });
-  if (codigoDigitado && todas.some((c) => c.codigo === codigoDigitado)) volta({ aba, erro: `O código ${codigoDigitado} já existe. Escolha outro.` });
+  if (codigoDigitado && (await codigosEmUso()).has(codigoDigitado)) volta({ aba, erro: `O código ${codigoDigitado} já existe (consultora ou parceiro). Escolha outro.` });
   if (indicadaPor && !todas.some((c) => c.id === indicadaPor)) volta({ aba, erro: 'A consultora de "indicada por" não existe mais.' });
 
   const codigo = codigoDigitado || (await codigoLivre(codigoDoNome(nome)));

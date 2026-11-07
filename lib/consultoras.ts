@@ -12,7 +12,8 @@
  */
 import { randomUUID } from 'crypto';
 import { unstable_cache } from 'next/cache';
-import { appDb } from '@/lib/supabase/server';
+import { appDb, painelDb } from '@/lib/supabase/server';
+import { mesNoPainel } from '@/lib/dashboard-charts';
 import { lerTudo } from '@/lib/supabase/paginar';
 import { fetchAppUsers, type AppUser } from '@/lib/app-users';
 import { mesesComCobranca, priceForUser, planoLabel, cicloDoUsuario, isPagante } from '@/lib/metrics';
@@ -326,8 +327,11 @@ export interface FamiliaAtribuida extends FamiliaComissao {
   pagadorId: string | null;
   pagaHoje: boolean;
   assinouEm: string | null;
-  /** O método de atribuição gera comissão (link, código no cadastro ou manual). */
+  /** O método de atribuição gera comissão (link, código no cadastro ou manual) e,
+   *  se a conta também é de um parceiro, o registro da consultora é o mais antigo. */
   gera: boolean;
+  /** Atribuição dupla (parceiro e consultora na mesma conta): quem vale. */
+  dupla: 'vale_parceiro' | 'vale_consultora' | null;
 }
 
 /**
@@ -391,8 +395,10 @@ export async function baseComissoesAgora(): Promise<BaseComissoes> {
       indicadaPorId: ind.indicada_por_id,
       atribuidaEm: ind.criado_em,
       cobrancas: pagador ? cobrancasDe(pagador) : [],
-      metodo: ind.metodo,
-      gera: METODOS_COM_COMISSAO.has(ind.metodo),
+      // Dupla em que vale o parceiro: a regra pura não conta (método vira 'dupla').
+      metodo: users.get(ind.profile_id)?.atribuicaoDupla === 'vale_parceiro' ? 'dupla_parceiro' : ind.metodo,
+      gera: METODOS_COM_COMISSAO.has(ind.metodo) && users.get(ind.profile_id)?.atribuicaoDupla !== 'vale_parceiro',
+      dupla: users.get(ind.profile_id)?.atribuicaoDupla ?? null,
       // Cancelou: nada a partir do fim do período pago conta (mesmo se voltar).
       // Sem log de cobrança, quem volta a assinar não aparece aqui como buraco:
       // o buraco no mês é cortado em calcularLinhas quando houver o dado.
@@ -652,6 +658,86 @@ export async function salvarFichaDe(
     return 'erro';
   }
   return String(data);
+}
+
+// ── Funil do link /c/<código> (igual ao do parceiro, por mês) ──
+export interface EventoLink {
+  consultora_id: string;
+  quando: string;
+  unico: boolean;
+}
+
+/**
+ * Cliques e instalações de TODAS as consultoras (painel.link_clicks e
+ * install_events com consultora_id, migration 00112). `null` = a 00112 ainda
+ * não foi aplicada (a tela mostra "ainda não disponível", não zero).
+ */
+export async function eventosDosLinks(): Promise<{ cliques: EventoLink[]; downloads: EventoLink[] } | null> {
+  const [c, d] = await Promise.all([
+    lerTudo<{ consultora_id: string; clicked_at: string; primeiro_do_visitante: boolean }>('link_clicks (consultoras)', (de, ate) =>
+      painelDb()
+        .from('link_clicks')
+        .select('consultora_id,clicked_at,primeiro_do_visitante')
+        .not('consultora_id', 'is', null)
+        .order('id')
+        .range(de, ate),
+    ),
+    lerTudo<{ consultora_id: string; created_at: string }>('install_events (consultoras)', (de, ate) =>
+      painelDb().from('install_events').select('consultora_id,created_at').not('consultora_id', 'is', null).order('id').range(de, ate),
+    ),
+  ]);
+  if (c.error || d.error) return null;
+  return {
+    cliques: c.data.map((x) => ({ consultora_id: x.consultora_id, quando: x.clicked_at, unico: x.primeiro_do_visitante })),
+    downloads: d.data.map((x) => ({ consultora_id: x.consultora_id, quando: x.created_at, unico: true })),
+  };
+}
+
+export interface MesFunil {
+  /** yyyy-mm (fuso de Dubai, como o resto do painel). */
+  mes: string;
+  cliques: number;
+  cliquesUnicos: number;
+  downloads: number;
+  /** Contas criadas pelo link ou código dela (ou atribuídas pelo dono). */
+  cadastros: number;
+  /** Dessas, as que assinaram neste mês (1ª cobrança). */
+  assinantes: number;
+  /** Dessas, as que cancelaram neste mês (fim do período pago). */
+  cancelamentos: number;
+}
+
+/** Últimos `n` meses (yyyy-mm), do mais antigo ao atual. */
+export function ultimosMesesFunil(n = 6, hoje: Date = new Date()): string[] {
+  const atual = mesNoPainel(hoje);
+  const [y, m] = atual.split('-').map(Number);
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(Date.UTC(y, m - 1 - (n - 1 - i), 1));
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  });
+}
+
+/** O funil de uma consultora por mês. Mesmas regras de "gera comissão" de calcularLinhas. */
+export function funilDaConsultora(
+  consultoraId: string,
+  familias: FamiliaAtribuida[],
+  eventos: { cliques: EventoLink[]; downloads: EventoLink[] } | null,
+  meses: string[],
+): MesFunil[] {
+  const dela = familias.filter((f) => f.consultoraId === consultoraId && f.gera);
+  const noMes = (iso: string | null | undefined, mes: string) => !!iso && mesNoPainel(iso) === mes;
+  return meses.map((mes) => {
+    const cl = (eventos?.cliques ?? []).filter((e) => e.consultora_id === consultoraId && noMes(e.quando, mes));
+    return {
+      mes,
+      cliques: cl.length,
+      cliquesUnicos: cl.filter((e) => e.unico).length,
+      downloads: (eventos?.downloads ?? []).filter((e) => e.consultora_id === consultoraId && noMes(e.quando, mes)).length,
+      cadastros: dela.filter((f) => noMes(f.atribuidaEm, mes)).length,
+      assinantes: dela.filter((f) => noMes(f.assinouEm, mes)).length,
+      cancelamentos: dela.filter((f) => noMes(f.paradaEm ?? null, mes)).length,
+    };
+  });
 }
 
 // ── Contagem pública (site) ───────────────────────────────

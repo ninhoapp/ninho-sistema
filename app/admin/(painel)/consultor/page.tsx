@@ -6,11 +6,16 @@ import { mesNoPainel } from '@/lib/dashboard-charts';
 import { SITE_URL } from '@/lib/config';
 import { telefoneLegivel } from '@/lib/telefone';
 import { ExcluirConsultora } from '@/components/consultoras/ExcluirConsultora';
+import { FunilTabela } from '@/components/consultoras/Funil';
 import {
   baseComissoes,
   listPedidos,
   listVinculosAtivos,
   pedidosVinculoPendentes,
+  eventosDosLinks,
+  funilDaConsultora,
+  ultimosMesesFunil,
+  type MesFunil,
   bebesPorId,
   cuidadoresDe,
   totalDe,
@@ -90,13 +95,16 @@ export default async function ConsultorPage({
   requireRole('admin');
   const aba = ABAS.some(([k]) => k === searchParams.aba) ? searchParams.aba! : 'geral';
 
-  const [base, pedidos, vinculos, users, pedVinc] = await Promise.all([
+  const [base, pedidos, vinculos, users, pedVinc, eventos] = await Promise.all([
     baseComissoes(),
     listPedidos('pendente'),
     listVinculosAtivos(),
     fetchAppUsers(),
     pedidosVinculoPendentes(),
+    eventosDosLinks(),
   ]);
+  const mesesFunil = ultimosMesesFunil(6);
+  const funilDe = (id: string) => funilDaConsultora(id, base.familias, eventos, mesesFunil);
   // Pedidos de vínculo esperando resposta (00109): só contagem e datas, sem ação do dono.
   const pedVincPor = (id: string) => pedVinc.filter((p) => p.consultora_id === id);
   const { consultoras, familias, linhas, pagamentos } = base;
@@ -171,6 +179,32 @@ export default async function ConsultorPage({
                 </tbody>
               </table>
               {consultoras.filter((c) => c.estado !== 'esperando').length === 0 && <p className="py-4 text-center text-sm text-ninho-cinza">Nenhuma consultora ativa ainda.</p>}
+            </div>
+          </Card>
+          <Card titulo="Funil do link de cada consultora" direita="últimos 6 meses" className="lg:col-span-2">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr><th className={th}>Consultora</th><th className={`${th} text-right`}>Cliques (únicos)</th><th className={`${th} text-right`}>Downloads</th><th className={`${th} text-right`}>Cadastros</th><th className={`${th} text-right`}>Assinaram</th><th className={`${th} text-right`}>Cancelaram</th></tr>
+                </thead>
+                <tbody>
+                  {consultoras.filter((c) => c.estado !== 'esperando').map((c) => {
+                    const f = funilDe(c.id);
+                    const soma = (k: 'cliques' | 'cliquesUnicos' | 'downloads' | 'cadastros' | 'assinantes' | 'cancelamentos') => f.reduce((s2, m) => s2 + m[k], 0);
+                    return (
+                      <tr key={c.id}>
+                        <td className={td}><Link href={`${BASE}?aba=consultoras&id=${c.id}`} className="font-bold">{c.nome}</Link></td>
+                        <td className={`${td} text-right tabular-nums`}>{eventos ? `${soma('cliques')} (${soma('cliquesUnicos')})` : '—'}</td>
+                        <td className={`${td} text-right tabular-nums`}>{eventos ? soma('downloads') : '—'}</td>
+                        <td className={`${td} text-right tabular-nums`}>{soma('cadastros')}</td>
+                        <td className={`${td} text-right tabular-nums`}>{soma('assinantes')}</td>
+                        <td className={`${td} text-right tabular-nums`}>{soma('cancelamentos')}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {!eventos && <p className="mt-2 text-[11.5px] text-ninho-cinza">Cliques e downloads do link /c/ ainda não estão sendo contados (falta aplicar a migration 00112).</p>}
             </div>
           </Card>
           <Card titulo="Rede de indicação">
@@ -252,6 +286,8 @@ export default async function ConsultorPage({
               familias={familias.filter((f) => f.consultoraId === det.id)}
               vinculos={vincPor(det.id).length}
               pedidosVinculo={pedVincPor(det.id)}
+              funil={funilDe(det.id)}
+              funilIndisponivel={!eventos}
               comissaoMes={(babyFam: string) => somar(linhas.filter((l) => l.consultoraId === det.id && l.familiaId === babyFam && l.competencia === mesAtual).map((l) => l.valor))}
               mesAtual={mesAtual}
             />
@@ -528,6 +564,17 @@ export default async function ConsultorPage({
       </div>
       <Abas base={BASE} atual={aba} abas={ABAS.map(([k, t]) => [k, k === 'pedidos' && pedidos.length + pendPerfil.length ? `${t} (${pedidos.length + pendPerfil.length})` : t])} />
       <Retorno ok={searchParams.ok} erro={searchParams.erro} />
+      {familias.some((f) => f.dupla) && (
+        <Aviso tom="ambar">
+          <b>Atribuição dupla:</b> {familias.filter((f) => f.dupla).length} conta(s) estão com um parceiro E com uma
+          consultora. Vale só o registro mais antigo:{' '}
+          {familias
+            .filter((f) => f.dupla)
+            .map((f) => `${f.bebe} (${porId.get(f.consultoraId)?.nome ?? 'consultora'}: ${f.dupla === 'vale_consultora' ? 'conta para ela' : 'conta para o parceiro'})`)
+            .join('; ')}
+          .
+        </Aviso>
+      )}
       {conteudo}
     </>
   );
@@ -540,6 +587,8 @@ function Detalhe({
   familias,
   vinculos,
   pedidosVinculo,
+  funil,
+  funilIndisponivel,
   comissaoMes,
   mesAtual,
 }: {
@@ -549,6 +598,8 @@ function Detalhe({
   familias: FamiliaAtribuida[];
   vinculos: number;
   pedidosVinculo: { origem: 'familia' | 'consultora'; criado_em: string }[];
+  funil: MesFunil[];
+  funilIndisponivel: boolean;
   comissaoMes: (familiaId: string) => number;
   mesAtual: string;
 }) {
@@ -668,6 +719,10 @@ function Detalhe({
         <ExcluirConsultora id={c.id} nome={c.nome ?? 'consultora'} />
       </div>
 
+      <div className="mt-4">
+        <p className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.09em] text-[#9A95AD]">Funil do link {SITE_URL.replace(/^https?:\/\//, '')}/c/{(c.codigo ?? '').toLowerCase()}</p>
+        <FunilTabela meses={funil} indisponivel={funilIndisponivel} />
+      </div>
       <div className="mt-4 overflow-x-auto">
         <p className="text-[12px] text-ninho-cinza">{vinculos} família{vinculos === 1 ? '' : 's'} ligada{vinculos === 1 ? '' : 's'} agora · abaixo, as famílias atribuídas a ela (as que geram comissão)</p>
         <table className="mt-2 w-full">

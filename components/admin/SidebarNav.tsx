@@ -87,8 +87,11 @@ export function SidebarNav({ role }: { role: Role }) {
         );
         return (
           <div key={g.id} className="mt-1">
-            {g.equipe ? (
-              <Link href={g.equipe} className={item(pathname === g.equipe)}>{cabeca}</Link>
+            {/* Grupo sem página de equipe (Parcerias) abre a 1ª aba dele. Antes era um
+                texto sem link, e as abas só apareciam quando já se estava dentro do grupo:
+                não havia como chegar em Parceiros ou Consultoras pelo menu. */}
+            {g.equipe || g.abas.length ? (
+              <Link href={(g.equipe ?? g.abas[0].href)} className={item(pathname === g.equipe)}>{cabeca}</Link>
             ) : (
               <p className="px-3 py-2 text-sm font-medium text-ninho-cinza">{cabeca}</p>
             )}

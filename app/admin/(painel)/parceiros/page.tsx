@@ -11,6 +11,7 @@ import {
   competencias,
   confirmadoDaCompetencia,
   METODO_LABEL,
+  contasComAtribuicaoDupla,
 } from '@/lib/parceiros';
 import { repasseSchedule, fmtData } from '@/lib/repasse-schedule';
 import { SITE_URL } from '@/lib/config';
@@ -98,6 +99,17 @@ export default async function ParceirosPage() {
           </Link>
         }
       />
+
+      {contasComAtribuicaoDupla(users).length > 0 && (
+        <Notice tone="warn">
+          <strong>Atribuição dupla:</strong> {contasComAtribuicaoDupla(users).length} conta(s) estão com um parceiro E
+          com uma consultora de sono. Vale só o registro mais antigo:{' '}
+          {contasComAtribuicaoDupla(users)
+            .map((u) => `${u.email ?? u.name ?? u.id.slice(0, 8)} (${u.parceiroCodigo}: ${u.atribuicaoDupla === 'vale_parceiro' ? 'conta para o parceiro' : 'conta para a consultora'})`)
+            .join('; ')}
+          .
+        </Notice>
+      )}
 
       {parceiros.length === 0 && (
         <Notice tone="info">

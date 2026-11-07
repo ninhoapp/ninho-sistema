@@ -1,5 +1,6 @@
 /**
- * Ninho · Atribuição de instalação aos parceiros (influenciadores).
+ * Ninho · Atribuição de instalação aos parceiros (influenciadores) e às
+ * consultoras de sono (link /c/<código>, desde 08/11/2026, mesma lógica).
  * Server-only. Mesmo desenho do SOMI (somi-pesquisa), sem o Kochava:
  *
  *  1. /r/<codigo> grava o clique com o hash do IP e manda para a loja.
@@ -109,7 +110,12 @@ export type Landed = 'apple' | 'play' | 'landing';
  *  - Android → Google Play com `referrer` (Install Referrer).
  *  - Computador → landing com ?ref.
  */
-export function destinoDoLink(code: string, device: Device, clickId: string): { url: string; landed: Landed } {
+export function destinoDoLink(
+  code: string,
+  device: Device,
+  clickId: string,
+  origem: 'parceiro' | 'consultora' = 'parceiro',
+): { url: string; landed: Landed } {
   if (device === 'ios' && STORE_IOS_URL) {
     const pt = (process.env.STORE_IOS_PT || '').trim();
     if (!pt) return { url: STORE_IOS_URL, landed: 'apple' };
@@ -123,7 +129,7 @@ export function destinoDoLink(code: string, device: Device, clickId: string): { 
     const u = new URL(STORE_ANDROID_URL);
     u.searchParams.set(
       'referrer',
-      `utm_source=parceiro&utm_campaign=${code}&click_id=${clickId}`,
+      `utm_source=${origem}&utm_campaign=${code}&click_id=${clickId}`,
     );
     return { url: u.toString(), landed: 'play' };
   }
@@ -155,10 +161,11 @@ export const DOMINIO_LINKS = 'www.useninho.com.br';
 
 /**
  * O que a página copia para o app ler na 1ª abertura:
- * https://www.useninho.com.br/r/<código>?c=<id do clique>.
+ * https://www.useninho.com.br/r/<código>?c=<id do clique> (parceiro) ou
+ * https://www.useninho.com.br/c/<código>?c=<id do clique> (consultora).
  */
-export function linkParaCopiar(codigo: string, clickId: string): string {
-  const u = new URL(`https://${DOMINIO_LINKS}/r/${encodeURIComponent(codigo)}`);
+export function linkParaCopiar(codigo: string, clickId: string, tipo: 'r' | 'c' = 'r'): string {
+  const u = new URL(`https://${DOMINIO_LINKS}/${tipo}/${encodeURIComponent(codigo)}`);
   if (clickId) u.searchParams.set('c', clickId);
   return u.toString();
 }
