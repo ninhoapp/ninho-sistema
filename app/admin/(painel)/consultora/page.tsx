@@ -677,7 +677,7 @@ function Perfil({ c }: { c: Consultora }) {
     <>
       <Titulo
         t="Meu perfil na lista"
-        sub={`É assim que as famílias te encontram em "Encontrar consultora de sono", no app. A lista mostra as 10 consultoras que mais trazem assinantes.`}
+        sub={`É assim que as famílias te encontram em "Encontrar consultora de sono", no app. A lista mostra até 10 consultoras escolhidas pelo Ninho; quem mais traz assinantes aparece primeiro.`}
         direita={<Selo cor={naLista ? 'verde' : 'cinza'}>{naLista ? 'Liberado para a lista' : c.estado === 'pausada' ? 'Fora da lista: conta pausada' : 'Fora da lista'}</Selo>}
       />
       <div className="grid gap-4 lg:grid-cols-2">

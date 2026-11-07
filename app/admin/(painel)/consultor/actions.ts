@@ -149,7 +149,7 @@ export async function alternarLista(fd: FormData) {
     aba: ret,
     id: c.id,
     ok: ligar
-      ? `${c.nome?.split(' ')[0]} pode aparecer em "Encontrar consultora" (a lista mostra as 10 que mais trazem assinantes).`
+      ? `${c.nome?.split(' ')[0]} pode aparecer em "Encontrar consultora" assim que ativar a conta (até 10; quem mais traz assinantes vem primeiro).`
       : `${c.nome?.split(' ')[0]} saiu da lista do app.`,
   });
 }

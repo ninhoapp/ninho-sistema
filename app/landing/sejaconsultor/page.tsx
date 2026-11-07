@@ -191,7 +191,7 @@ export default async function SejaConsultoraPage() {
               <div className="nc-ico">★</div>
               <div className="num">Top 10</div>
               <b>Divulgação no app</b>
-              <p>As 10 consultoras que mais trazem assinantes aparecem na lista do app, com nome e contato.{pessoasTxt ? ` ${pessoasTxt}` : ''}</p>
+              <p>O Ninho escolhe até 10 consultoras para a lista do app, com nome e contato. Quem mais traz assinantes aparece primeiro.{pessoasTxt ? ` ${pessoasTxt}` : ''}</p>
             </div>
           </div>
           <div className="nc-tags">
