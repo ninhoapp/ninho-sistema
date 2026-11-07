@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getSession, homeForRole } from '@/lib/auth/session';
 import { AdminLogo } from '@/components/admin/AdminLogo';
-import { LoginForm } from '@/components/admin/LoginForm';
+import { LoginPortas } from '@/components/admin/LoginConsultoraForm';
 import '../admin.css';
 
 export const dynamic = 'force-dynamic';
@@ -11,7 +11,7 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function AdminLoginPage() {
+export default function AdminLoginPage({ searchParams }: { searchParams: { porta?: string } }) {
   const session = getSession();
   if (session) redirect(homeForRole(session.role));
 
@@ -33,10 +33,10 @@ export default function AdminLoginPage() {
           </span>
         </div>
 
-        <LoginForm />
+        <LoginPortas inicial={searchParams.porta === 'consultora' ? 'consultora' : 'equipe'} />
 
         <p className="mt-8 text-center text-[11px] text-ninho-cinza">
-          Acesso restrito à equipe Ninho.
+          Acesso restrito à equipe Ninho e às consultoras liberadas.
         </p>
       </div>
     </main>

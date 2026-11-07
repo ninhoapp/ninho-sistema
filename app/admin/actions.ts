@@ -47,6 +47,29 @@ export async function signIn(_prev: ActionState, formData: FormData): Promise<Ac
   redirect(homeForRole(perfil.role));
 }
 
+/** Consultora: e-mail liberado + código de 6 dígitos gerado no app. */
+export async function signInConsultora(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const email = String(formData.get('email') || '');
+  const codigo = String(formData.get('codigo') || '');
+  if (!email.trim() || !codigo.trim()) return { error: 'Preencha o e-mail e o código.' };
+  let res;
+  try {
+    const { loginConsultora } = await import('@/lib/consultoras-login');
+    res = await loginConsultora(email, codigo);
+  } catch (e) {
+    console.error('[admin/signInConsultora] falha no banco:', e);
+    return { error: 'Não consegui conferir agora. Tente de novo em instantes.' };
+  }
+  if (!res.perfil) return { error: res.error || 'Não consegui entrar.' };
+  setSessionCookie({
+    sub: res.perfil.id,
+    username: res.perfil.username,
+    role: 'consultora',
+    name: res.perfil.display_name,
+  });
+  redirect('/admin/consultora');
+}
+
 export async function signOut() {
   clearSessionCookie();
   redirect('/admin/login');

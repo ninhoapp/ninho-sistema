@@ -60,6 +60,7 @@ export const MENU_ADMIN: GrupoMenu[] = [
       { href: '/admin/crescimento', label: 'KPI de crescimento' },
       { href: '/admin/parceiros', label: 'Parceiros' },
       { href: '/admin/parceiro/guia', label: 'Guia do parceiro' },
+      { href: '/admin/consultor', label: 'Consultoras de sono' },
       { href: '/admin/instagram', label: 'Instagram' },
     ],
   },

@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath, revalidateTag } from 'next/cache';
-import { requireRole, requireSession } from '@/lib/auth/guard';
+import { requireRole, requireSessionAtiva } from '@/lib/auth/guard';
 import { verifyPassword } from '@/lib/auth/password';
 import { atualizarFimTrial, APP_USERS_TAG } from '@/lib/app-users';
 import {
@@ -341,8 +341,10 @@ export async function zerarLeadsOcultos(_fd: FormData) {
 }
 
 // ── Fila do conversor ─────────────────────────────────────
+// Só quem usa a fila (conversor em /admin/conversor; admin em Leads e
+// Conversões), com o perfil ainda ativo no banco. Parceiro e consultora não.
 export async function registrarDesfecho(_prev: ActionState, fd: FormData): Promise<ActionState> {
-  const session = requireSession();
+  const session = await requireSessionAtiva(['admin', 'conversor']);
   const profile_id = String(fd.get('profile_id') || '');
   const outcome = String(fd.get('outcome') || '') as LeadOutcome['outcome'];
   if (!profile_id || !outcome) return { error: 'Dados incompletos.' };
@@ -363,14 +365,14 @@ export async function registrarDesfecho(_prev: ActionState, fd: FormData): Promi
 }
 
 export async function ocultarLead(fd: FormData) {
-  const session = requireSession();
+  const session = await requireSessionAtiva(['admin', 'conversor']);
   await hideLead(String(fd.get('profile_id') || ''), session.sub, String(fd.get('reason') || '') || null);
   revalidatePath('/admin/conversor');
   revalidatePath('/admin/leads');
 }
 
 export async function reexibirLead(fd: FormData) {
-  requireSession();
+  await requireSessionAtiva(['admin', 'conversor']);
   await unhideLead(String(fd.get('profile_id') || ''));
   revalidatePath('/admin/conversor');
   revalidatePath('/admin/leads');

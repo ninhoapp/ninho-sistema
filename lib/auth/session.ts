@@ -9,6 +9,10 @@
  * desde 05/11/2026 — mesmo sistema do SOMI). A comissão do conversor sai dos
  * leads que ele marca como convertido (lead_outcomes); a do parceiro, das
  * contas atribuídas ao código dele (public.indicacao_parceiro).
+ *
+ * 'consultora' (07/11/2026): consultora de sono do programa. Entra com e-mail +
+ * código de 6 dígitos gerado no app (sem senha); o perfil do painel é criado
+ * no 1º login e fica em public.consultoras.painel_perfil_id.
  */
 import { cookies } from 'next/headers';
 import { createHmac, timingSafeEqual } from 'crypto';
@@ -16,7 +20,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 export const SESSION_COOKIE = 'ninho_admin_session';
 const MAX_AGE = 60 * 60 * 24 * 7; // 7 dias
 
-export type Role = 'admin' | 'conversor' | 'influencer';
+export type Role = 'admin' | 'conversor' | 'influencer' | 'consultora';
 
 export interface SessionData {
   sub: string; // id do perfil na tabela do painel
@@ -90,5 +94,6 @@ export function clearSessionCookie() {
 export function homeForRole(role: Role): string {
   if (role === 'admin') return '/admin/visao-geral';
   if (role === 'influencer') return '/admin/parceiro';
+  if (role === 'consultora') return '/admin/consultora';
   return '/admin/conversor';
 }

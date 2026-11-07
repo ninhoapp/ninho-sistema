@@ -12,6 +12,7 @@ const ROLE_LABEL: Record<string, string> = {
   admin: 'Administrador',
   conversor: 'Conversor',
   influencer: 'Parceiro',
+  consultora: 'Consultora independente',
 };
 
 export default async function PainelLayout({ children }: { children: React.ReactNode }) {

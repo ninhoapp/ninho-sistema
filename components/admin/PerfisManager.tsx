@@ -45,6 +45,7 @@ const ROLE_LABEL: Record<Role, string> = {
   admin: 'Administrador',
   conversor: 'Conversor',
   influencer: 'Parceiro',
+  consultora: 'Consultora (criada no 1º login pelo app)',
 };
 
 /** Código do parceiro — vira o link /r/<código>. */

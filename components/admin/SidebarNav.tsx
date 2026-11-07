@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import type { Role } from '@/lib/auth/session';
 import { MENU_ADMIN, grupoDe } from '@/lib/empresa/menu';
 
@@ -28,6 +28,16 @@ const PARCEIRO: NavItem[] = [
   { href: '/admin/conta', label: 'Minha conta' },
 ];
 
+const CONSULTORA: NavItem[] = [
+  { href: '/admin/consultora', label: 'Famílias' },
+  { href: '/admin/consultora?aba=rotina', label: 'Rotina do bebê' },
+  { href: '/admin/consultora?aba=semana', label: 'Semana' },
+  { href: '/admin/consultora?aba=convidar', label: 'Convidar família' },
+  { href: '/admin/consultora?aba=ganhos', label: 'Ganhos' },
+  { href: '/admin/consultora?aba=indicar', label: 'Indicar consultora' },
+  { href: '/admin/consultora?aba=perfil', label: 'Meu perfil na lista' },
+];
+
 function item(active: boolean) {
   return `block rounded-xl px-3 py-2 text-sm font-medium transition ${
     active ? 'bg-ninho-roxo text-white' : 'text-ninho-grafite hover:bg-ninho-roxo-suave'
@@ -36,6 +46,21 @@ function item(active: boolean) {
 
 export function SidebarNav({ role }: { role: Role }) {
   const pathname = usePathname();
+  const busca = useSearchParams();
+
+  if (role === 'consultora') {
+    const aba = busca.get('aba') || '';
+    return (
+      <nav className="flex flex-col gap-1">
+        {CONSULTORA.map((i) => {
+          const alvo = i.href.split('aba=')[1] ?? '';
+          return (
+            <Link key={i.href} href={i.href} className={item(pathname === '/admin/consultora' && aba === alvo)}>{i.label}</Link>
+          );
+        })}
+      </nav>
+    );
+  }
 
   if (role !== 'admin') {
     return (

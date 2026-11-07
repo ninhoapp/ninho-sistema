@@ -14,7 +14,7 @@
  *  - Mensal: 25% em cada uma das 6 primeiras cobranças depois da atribuição.
  *  - Anual: 25% uma única vez (a 1ª cobrança anual depois da atribuição).
  *  - Consultora indicada por outra (consultora_indicacoes.indicada_por_id,
- *    gravado na atribuição): 15% para cada uma. Só 1 nível.
+ *    gravado na atribuição): 12,5% para cada uma (dono, 07/11/2026; era 15%). Só 1 nível.
  *  - Teste grátis não conta (as cobranças já vêm só do que foi pago).
  *  - Reembolso desconta: ainda não há dado de reembolso no banco.
  *  - Pix até o 5º dia útil do mês seguinte à competência (mês da cobrança),
@@ -22,7 +22,7 @@
  */
 
 export const PCT_DIRETO = 25;
-export const PCT_REDE = 15;
+export const PCT_REDE = 12.5;
 export const PARCELAS_MENSAL = 6;
 
 /** Versão do aceite gravada nos pedidos do site (texto do Darck). */
@@ -144,7 +144,7 @@ export interface LinhaComissao {
 
 /**
  * Todas as linhas de comissão de um conjunto de famílias. Cada cobrança
- * elegível vira 1 linha (25%) ou 2 linhas (15% da consultora + 15% de quem a
+ * elegível vira 1 linha (25%) ou 2 linhas (12,5% da consultora + 12,5% de quem a
  * indicou, com `viaId`).
  */
 export function calcularLinhas(familias: FamiliaComissao[]): LinhaComissao[] {

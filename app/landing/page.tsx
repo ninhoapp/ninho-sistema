@@ -18,6 +18,7 @@ import { GUIAS } from '@/lib/guias';
 import { SitePage, StoreButtons, Phone, JsonLd } from '@/components/site/SiteChrome';
 import { Planos } from '@/components/site/Planos';
 import { AvisoNavegadorInsta } from '@/components/site/AvisoNavegadorInsta';
+import { AbasLanding } from '@/components/site/AbasLanding';
 
 const TITULO = 'Ninho: app de rotina do bebê — mamada, sono e fralda';
 const DESCRICAO =
@@ -62,7 +63,7 @@ const FAQ_LANDING = [
   },
   {
     q: 'Meus dados ficam seguros?',
-    a: 'Os dados do bebê ficam na sua conta e só aparecem para os cuidadores que você convidou. A Política de Privacidade explica, em linguagem simples, o que é guardado e por quanto tempo.',
+    a: 'Os dados do bebê ficam na sua conta e só aparecem para os cuidadores que você convidou e, se você quiser, para uma consultora de sono que você autorizar (só a rotina, só leitura). A Política de Privacidade explica, em linguagem simples, o que é guardado e por quanto tempo.',
   },
 ];
 
@@ -145,6 +146,7 @@ export default function LandingPage() {
     <SitePage>
       <JsonLd data={jsonLd} />
       <AvisoNavegadorInsta />
+      <AbasLanding ativa="familias" />
 
       {/* ─── HERO ─────────────────────────────────────────── */}
       <section className="n-hero">
@@ -380,7 +382,7 @@ export default function LandingPage() {
             <div className="n-card">
               <div className="n-card-ico" style={{ background: 'var(--n-grafite)' }}><Icon d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></div>
               <h3>Seus dados, sua família</h3>
-              <p>A rotina do bebê só aparece para os cuidadores que você convidou. A <a href="/privacidade" style={{ textDecoration: 'underline' }}>Política de Privacidade</a> explica tudo em linguagem simples.</p>
+              <p>A rotina do bebê só aparece para os cuidadores que você convidou e para a consultora de sono que você autorizar, se quiser. A <a href="/privacidade" style={{ textDecoration: 'underline' }}>Política de Privacidade</a> explica tudo em linguagem simples.</p>
             </div>
           </div>
         </div>
