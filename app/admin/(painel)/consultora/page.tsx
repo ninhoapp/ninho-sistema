@@ -291,7 +291,6 @@ async function Fichas({ c, familias, aberta }: { c: Consultora; familias: Famili
               <label className={rotuloCampo}>Observações</label>
               <textarea name="observacoes" maxLength={2000} rows={3} defaultValue={fi?.observacoes ?? ''} className={`${campo} h-auto py-2`} />
               <small className="mt-1 block text-[11.5px] text-ninho-cinza">Anote só o que precisa para o atendimento. Não registre diagnóstico, remédio nem dado de saúde.</small>
-              <small className="mt-1 block text-[11.5px] text-ninho-cinza">Anote só o que precisa para o atendimento. Não registre diagnóstico, remédio nem dado de saúde.</small>
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <button className={botao.suave}>Salvar ficha</button>
                 <span className="text-[11.5px] text-ninho-cinza">
