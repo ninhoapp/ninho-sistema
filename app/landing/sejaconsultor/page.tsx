@@ -18,7 +18,7 @@ import { totalDeContas } from '@/lib/consultoras';
 import { PCT_DIRETO, PCT_REDE, PARCELAS_MENSAL, TEXTO_QUEM_GERA_COMISSAO, valorComissao, somar } from '@/lib/consultoras-regras';
 import { formatBRL } from '@/lib/metrics';
 import { SitePage } from '@/components/site/SiteChrome';
-import { AbasLanding } from '@/components/site/AbasLanding';
+import '@/components/site/consultora.css';
 import { FormSejaConsultora } from '@/components/site/FormSejaConsultora';
 
 export const dynamic = 'force-dynamic';
@@ -142,7 +142,6 @@ export default async function SejaConsultoraPage() {
 
   return (
     <SitePage>
-      <AbasLanding ativa="consultora" />
       <div className="nc">
         <section className="nc-hero">
           <div className="n-wrap nc-hero-grid">

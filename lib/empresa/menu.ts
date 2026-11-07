@@ -26,6 +26,7 @@ export interface GrupoMenu {
 export const COR_SETOR: Record<string, string> = {
   dir: '#7C5CD6', cre: '#4CAF74', fin: '#F7A83C',
   ate: '#3FB5AC', eng: '#655C7A', ven: '#A3A3AC', conta: '#9F86E0',
+  par: '#E0789E',
 };
 
 /**
@@ -58,10 +59,18 @@ export const MENU_ADMIN: GrupoMenu[] = [
     id: 'cre', nome: 'Crescimento', cor: COR_SETOR.cre, equipe: '/admin/empresa/cre',
     abas: [
       { href: '/admin/crescimento', label: 'KPI de crescimento' },
+      { href: '/admin/instagram', label: 'Instagram' },
+    ],
+  },
+  // Parcerias (pedido do dono, 07/11/2026): grupo próprio na coluna da
+  // esquerda com consultoras de sono e parceiros. É só menu: não é setor do
+  // organograma (sem equipe nem andar no prédio).
+  {
+    id: 'par', nome: 'Parcerias', cor: COR_SETOR.par,
+    abas: [
+      { href: '/admin/consultor', label: 'Consultoras de sono' },
       { href: '/admin/parceiros', label: 'Parceiros' },
       { href: '/admin/parceiro/guia', label: 'Guia do parceiro' },
-      { href: '/admin/consultor', label: 'Consultoras de sono' },
-      { href: '/admin/instagram', label: 'Instagram' },
     ],
   },
   {

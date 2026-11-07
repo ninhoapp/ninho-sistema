@@ -232,7 +232,7 @@ export default async function ConsultorPage({
                         ) : '—'}
                       </td>
                       <td className={td}>
-                        <form action={alternarLista}><input type="hidden" name="id" value={c.id} /><Chave ligada={c.na_lista && c.estado === 'ativa'} desabilitada={c.estado !== 'ativa'} /></form>
+                        <form action={alternarLista}><input type="hidden" name="id" value={c.id} /><Chave ligada={c.na_lista && c.estado !== 'pausada'} desabilitada={c.estado === 'pausada'} /></form>
                       </td>
                       <td className={td}><SeloEstado estado={c.estado} /></td>
                     </tr>
@@ -605,8 +605,8 @@ function Detalhe({
         <dt className="font-bold text-[#9A95AD]">Pix e CPF</dt><dd className="font-semibold">{c.pix_chave && c.cpf ? 'cadastrados' : 'faltam'}</dd>
         <dt className="font-bold text-[#9A95AD]">Na lista do app</dt>
         <dd className="flex items-center gap-2">
-          <form action={alternarLista}><input type="hidden" name="id" value={c.id} /><Chave ligada={c.na_lista && c.estado === 'ativa'} desabilitada={c.estado !== 'ativa'} /></form>
-          <small className="text-[11.5px] text-ninho-cinza">aparece só entre as 10 que mais trazem assinantes</small>
+          <form action={alternarLista}><input type="hidden" name="id" value={c.id} /><Chave ligada={c.na_lista && c.estado !== 'pausada'} desabilitada={c.estado === 'pausada'} /></form>
+          <small className="text-[11.5px] text-ninho-cinza">aprovada para a lista: aparece no app assim que ela ativar a conta (até 10; quem mais traz assinantes vem primeiro)</small>
         </dd>
       </dl>
 

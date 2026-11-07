@@ -130,7 +130,9 @@ export async function alternarLista(fd: FormData) {
   if (!c) volta({ aba: ret, erro: 'Consultora não encontrada.' });
   const ligar = !c.na_lista;
   if (ligar) {
-    if (c.estado !== 'ativa') volta({ aba: ret, id: c.id, erro: 'Só consultora ativa entra na lista do app.' });
+    // Dono (07/11/2026): pode ligar antes de ela criar a conta; o perfil fica
+    // aprovado e ela aparece no app assim que ativar. Só a pausada não entra.
+    if (c.estado === 'pausada') volta({ aba: ret, id: c.id, erro: 'Consultora pausada não entra na lista. Reative primeiro.' });
     if (!c.nome || !(c.whatsapp || c.instagram)) volta({ aba: ret, id: c.id, erro: 'Falta completar o perfil público (nome e WhatsApp ou Instagram).' });
   }
   const { error } = await appDb()

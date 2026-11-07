@@ -18,7 +18,6 @@ import { GUIAS } from '@/lib/guias';
 import { SitePage, StoreButtons, Phone, JsonLd } from '@/components/site/SiteChrome';
 import { Planos } from '@/components/site/Planos';
 import { AvisoNavegadorInsta } from '@/components/site/AvisoNavegadorInsta';
-import { AbasLanding } from '@/components/site/AbasLanding';
 
 const TITULO = 'Ninho: app de rotina do bebê — mamada, sono e fralda';
 const DESCRICAO =
@@ -146,7 +145,6 @@ export default function LandingPage() {
     <SitePage>
       <JsonLd data={jsonLd} />
       <AvisoNavegadorInsta />
-      <AbasLanding ativa="familias" />
 
       {/* ─── HERO ─────────────────────────────────────────── */}
       <section className="n-hero">
