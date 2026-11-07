@@ -37,7 +37,7 @@ export const PARCELAS_MENSAL = 6;
 export const TEXTO_QUEM_GERA_COMISSAO =
   'Você ganha comissão pelas famílias que criam a conta no Ninho pelo seu link ou código. A comissão para quando a família cancela ou pede reembolso. Só o vínculo (a família compartilhar a rotina com você) não gera comissão, e famílias que encontraram você pela lista "Encontrar consultora" dentro do Ninho também não.';
 
-/** Aceite da CONSULTORA ao aprovar ou convidar uma família (texto do Darck, migration 00108). */
+/** Aceite da CONSULTORA ao aprovar ou convidar uma família (texto do Darck, migration 00109). */
 export const ACEITE_VINCULO_CONSULTORA_VERSAO = 'consultora-vinculo-2026-11-07';
 export const ACEITE_VINCULO_CONSULTORA_TEXTO =
   'Atendo esta família como profissional independente, e todas as orientações que eu der são de minha responsabilidade exclusiva. O Ninho não presta aconselhamento de saúde nem supervisiona meu atendimento. Uso a rotina do bebê só para atender esta família, sem copiar, guardar ou divulgar.';

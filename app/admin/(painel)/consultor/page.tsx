@@ -95,7 +95,7 @@ export default async function ConsultorPage({
     fetchAppUsers(),
     pedidosVinculoPendentes(),
   ]);
-  // Pedidos de vínculo esperando resposta (00108): só contagem e datas, sem ação do dono.
+  // Pedidos de vínculo esperando resposta (00109): só contagem e datas, sem ação do dono.
   const pedVincPor = (id: string) => pedVinc.filter((p) => p.consultora_id === id);
   const { consultoras, familias, linhas, pagamentos } = base;
   const porId = new Map(consultoras.map((c) => [c.id, c]));

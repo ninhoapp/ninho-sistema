@@ -515,7 +515,7 @@ export async function rotinaDe(
   return { registros: (data as RegistroRotina[]) ?? [], semAcesso: false };
 }
 
-// ── Vínculo com aceite dos dois lados (migration 00108) ───
+// ── Vínculo com aceite dos dois lados (migration 00109) ───
 // O id da consultora vem SEMPRE da sessão (consultoraDoPerfil), nunca do formulário.
 
 export interface PedidoVinculo {
@@ -525,7 +525,7 @@ export interface PedidoVinculo {
   criado_em: string;
 }
 
-/** Pedidos de famílias esperando a consultora. `indisponivel` = a 00108 ainda não foi aplicada. */
+/** Pedidos de famílias esperando a consultora. `indisponivel` = a 00109 ainda não foi aplicada. */
 export async function pedidosVinculoDa(consultoraId: string): Promise<{ pedidos: PedidoVinculo[]; indisponivel: boolean }> {
   const { data, error } = await appDb().rpc('_consultora_pedidos_vinculo', { p_consultora: consultoraId });
   if (error) {
