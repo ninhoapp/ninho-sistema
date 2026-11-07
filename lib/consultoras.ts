@@ -20,6 +20,8 @@ import {
   calcularLinhas,
   somar,
   prazoPix,
+  METODOS_COM_COMISSAO,
+  ACEITE_VINCULO_CONSULTORA_VERSAO,
   CODIGO_RE,
   normalizarCodigo,
   type FamiliaComissao,
@@ -81,7 +83,8 @@ export interface Indicacao {
   baby_id: string | null;
   consultora_id: string;
   indicada_por_id: string | null;
-  metodo: 'vinculo' | 'manual';
+  /** 'link' e 'codigo_cadastro' (frente Parceiros, 00106) e 'manual' geram comissão; 'vinculo' (antigo) não. */
+  metodo: 'link' | 'codigo_cadastro' | 'manual' | 'vinculo';
   criado_em: string;
 }
 
@@ -292,6 +295,8 @@ export interface FamiliaAtribuida extends FamiliaComissao {
   pagadorId: string | null;
   pagaHoje: boolean;
   assinouEm: string | null;
+  /** O método de atribuição gera comissão (link, código no cadastro ou manual). */
+  gera: boolean;
 }
 
 /**
@@ -355,6 +360,12 @@ export async function baseComissoesAgora(): Promise<BaseComissoes> {
       indicadaPorId: ind.indicada_por_id,
       atribuidaEm: ind.criado_em,
       cobrancas: pagador ? cobrancasDe(pagador) : [],
+      metodo: ind.metodo,
+      gera: METODOS_COM_COMISSAO.has(ind.metodo),
+      // Cancelou: nada a partir do fim do período pago conta (mesmo se voltar).
+      // Sem log de cobrança, quem volta a assinar não aparece aqui como buraco:
+      // o buraco no mês é cortado em calcularLinhas quando houver o dado.
+      paradaEm: pagador && pagador.estado === 'churn' ? pagador.current_period_end : null,
       pagadorId: pagador?.id ?? null,
       pagaHoje: pagador ? isPagante(pagador) : false,
       assinouEm: pagador?.assinouEm ?? null,
@@ -429,7 +440,7 @@ export async function montarGanhos(c: Consultora): Promise<Ganhos> {
     },
     resumo: {
       familias: vinculos.filter((v) => v.consultora_id === c.id).length,
-      assinantes: base.familias.filter((f) => f.consultoraId === c.id && f.pagaHoje).length,
+      assinantes: base.familias.filter((f) => f.consultoraId === c.id && f.gera && f.pagaHoje).length,
       indicadas: base.consultoras.filter((x) => x.indicada_por === c.id).length,
     },
     meses: competencias.map((comp) => {
@@ -502,6 +513,68 @@ export async function rotinaDe(
     throw new Error(`_consultora_rotina: ${error.message}`);
   }
   return { registros: (data as RegistroRotina[]) ?? [], semAcesso: false };
+}
+
+// ── Vínculo com aceite dos dois lados (migration 00108) ───
+// O id da consultora vem SEMPRE da sessão (consultoraDoPerfil), nunca do formulário.
+
+export interface PedidoVinculo {
+  id: string;
+  responsavel_nome: string | null;
+  bebe_nome: string | null;
+  criado_em: string;
+}
+
+/** Pedidos de famílias esperando a consultora. `indisponivel` = a 00108 ainda não foi aplicada. */
+export async function pedidosVinculoDa(consultoraId: string): Promise<{ pedidos: PedidoVinculo[]; indisponivel: boolean }> {
+  const { data, error } = await appDb().rpc('_consultora_pedidos_vinculo', { p_consultora: consultoraId });
+  if (error) {
+    console.error('[consultoras] _consultora_pedidos_vinculo:', error.message);
+    return { pedidos: [], indisponivel: true };
+  }
+  return { pedidos: (data as PedidoVinculo[]) ?? [], indisponivel: false };
+}
+
+export async function responderPedidoVinculo(consultoraId: string, pedidoId: string, aprovar: boolean): Promise<string> {
+  const { data, error } = await appDb().rpc('_consultora_responder_pedido', {
+    p_consultora: consultoraId,
+    p_pedido: pedidoId,
+    p_aprovar: aprovar,
+    p_aceite_versao: ACEITE_VINCULO_CONSULTORA_VERSAO,
+  });
+  if (error) {
+    console.error('[consultoras] _consultora_responder_pedido:', error.message);
+    return 'erro';
+  }
+  return String(data);
+}
+
+export async function convidarFamiliaPorEmail(consultoraId: string, email: string): Promise<string> {
+  const { data, error } = await appDb().rpc('_consultora_convidar_familia', {
+    p_consultora: consultoraId,
+    p_email: email,
+    p_aceite_versao: ACEITE_VINCULO_CONSULTORA_VERSAO,
+  });
+  if (error) {
+    console.error('[consultoras] _consultora_convidar_familia:', error.message);
+    return 'erro';
+  }
+  return String(data);
+}
+
+/** Pedidos de vínculo pendentes de todas as consultoras (para o dono: só contagem e datas). */
+export async function pedidosVinculoPendentes(): Promise<{ consultora_id: string; origem: 'familia' | 'consultora'; criado_em: string }[]> {
+  const { data, error } = await appDb()
+    .from('consultora_vinculo_pedidos')
+    .select('consultora_id,origem,criado_em')
+    .eq('status', 'pendente')
+    .order('criado_em', { ascending: false })
+    .limit(2000);
+  if (error) {
+    console.error('[consultoras] consultora_vinculo_pedidos:', error.message);
+    return [];
+  }
+  return (data as { consultora_id: string; origem: 'familia' | 'consultora'; criado_em: string }[]) ?? [];
 }
 
 // ── Contagem pública (site) ───────────────────────────────

@@ -7,6 +7,7 @@ import { PRECOS } from '@/lib/precos';
 import {
   consultoraDoPerfil,
   familiasDa,
+  pedidosVinculoDa,
   montarGanhos,
   rotinaDe,
   type Consultora,
@@ -22,6 +23,8 @@ import {
   prazoPix,
   somar,
   valorComissao,
+  TEXTO_QUEM_GERA_COMISSAO,
+  ACEITE_VINCULO_CONSULTORA_TEXTO,
 } from '@/lib/consultoras-regras';
 import {
   descreverRegistro,
@@ -37,7 +40,7 @@ import {
 } from '@/lib/consultoras-rotina';
 import { Avatar, Aviso, Card, Kpi, Retorno, Selo, botao, brl, campo, rotuloCampo, td, th } from '@/components/consultoras/ui';
 import { CopyLink } from '@/components/admin/CopyLink';
-import { enviarFoto, indicarConsultora, salvarPerfil } from './actions';
+import { convidarFamilia, enviarFoto, indicarConsultora, responderPedidoFamilia, salvarPerfil } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,7 +136,10 @@ function SeloAgora({ f }: { f: FamiliaDaConsultora }) {
 
 // ── Famílias ──────────────────────────────────────────────
 async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
-  const todas = c.estado === 'ativa' ? await familiasDa(c.id) : [];
+  const [todas, pv] = await Promise.all([
+    c.estado === 'ativa' ? familiasDa(c.id) : Promise.resolve([] as FamiliaDaConsultora[]),
+    c.estado === 'ativa' ? pedidosVinculoDa(c.id) : Promise.resolve({ pedidos: [], indisponivel: false }),
+  ]);
   const semReg = (f: FamiliaDaConsultora) => f.plano_ok && !f.dormindo_desde && (!f.ultimo_registro_em || Date.now() - new Date(f.ultimo_registro_em).getTime() >= 12 * H);
   const filtro = sp.filtro || 'todas';
   const q = (sp.q || '').trim().toLowerCase();
@@ -159,6 +165,38 @@ async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
           </form>
         }
       />
+      {pv.pedidos.length > 0 && (
+        <Card titulo="Pedidos de famílias" direita={`${pv.pedidos.length} esperando você`} className="mb-4">
+          <p className="text-[12.5px] text-ninho-cinza">
+            A família digitou seu código e já aceitou compartilhar a rotina. A rotina só aparece para você depois que
+            você aprovar.
+          </p>
+          {pv.pedidos.map((p) => (
+            <div key={p.id} className="mt-3 rounded-2xl bg-[#F3EEFC] px-4 py-3">
+              <p className="text-[13.5px]">
+                <b>{p.responsavel_nome ?? 'Uma família'}</b>
+                {p.bebe_nome ? <> quer compartilhar a rotina de <b>{p.bebe_nome}</b></> : ' quer compartilhar a rotina do bebê'}
+                <span className="text-ninho-cinza"> · {desdeTxt(p.criado_em)}</span>
+              </p>
+              <details className="mt-2">
+                <summary className="cursor-pointer text-[13px] font-bold text-[#7C5CD6]">Aprovar</summary>
+                <form action={responderPedidoFamilia} className="mt-2 rounded-xl bg-white p-3">
+                  <input type="hidden" name="pedido" value={p.id} />
+                  <label className="flex items-start gap-2.5 text-[13px] leading-relaxed">
+                    <input type="checkbox" name="aceite" required className="mt-1 h-4 w-4 shrink-0 accent-[#4CAF74]" />
+                    <span>{ACEITE_VINCULO_CONSULTORA_TEXTO}</span>
+                  </label>
+                  <button name="decisao" value="aprovar" className={`${botao.verde} mt-3`}>Aprovar e ver a rotina</button>
+                </form>
+              </details>
+              <form action={responderPedidoFamilia} className="mt-2">
+                <input type="hidden" name="pedido" value={p.id} />
+                <button name="decisao" value="recusar" className={botao.cinza}>Recusar</button>
+              </form>
+            </div>
+          ))}
+        </Card>
+      )}
       {atencao.length > 0 && (
         <Card titulo="Precisa de atenção hoje" className="mb-4">
           {atencao.map((f) => (
@@ -470,14 +508,29 @@ function Convidar({ c }: { c: Consultora }) {
         </Card>
         <Card titulo="Como funciona">
           <div className="mt-2 space-y-2 text-[13.5px] leading-relaxed text-[#4d4a5c]">
-            <p><b>1.</b> A mãe abre o seu link e baixa o Ninho (quem já usa também pode abrir).</p>
-            <p><b>2.</b> Ela cadastra o bebê e vê o pedido: compartilhar a rotina com {c.nome}.</p>
-            <p><b>3.</b> Ela aceita e o bebê aparece em Famílias, aqui e no app. Ela pode tirar você quando quiser.</p>
+            <p><b>1.</b> A mãe abre o seu link e cria a conta no Ninho (ou digita o seu código no cadastro).</p>
+            <p><b>2.</b> Ela pede para compartilhar a rotina com {c.nome}, digitando seu código em Cuidadores.</p>
+            <p><b>3.</b> Você aprova em Famílias, aqui ou no app. Só então a rotina aparece. Ela pode tirar você quando quiser.</p>
           </div>
           <Aviso tom="vermelho">Este link é só para famílias. Para trazer uma amiga consultora, use Indicar consultora.</Aviso>
-          <Aviso>Você ganha comissão pelas famílias que chegam pelo seu link ou código. Famílias que já tinham conta e encontraram você pela lista &ldquo;Encontrar consultora&rdquo; dentro do Ninho não geram comissão.</Aviso>
+          <Aviso>{TEXTO_QUEM_GERA_COMISSAO}</Aviso>
         </Card>
       </div>
+      <Card titulo="Convidar pelo e-mail da família" className="mt-4">
+        <p className="text-[13px] leading-relaxed text-ninho-cinza">
+          Para quem já usa o Ninho. Digite o e-mail exato da conta da família: ela recebe o convite no sininho, escolhe o
+          bebê e decide. A rotina só aparece depois que ela aceitar. Convite não gera comissão.
+        </p>
+        <form action={convidarFamilia} className="mt-3 max-w-xl">
+          <label className={rotuloCampo}>E-mail da família no Ninho</label>
+          <input name="email" type="email" required maxLength={254} placeholder="familia@gmail.com" className={campo} />
+          <label className="mt-3 flex items-start gap-2.5 text-[13px] leading-relaxed">
+            <input type="checkbox" name="aceite" required className="mt-1 h-4 w-4 shrink-0 accent-[#4CAF74]" />
+            <span>{ACEITE_VINCULO_CONSULTORA_TEXTO}</span>
+          </label>
+          <button className={`${botao.grad} mt-4`} disabled={c.estado !== 'ativa'}>Enviar convite</button>
+        </form>
+      </Card>
     </>
   );
 }

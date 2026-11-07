@@ -29,7 +29,7 @@ t('valor por linha, centavos arredondados', () => {
 });
 
 const mensal = (meses, base = 17.9) => meses.map((m) => ({ competencia: m, data: `${m}-10T12:00:00Z`, base }));
-const fam = (o) => ({ id: 'f1', bebe: 'Theo', plano: 'Premium mensal', anual: false, consultoraId: 'NAT', indicadaPorId: null, atribuidaEm: '2026-11-01T00:00:00Z', cobrancas: [], ...o });
+const fam = (o) => ({ id: 'f1', bebe: 'Theo', plano: 'Premium mensal', anual: false, consultoraId: 'NAT', indicadaPorId: null, atribuidaEm: '2026-11-01T00:00:00Z', cobrancas: [], metodo: 'link', ...o });
 
 t('mensal direto: 25% só nas 6 primeiras cobranças', () => {
   const linhas = calcularLinhas([fam({ cobrancas: mensal(['2026-11', '2026-12', '2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-06']) })]);
@@ -90,6 +90,44 @@ t('totais por mês de uma consultora', () => {
   assert.equal(nat.get('2026-11'), 6.09); // 4,48 + 1,61
   assert.equal(nat.get('2026-12'), 4.48);
   assert.equal(totaisPorCompetencia(linhas, 'ANA').get('2026-11'), 1.61);
+});
+
+t('método: link, código no cadastro e manual geram; vínculo não', () => {
+  const c = mensal(['2026-11']);
+  assert.equal(calcularLinhas([fam({ metodo: 'link', cobrancas: c })]).length, 1);
+  assert.equal(calcularLinhas([fam({ metodo: 'codigo_cadastro', cobrancas: c })]).length, 1);
+  assert.equal(calcularLinhas([fam({ metodo: 'manual', cobrancas: c })]).length, 1);
+  assert.equal(calcularLinhas([fam({ metodo: 'vinculo', cobrancas: c })]).length, 0);
+  assert.equal(calcularLinhas([fam({ metodo: 'qualquer', cobrancas: c })]).length, 0);
+});
+
+t('cancelou (mês sem cobrança) e voltou: depois do buraco nada conta', () => {
+  const linhas = calcularLinhas([fam({ cobrancas: mensal(['2026-11', '2026-12', '2027-02', '2027-03']) })]);
+  assert.deepEqual(linhas.map((l) => l.competencia).sort(), ['2026-11', '2026-12']);
+});
+
+t('virada de ano sem buraco continua contando', () => {
+  const linhas = calcularLinhas([fam({ cobrancas: mensal(['2026-12', '2027-01']) })]);
+  assert.equal(linhas.length, 2);
+});
+
+t('reembolso: a reembolsada e as seguintes não contam', () => {
+  const c = mensal(['2026-11', '2026-12', '2027-01']);
+  c[1].reembolsada = true;
+  const linhas = calcularLinhas([fam({ cobrancas: c })]);
+  assert.deepEqual(linhas.map((l) => l.competencia), ['2026-11']);
+});
+
+t('reembolso do anual: nada conta', () => {
+  const c = mensal(['2026-11'], 129.9);
+  c[0].reembolsada = true;
+  assert.equal(calcularLinhas([fam({ anual: true, cobrancas: c })]).length, 0);
+});
+
+t('paradaEm (cancelou): cobranças a partir dela não contam, nem na rede', () => {
+  const linhas = calcularLinhas([fam({ consultoraId: 'ANA', indicadaPorId: 'NAT', paradaEm: '2026-12-01T00:00:00Z', cobrancas: mensal(['2026-11', '2026-12', '2027-01']) })]);
+  assert.equal(linhas.length, 2);
+  assert.ok(linhas.every((l) => l.competencia === '2026-11'));
 });
 
 t('prazo do Pix: 5º dia útil do mês seguinte, com feriado', () => {

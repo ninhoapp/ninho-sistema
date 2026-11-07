@@ -9,7 +9,15 @@ import { redirect } from 'next/navigation';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { requireSessionAtiva } from '@/lib/auth/guard';
 import { appDb } from '@/lib/supabase/server';
-import { consultoraDoPerfil, subirFoto, apagarFoto, CONSULTORAS_TAG, type Consultora } from '@/lib/consultoras';
+import {
+  consultoraDoPerfil,
+  subirFoto,
+  apagarFoto,
+  responderPedidoVinculo,
+  convidarFamiliaPorEmail,
+  CONSULTORAS_TAG,
+  type Consultora,
+} from '@/lib/consultoras';
 import {
   EMAIL_RE,
   normalizarCpf,
@@ -129,4 +137,43 @@ export async function indicarConsultora(fd: FormData) {
   });
   if (error) volta('indicar', { erro: error.code === '23505' ? 'Essa pessoa já tem um pedido.' : error.message });
   volta('indicar', { ok: 'Indicação enviada. O Ninho vai conferir.' });
+}
+
+// ── Vínculo com aceite dos dois lados (00108) ─────────────
+/** Aprovar (com o aceite marcado) ou recusar um pedido de família. */
+export async function responderPedidoFamilia(fd: FormData) {
+  const c = await eu();
+  const pedido = txt(fd, 'pedido');
+  const aprovar = txt(fd, 'decisao') === 'aprovar';
+  if (!/^[0-9a-f-]{36}$/i.test(pedido)) volta('familias', { erro: 'Pedido não encontrado.' });
+  if (aprovar && fd.get('aceite') !== 'on') volta('familias', { erro: 'Para aprovar, marque o aceite.' });
+  const r = await responderPedidoVinculo(c.id, pedido, aprovar);
+  const msg: Record<string, string> = {
+    nao_encontrado: 'Esse pedido já foi respondido ou foi cancelado pela família.',
+    aceite_invalido: 'Versão do aceite desatualizada. Recarregue a página.',
+    consultora_inativa: 'Sua conta não está ativa agora.',
+    so_responsavel: 'Quem pediu não é mais a responsável pelo bebê.',
+    erro: 'Não consegui responder agora. Tente de novo.',
+  };
+  if (r !== 'ok') volta('familias', { erro: msg[r] ?? msg.erro });
+  volta('familias', { ok: aprovar ? 'Pedido aprovado: a família aparece na sua lista.' : 'Pedido recusado.' });
+}
+
+/** Convida pelo e-mail exato da família. Resposta neutra: não revela quem usa o Ninho. */
+export async function convidarFamilia(fd: FormData) {
+  const c = await eu();
+  const email = normalizarEmail(txt(fd, 'email'));
+  if (!EMAIL_RE.test(email)) volta('convidar', { erro: 'E-mail inválido.' });
+  if (fd.get('aceite') !== 'on') volta('convidar', { erro: 'Para convidar, marque o aceite.' });
+  const r = await convidarFamiliaPorEmail(c.id, email);
+  const msg: Record<string, string> = {
+    ok: 'Se esse e-mail tiver conta no Ninho, a família vai receber o convite no sininho.',
+    email_invalido: 'E-mail inválido.',
+    limite: 'Você chegou ao limite de convites de hoje. Tente amanhã.',
+    aceite_invalido: 'Versão do aceite desatualizada. Recarregue a página.',
+    nao_e_consultora: 'Sua conta não está ativa agora.',
+    erro: 'Não consegui enviar agora. Tente de novo.',
+  };
+  if (r === 'ok') volta('convidar', { ok: msg.ok });
+  volta('convidar', { erro: msg[r] ?? msg.erro });
 }

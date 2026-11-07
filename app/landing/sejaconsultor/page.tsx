@@ -15,7 +15,7 @@ import { unstable_cache } from 'next/cache';
 import { SITE_URL } from '@/lib/config';
 import { PRECOS } from '@/lib/precos';
 import { totalDeContas } from '@/lib/consultoras';
-import { PCT_DIRETO, PCT_REDE, PARCELAS_MENSAL, valorComissao, somar } from '@/lib/consultoras-regras';
+import { PCT_DIRETO, PCT_REDE, PARCELAS_MENSAL, TEXTO_QUEM_GERA_COMISSAO, valorComissao, somar } from '@/lib/consultoras-regras';
 import { formatBRL } from '@/lib/metrics';
 import { SitePage } from '@/components/site/SiteChrome';
 import { AbasLanding } from '@/components/site/AbasLanding';
@@ -186,7 +186,7 @@ export default async function SejaConsultoraPage() {
               <div className="nc-ico">R$</div>
               <div className="num">{pct(PCT_DIRETO)}</div>
               <b>De comissão por {PARCELAS_MENSAL} meses</b>
-              <p>Em cada família que assinar pelo seu link ou código: {pct(PCT_DIRETO)} por {PARCELAS_MENSAL} meses no mensal, ou 1x no anual. Indicada por outra consultora: {pct(PCT_REDE)} + {pct(PCT_REDE)}.</p>
+              <p>Em cada família que criar a conta pelo seu link ou código e assinar: {pct(PCT_DIRETO)} por {PARCELAS_MENSAL} meses no mensal, ou 1x no anual. Indicada por outra consultora: {pct(PCT_REDE)} + {pct(PCT_REDE)}.</p>
             </div>
             <div className="nc-big">
               <div className="nc-ico">★</div>
@@ -256,7 +256,7 @@ export default async function SejaConsultoraPage() {
           <div className="nc-sec-t"><h2>Como funcionam os repasses</h2><p>Você ganha quando a família paga. Teste grátis não conta.</p></div>
           <div className="nc-g3" style={{ marginTop: 24 }}>
             {[
-              ['1', 'A família assina', 'Pelo seu link ou código.'],
+              ['1', 'A família cria a conta e assina', 'Pelo seu link ou código.'],
               ['2', `Comissão por ${PARCELAS_MENSAL} meses`, `Mensal: ${pct(PCT_DIRETO)} todo mês, por ${PARCELAS_MENSAL} meses. Anual: ${pct(PCT_DIRETO)} uma vez só.`],
               ['3', 'Pix todo mês', 'Até o 5º dia útil do mês seguinte.'],
             ].map(([n, t, d]) => (
@@ -264,8 +264,7 @@ export default async function SejaConsultoraPage() {
             ))}
           </div>
           <div className="nc-banner lilas" style={{ maxWidth: 860, margin: '16px auto 0', textAlign: 'center' }}>
-            Você ganha comissão pelas famílias que chegam pelo seu link ou código. Famílias que já tinham conta e
-            encontraram você pela lista &lsquo;Encontrar consultora&rsquo; dentro do Ninho não geram comissão.
+            {TEXTO_QUEM_GERA_COMISSAO}
           </div>
           <div className="nc-g2" style={{ marginTop: 16 }}>
             <div className="nc-card">
@@ -294,7 +293,7 @@ export default async function SejaConsultoraPage() {
               </table>
               <div className="nc-banner verde">
                 Exemplo: <b>10 famílias no Premium mensal</b> dão <b>{brl(somar(Array(10).fill(ex)))} por mês</b> durante {PARCELAS_MENSAL} meses, ou{' '}
-                <b>{brl(somar(Array(10 * PARCELAS_MENSAL).fill(ex)))}</b> no total. Reembolso desconta a comissão.
+                <b>{brl(somar(Array(10 * PARCELAS_MENSAL).fill(ex)))}</b> no total. Se a família cancelar ou pedir reembolso, a comissão dela para.
               </div>
             </div>
           </div>
@@ -309,7 +308,7 @@ export default async function SejaConsultoraPage() {
               <li>Você é independente e responde sozinha pelas orientações que dá às famílias. Nunca indique remédio, dose ou posição de sono, nem prometa resultado. Saúde é com o pediatra.</li>
               <li>Use a rotina dos bebês só para atender aquela família. Não copie, não guarde e não divulgue esses dados.</li>
               <li>Ao divulgar seu link, avise que tem parceria com o Ninho (&ldquo;#publi&rdquo;).</li>
-              <li>Comissão: {pct(PCT_DIRETO)} (ou {pct(PCT_REDE)} + {pct(PCT_REDE)} quando você foi indicada) por {PARCELAS_MENSAL} meses no plano mensal, ou uma vez no anual. Pagamento por Pix até o 5º dia útil do mês seguinte. Reembolso desconta a comissão.</li>
+              <li>Comissão: {pct(PCT_DIRETO)} (ou {pct(PCT_REDE)} + {pct(PCT_REDE)} quando você foi indicada) por {PARCELAS_MENSAL} meses no plano mensal, ou uma vez no anual. Pagamento por Pix até o 5º dia útil do mês seguinte. Vale só para famílias que criaram a conta pelo seu link ou código (o vínculo sozinho não gera, e quem achou você pela lista do app também não) e acaba quando a família cancela ou pede reembolso.</li>
               <li>Se o Ninho for cobrado por algo que você fez, você ressarce.</li>
             </ul>
             <p style={{ marginTop: 8 }}>O termo completo aparece no app, na primeira vez que você entra como consultora.</p>

@@ -16,7 +16,15 @@
  *  - Consultora indicada por outra (consultora_indicacoes.indicada_por_id,
  *    gravado na atribuição): 12,5% para cada uma (dono, 07/11/2026; era 15%). Só 1 nível.
  *  - Teste grátis não conta (as cobranças já vêm só do que foi pago).
- *  - Reembolso desconta: ainda não há dado de reembolso no banco.
+ *  - Comissão só nasce no CADASTRO (dono, 07/11/2026): a família criou a conta
+ *    pelo link ou pelo código da consultora (consultora_indicacoes.metodo
+ *    'link' ou 'codigo_cadastro'), ou o dono atribuiu ('manual'). O vínculo
+ *    sozinho ('vinculo', regra antiga) não gera comissão.
+ *  - PARA no cancelamento ou no reembolso (dono, 07/11/2026): depois do 1º
+ *    mês sem cobrança, ou de uma cobrança reembolsada, nenhuma cobrança
+ *    seguinte daquela família conta, mesmo se ela voltar a assinar. A
+ *    reembolsada também não conta. Ainda não há dado de reembolso no banco:
+ *    `Cobranca.reembolsada` fica pronto para quando houver.
  *  - Pix até o 5º dia útil do mês seguinte à competência (mês da cobrança),
  *    pulando sábado, domingo e feriado nacional.
  */
@@ -24,6 +32,15 @@
 export const PCT_DIRETO = 25;
 export const PCT_REDE = 12.5;
 export const PARCELAS_MENSAL = 6;
+
+/** A regra de quem gera comissão, em texto para a consultora (site, painel e termo). */
+export const TEXTO_QUEM_GERA_COMISSAO =
+  'Você ganha comissão pelas famílias que criam a conta no Ninho pelo seu link ou código. A comissão para quando a família cancela ou pede reembolso. Só o vínculo (a família compartilhar a rotina com você) não gera comissão, e famílias que encontraram você pela lista "Encontrar consultora" dentro do Ninho também não.';
+
+/** Aceite da CONSULTORA ao aprovar ou convidar uma família (texto do Darck, migration 00108). */
+export const ACEITE_VINCULO_CONSULTORA_VERSAO = 'consultora-vinculo-2026-11-07';
+export const ACEITE_VINCULO_CONSULTORA_TEXTO =
+  'Atendo esta família como profissional independente, e todas as orientações que eu der são de minha responsabilidade exclusiva. O Ninho não presta aconselhamento de saúde nem supervisiona meu atendimento. Uso a rotina do bebê só para atender esta família, sem copiar, guardar ou divulgar.';
 
 /** Versão do aceite gravada nos pedidos do site (texto do Darck). */
 export const ACEITE_SITE_VERSAO = 'site-2026-11-06';
@@ -108,6 +125,38 @@ export interface Cobranca {
   data: string;
   /** Preço cheio desta cobrança, em R$. */
   base: number;
+  /** A loja devolveu o dinheiro desta cobrança. Para a comissão daqui em diante. */
+  reembolsada?: boolean;
+}
+
+/** Métodos de atribuição que geram comissão (consultora_indicacoes.metodo). */
+export const METODOS_COM_COMISSAO: ReadonlySet<string> = new Set(['link', 'codigo_cadastro', 'manual']);
+
+function indiceMes(competencia: string): number {
+  const [y, m] = competencia.split('-').map(Number);
+  return y * 12 + m - 1;
+}
+
+/**
+ * As cobranças que contam, em ordem: só depois da atribuição, e cortando no
+ * cancelamento (mês sem cobrança no mensal, ou `paradaEm`) e no reembolso.
+ */
+export function cobrancasQueContam(f: FamiliaComissao): Cobranca[] {
+  const desde = new Date(f.atribuidaEm).getTime();
+  const parada = f.paradaEm ? new Date(f.paradaEm).getTime() : null;
+  const ordem = f.cobrancas
+    .filter((c) => new Date(c.data).getTime() >= desde)
+    .sort((a, b) => a.data.localeCompare(b.data));
+  const out: Cobranca[] = [];
+  for (const c of ordem) {
+    if (parada !== null && new Date(c.data).getTime() >= parada) break;
+    if (c.reembolsada) break;
+    const ant = out[out.length - 1];
+    // Mensal: pulou um mês = cancelou. O que vier depois (voltou a assinar) não conta.
+    if (ant && !f.anual && indiceMes(c.competencia) - indiceMes(ant.competencia) > 1) break;
+    out.push(c);
+  }
+  return out;
 }
 
 export interface FamiliaComissao {
@@ -124,6 +173,10 @@ export interface FamiliaComissao {
   atribuidaEm: string;
   /** Cobranças de quem paga a família (a conta atribuída ou o cuidador pagante). */
   cobrancas: Cobranca[];
+  /** consultora_indicacoes.metodo. Só 'link', 'codigo_cadastro' e 'manual' geram comissão. */
+  metodo: string;
+  /** Instante em que a família cancelou ou pediu reembolso, quando se sabe. Nada a partir daí conta. */
+  paradaEm?: string | null;
 }
 
 export interface LinhaComissao {
@@ -150,11 +203,8 @@ export interface LinhaComissao {
 export function calcularLinhas(familias: FamiliaComissao[]): LinhaComissao[] {
   const out: LinhaComissao[] = [];
   for (const f of familias) {
-    const desde = new Date(f.atribuidaEm).getTime();
-    const elegiveis = f.cobrancas
-      .filter((c) => new Date(c.data).getTime() >= desde)
-      .sort((a, b) => a.data.localeCompare(b.data))
-      .slice(0, f.anual ? 1 : PARCELAS_MENSAL);
+    if (!METODOS_COM_COMISSAO.has(f.metodo)) continue;
+    const elegiveis = cobrancasQueContam(f).slice(0, f.anual ? 1 : PARCELAS_MENSAL);
     elegiveis.forEach((c, i) => {
       const parcela = f.anual ? 'anual' : `${i + 1}/${PARCELAS_MENSAL}`;
       const comum = { competencia: c.competencia, familiaId: f.id, bebe: f.bebe, plano: f.plano, parcela, base: c.base };

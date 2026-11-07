@@ -8,6 +8,7 @@ import {
   baseComissoes,
   listPedidos,
   listVinculosAtivos,
+  pedidosVinculoPendentes,
   bebesPorId,
   cuidadoresDe,
   totalDe,
@@ -69,7 +70,7 @@ const primeiro = (n: string | null) => (n || 'Consultora').split(' ')[0];
 function brutoDoMes(familias: FamiliaAtribuida[], mes: string, consultoraId?: string): number {
   return somar(
     familias
-      .filter((f) => !consultoraId || f.consultoraId === consultoraId)
+      .filter((f) => f.gera && (!consultoraId || f.consultoraId === consultoraId))
       .flatMap((f) => f.cobrancas.filter((c) => c.competencia === mes && c.data >= new Date(f.atribuidaEm).toISOString()).map((c) => c.base)),
   );
 }
@@ -87,25 +88,28 @@ export default async function ConsultorPage({
   requireRole('admin');
   const aba = ABAS.some(([k]) => k === searchParams.aba) ? searchParams.aba! : 'geral';
 
-  const [base, pedidos, vinculos, users] = await Promise.all([
+  const [base, pedidos, vinculos, users, pedVinc] = await Promise.all([
     baseComissoes(),
     listPedidos('pendente'),
     listVinculosAtivos(),
     fetchAppUsers(),
+    pedidosVinculoPendentes(),
   ]);
+  // Pedidos de vínculo esperando resposta (00108): só contagem e datas, sem ação do dono.
+  const pedVincPor = (id: string) => pedVinc.filter((p) => p.consultora_id === id);
   const { consultoras, familias, linhas, pagamentos } = base;
   const porId = new Map(consultoras.map((c) => [c.id, c]));
   const mesAtual = mesNoPainel(new Date());
   const pendPerfil = consultoras.filter((c) => c.bio_pendente || c.foto_pendente_url);
 
   const vincPor = (id: string) => vinculos.filter((v) => v.consultora_id === id);
-  const assinamPor = (id: string) => familias.filter((f) => f.consultoraId === id && f.pagaHoje).length;
+  const assinamPor = (id: string) => familias.filter((f) => f.consultoraId === id && f.gera && f.pagaHoje).length;
 
   let conteudo: React.ReactNode = null;
 
   if (aba === 'geral') {
     const ativas = consultoras.filter((c) => c.estado === 'ativa');
-    const assinantes = familias.filter((f) => f.pagaHoje).length;
+    const assinantes = familias.filter((f) => f.gera && f.pagaHoje).length;
     const bruto = brutoDoMes(familias, mesAtual);
     const comissao = somar(linhas.filter((l) => l.competencia === mesAtual).map((l) => l.valor));
     const liq = liquido(bruto);
@@ -133,7 +137,7 @@ export default async function ConsultorPage({
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Kpi rotulo="Consultoras ativas" valor={ativas.length} sub={`${consultoras.filter((c) => c.estado === 'esperando').length} esperando cadastro · ${pedidos.length} pedido${pedidos.length === 1 ? '' : 's'}`} />
           <Kpi rotulo="Famílias ligadas" valor={vinculos.length} sub="vínculos ativos no app" />
-          <Kpi rotulo="Assinantes" valor={assinantes} sub={`de ${familias.length} famílias atribuídas (comissão)`} />
+          <Kpi rotulo="Assinantes" valor={assinantes} sub={`de ${familias.filter((f) => f.gera).length} famílias que geram comissão`} />
           <Kpi
             verde
             rotulo={`Ninho fica em ${nomeMes(mesAtual)} (R$)`}
@@ -208,7 +212,7 @@ export default async function ConsultorPage({
           <Card titulo="Todas as consultoras" direita="clique no nome para abrir">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead><tr><th className={th}>Consultora</th><th className={th}>Indicada por</th><th className={th}>Famílias</th><th className={th}>Assinam</th><th className={`${th} text-right`}>{nomeMes(mesAtual)} (R$)</th><th className={th}>Na lista</th><th className={th}>Estado</th></tr></thead>
+                <thead><tr><th className={th}>Consultora</th><th className={th}>Indicada por</th><th className={th}>Famílias</th><th className={th}>Assinam</th><th className={`${th} text-right`}>{nomeMes(mesAtual)} (R$)</th><th className={th}>Pedidos de vínculo</th><th className={th}>Na lista</th><th className={th}>Estado</th></tr></thead>
                 <tbody>
                   {consultoras.map((c) => (
                     <tr key={c.id} className={det?.id === c.id ? 'bg-[#F3EEFC]' : 'hover:bg-[#FAF8FE]'}>
@@ -222,6 +226,11 @@ export default async function ConsultorPage({
                       <td className={`${td} tabular-nums`}>{vincPor(c.id).length}</td>
                       <td className={`${td} tabular-nums`}>{assinamPor(c.id)}</td>
                       <td className={`${td} text-right tabular-nums`}>{brl(totalDe(linhas, c.id, mesAtual))}</td>
+                      <td className={`${td} tabular-nums`}>
+                        {pedVincPor(c.id).length ? (
+                          <>{pedVincPor(c.id).length}<small className="block text-[11px] text-ninho-cinza">desde {dataDubai(pedVincPor(c.id)[pedVincPor(c.id).length - 1].criado_em)}</small></>
+                        ) : '—'}
+                      </td>
                       <td className={td}>
                         <form action={alternarLista}><input type="hidden" name="id" value={c.id} /><Chave ligada={c.na_lista && c.estado === 'ativa'} desabilitada={c.estado !== 'ativa'} /></form>
                       </td>
@@ -240,6 +249,7 @@ export default async function ConsultorPage({
               consultoras={consultoras}
               familias={familias.filter((f) => f.consultoraId === det.id)}
               vinculos={vincPor(det.id).length}
+              pedidosVinculo={pedVincPor(det.id)}
               comissaoMes={(babyFam: string) => somar(linhas.filter((l) => l.consultoraId === det.id && l.familiaId === babyFam && l.competencia === mesAtual).map((l) => l.valor))}
               mesAtual={mesAtual}
             />
@@ -348,7 +358,7 @@ export default async function ConsultorPage({
                     <td className={td}>{porId.get(v.consultora_id)?.nome ?? '—'}</td>
                     <td className={td}>{st ? <Selo cor={u!.estadoEfetivo === 'pagante' ? 'verde' : u!.estadoEfetivo === 'trial_ativo' ? 'lilas' : 'cinza'}>{st}</Selo> : '—'}</td>
                     <td className={td}>{dataDubai(v.aceito_em)}</td>
-                    <td className={td}>{fam ? <Selo cor="verde">gera</Selo> : <Selo cor="cinza">não gera</Selo>}</td>
+                    <td className={td}>{fam?.gera ? <Selo cor="verde">gera</Selo> : <Selo cor="cinza">não gera</Selo>}</td>
                     <td className={td}>{dataDubai(fam?.assinouEm ?? null)}</td>
                   </tr>
                 );
@@ -358,8 +368,9 @@ export default async function ConsultorPage({
           {rows.length === 0 && <p className="py-4 text-center text-sm text-ninho-cinza">Nenhuma família ligada ainda.</p>}
         </div>
         <Aviso>
-          &ldquo;Não gera&rdquo; comissão: família que já veio de parceiro, já tinha outra consultora, já pagava antes ou
-          achou a consultora pela lista &ldquo;Encontrar consultora&rdquo; do app.
+          Comissão só nasce no cadastro: a família criou a conta pelo link ou pelo código da consultora (ou o dono
+          atribuiu). O vínculo sozinho não gera comissão, e família que achou a consultora pela lista &ldquo;Encontrar
+          consultora&rdquo; do app também não. A comissão para quando a família cancela ou pede reembolso.
         </Aviso>
       </Card>
     );
@@ -524,6 +535,7 @@ function Detalhe({
   consultoras,
   familias,
   vinculos,
+  pedidosVinculo,
   comissaoMes,
   mesAtual,
 }: {
@@ -532,6 +544,7 @@ function Detalhe({
   consultoras: Consultora[];
   familias: FamiliaAtribuida[];
   vinculos: number;
+  pedidosVinculo: { origem: 'familia' | 'consultora'; criado_em: string }[];
   comissaoMes: (familiaId: string) => number;
   mesAtual: string;
 }) {
@@ -580,6 +593,12 @@ function Detalhe({
             <button className={botao.cinza}>Salvar</button>
             <small className="text-[11px] text-ninho-cinza">só muda famílias atribuídas daqui para frente</small>
           </form>
+        </dd>
+        <dt className="font-bold text-[#9A95AD]">Pedidos de vínculo</dt>
+        <dd className="font-semibold">
+          {pedidosVinculo.length === 0
+            ? 'nenhum esperando'
+            : `${pedidosVinculo.filter((p) => p.origem === 'familia').length} de famílias esperando ela · ${pedidosVinculo.filter((p) => p.origem === 'consultora').length} convites dela esperando a família · ${pedidosVinculo.map((p) => dataDubai(p.criado_em)).join(', ')}`}
         </dd>
         <dt className="font-bold text-[#9A95AD]">Ela indicou</dt><dd className="font-semibold">{filhas.map((x) => x.nome).join(', ') || 'ninguém ainda'}</dd>
         <dt className="font-bold text-[#9A95AD]">Termo aceito</dt><dd className="font-semibold">{c.termo_aceito_em ? `em ${dataDubai(c.termo_aceito_em)} (${c.termo_versao})` : 'ainda não'}</dd>
