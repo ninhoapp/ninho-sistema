@@ -11,7 +11,9 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { requireRole } from '@/lib/auth/guard';
-import { appDb } from '@/lib/supabase/server';
+import { verifyPassword } from '@/lib/auth/password';
+import { getPerfil } from '@/lib/painel/store';
+import { appDb, painelDb } from '@/lib/supabase/server';
 import {
   getConsultora,
   listConsultoras,
@@ -34,12 +36,79 @@ import {
 
 const BASE = '/admin/consultor';
 
-function volta(params: Record<string, string | null | undefined>): never {
+function volta(params: Record<string, string | null | undefined>, destino: string = BASE): never {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v) q.set(k, v);
   revalidateTag(CONSULTORAS_TAG);
   revalidatePath(BASE);
-  redirect(`${BASE}?${q.toString()}`);
+  // Repasses (Financeiro) mostra as mesmas comissões: limpa as duas telas.
+  revalidatePath('/admin/repasses');
+  redirect(`${destino}?${q.toString()}`);
+}
+
+// ── Excluir consultora (senha do admin) ───────────────────
+export interface ExcluirState {
+  error?: string;
+}
+
+/**
+ * Exclui de verdade só quem não tem histórico: sem vínculo com família (nem
+ * removido: é a prova do consentimento), sem aceite de contato, sem pagamento
+ * e sem família atribuída para comissão. Com histórico, explica e sugere
+ * Pausar. Pede a senha de login do admin, conferida no servidor.
+ */
+export async function excluirConsultora(_prev: ExcluirState, fd: FormData): Promise<ExcluirState> {
+  const session = requireRole('admin');
+  const id = txt(fd, 'id');
+  // O campo da senha tem nome aleatório (o navegador não preenche sozinho).
+  const campo = txt(fd, 'campo');
+  const senha = /^k[a-z0-9]{6,20}$/.test(campo) ? String(fd.get(campo) ?? '') : '';
+  if (!senha) return { error: 'Digite sua senha de login para confirmar.' };
+  const perfil = await getPerfil(session.sub);
+  if (!perfil || !verifyPassword(senha, perfil.password_hash)) return { error: 'Senha incorreta. Nada foi excluído.' };
+
+  const c = await getConsultora(id);
+  if (!c) return { error: 'Consultora não encontrada.' };
+
+  const sb = appDb();
+  const contar = async (tabela: string) => {
+    const { count, error } = await sb.from(tabela).select('consultora_id', { count: 'exact', head: true }).eq('consultora_id', c.id);
+    if (error) throw new Error(`${tabela}: ${error.message}`);
+    return count ?? 0;
+  };
+  let uso: number[];
+  try {
+    uso = await Promise.all([
+      contar('consultora_vinculos'),
+      contar('consultora_contato_aceites'),
+      contar('consultora_pagamentos'),
+      contar('consultora_indicacoes'),
+    ]);
+  } catch (e) {
+    console.error('[consultor] excluir: conferência falhou:', e instanceof Error ? e.message : e);
+    return { error: 'Não consegui conferir o histórico dela agora. Nada foi excluído.' };
+  }
+  const [vinculos, aceites, pagamentos, familias] = uso;
+  const motivos = [
+    vinculos ? `${vinculos} vínculo(s) com família (inclusive já removidos: é a prova do consentimento)` : '',
+    aceites ? `${aceites} aceite(s) de contato pela lista do app` : '',
+    pagamentos ? `${pagamentos} pagamento(s) de comissão` : '',
+    familias ? `${familias} família(s) atribuída(s) para comissão` : '',
+  ].filter(Boolean);
+  if (motivos.length) {
+    return { error: `Não dá para excluir: ela tem ${motivos.join(', ')}. Use Pausar: ela sai da lista e perde a rotina das famílias, e o histórico fica guardado.` };
+  }
+
+  const { error } = await sb.from('consultoras').delete().eq('id', c.id);
+  if (error) {
+    return { error: error.code === '23503' ? 'Ela tem histórico ligado e não pode ser excluída. Use Pausar.' : error.message };
+  }
+  await Promise.all([apagarFoto(c.foto_url), apagarFoto(c.foto_pendente_url)]);
+  if (c.painel_perfil_id) {
+    const { error: e2 } = await painelDb().from('perfis').delete().eq('id', c.painel_perfil_id).eq('role', 'consultora');
+    if (e2) console.error('[consultor] excluir perfil do painel falhou:', e2.message);
+  }
+  volta({ aba: 'consultoras', ok: `${c.nome ?? 'Consultora'} excluída.` });
 }
 
 function txt(fd: FormData, k: string): string {
@@ -310,14 +379,18 @@ export async function marcarPago(fd: FormData) {
   requireRole('admin');
   const id = txt(fd, 'id');
   const competencia = txt(fd, 'competencia');
-  if (!/^\d{4}-\d{2}$/.test(competencia)) volta({ aba: 'comissoes', erro: 'Mês inválido.' });
+  // De onde veio: Consultoras › Comissões ou Financeiro › Repasses (a mesma tabela).
+  const daRepasses = txt(fd, 'volta') === 'repasses';
+  const ir = (p: Record<string, string>): never =>
+    daRepasses ? volta(p, '/admin/repasses') : volta({ aba: 'comissoes', mes: competencia, ...p });
+  if (!/^\d{4}-\d{2}$/.test(competencia)) ir({ erro: 'Mês inválido.' });
   // O valor gravado é o calculado agora (o mesmo que a tela mostra).
   const base = await baseComissoesAgora();
   const valor = totalDe(base.linhas, id, competencia);
-  if (valor <= 0) volta({ aba: 'comissoes', mes: competencia, erro: 'Não há comissão nesse mês para essa consultora.' });
+  if (valor <= 0) ir({ erro: 'Não há comissão nesse mês para essa consultora.' });
   const { error } = await appDb()
     .from('consultora_pagamentos')
     .insert({ consultora_id: id, competencia, valor, observacao: txt(fd, 'observacao') || null });
-  if (error) volta({ aba: 'comissoes', mes: competencia, erro: error.code === '23505' ? 'Esse mês já estava marcado como pago.' : error.message });
-  volta({ aba: 'comissoes', mes: competencia, ok: 'Marcado como pago. Ela vê "Pago" no app e no painel.' });
+  if (error) ir({ erro: error.code === '23505' ? 'Esse mês já estava marcado como pago.' : error.message });
+  ir({ ok: 'Marcado como pago. Ela vê "Pago" no app e no painel, e Repasses já mostra.' });
 }

@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { enviarPedidoSite, type PedidoState } from '@/app/landing/sejaconsultor/actions';
+import { TelefonePais } from '@/components/TelefonePais';
+import { COMO_SOUBE_OPCOES } from '@/lib/consultoras-regras';
 
 function Enviar({ pronto }: { pronto: boolean }) {
   const { pending } = useFormStatus();
@@ -40,9 +42,22 @@ export function FormSejaConsultora({ abertoEm }: { abertoEm: number }) {
         <div className="nc-fld"><label htmlFor="nc-email">E-mail que você vai usar no app</label><input id="nc-email" name="email" type="email" required maxLength={254} placeholder="nome@gmail.com" autoComplete="email" /></div>
       </div>
       <div className="nc-g3" style={{ gap: 10 }}>
-        <div className="nc-fld"><label htmlFor="nc-w">WhatsApp</label><input id="nc-w" name="whatsapp" placeholder="+55" inputMode="tel" autoComplete="tel" /></div>
+        <div className="nc-fld" style={{ gridColumn: 'span 2' }}><label htmlFor="nc-w">WhatsApp</label><TelefonePais id="nc-w" name="whatsapp" /></div>
         <div className="nc-fld"><label htmlFor="nc-i">Instagram</label><input id="nc-i" name="instagram" placeholder="@" /></div>
+      </div>
+      <div className="nc-g2" style={{ gap: 10 }}>
+        <div className="nc-fld">
+          <label htmlFor="nc-s">Como ficou sabendo do Ninho?</label>
+          <select id="nc-s" name="como_soube" defaultValue="">
+            <option value="">Escolha</option>
+            {COMO_SOUBE_OPCOES.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
         <div className="nc-fld"><label htmlFor="nc-c">Quem te indicou (código)</label><input id="nc-c" name="codigo" placeholder="Ex.: NATHALIA" maxLength={20} /></div>
+      </div>
+      <div className="nc-fld">
+        <label htmlFor="nc-m">Comentário (opcional)</label>
+        <textarea id="nc-m" name="comentario" maxLength={500} rows={3} placeholder="Conte um pouco do seu trabalho, se quiser" />
       </div>
       <label className="nc-ck">
         <input type="checkbox" name="ok1" checked={ok1} onChange={(e) => setOk1(e.target.checked)} />

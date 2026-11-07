@@ -52,6 +52,7 @@ export interface Consultora {
   bio_pendente: string | null;
   foto_pendente_url: string | null;
   criado_em: string;
+  atualizado_em: string;
   email_liberado: string | null;
   codigo: string | null;
   indicada_por: string | null;
@@ -76,6 +77,36 @@ export interface Pedido {
   status: 'pendente' | 'aprovado' | 'recusado';
   criado_em: string;
   decidido_em: string | null;
+  /** Migration 00111: ausentes enquanto ela não for aplicada. */
+  como_soube?: string | null;
+  comentario?: string | null;
+}
+
+export interface NovoPedido {
+  nome: string;
+  email: string;
+  instagram: string | null;
+  whatsapp: string | null;
+  indicada_por: string | null;
+  origem: 'app' | 'site';
+  aceite_versao?: string | null;
+  como_soube: string | null;
+  comentario: string | null;
+}
+
+/**
+ * Grava um pedido para ser consultora. Se a 00111 (como_soube, comentario)
+ * ainda não foi aplicada, grava sem esses dois campos em vez de falhar.
+ */
+export async function inserirPedido(p: NovoPedido): Promise<{ error: { code?: string; message: string } | null }> {
+  const { error } = await appDb().from('consultora_pedidos').insert(p);
+  if (error && (error.code === 'PGRST204' || error.code === '42703' || /como_soube|comentario/.test(error.message))) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { como_soube, comentario, ...sem } = p;
+    const again = await appDb().from('consultora_pedidos').insert(sem);
+    return { error: again.error };
+  }
+  return { error };
 }
 
 export interface Indicacao {
@@ -575,6 +606,52 @@ export async function pedidosVinculoPendentes(): Promise<{ consultora_id: string
     return [];
   }
   return (data as { consultora_id: string; origem: 'familia' | 'consultora'; criado_em: string }[]) ?? [];
+}
+
+// ── Ficha da família (anotações da consultora, migration 00111) ──
+// O p_consultora vem SEMPRE da sessão. Só ela vê; some quando o vínculo sai.
+export interface Ficha {
+  inicio: string | null;
+  encontros_feitos: number | null;
+  encontros_total: number | null;
+  pais_nomes: string | null;
+  bebe_apelido: string | null;
+  whatsapp: string | null;
+  observacoes: string | null;
+  atualizado_em: string | null;
+}
+
+export async function fichaDe(consultoraId: string, babyId: string): Promise<{ ficha: Ficha | null; indisponivel: boolean }> {
+  const { data, error } = await appDb().rpc('_consultora_ficha', { p_consultora: consultoraId, p_baby: babyId });
+  if (error) {
+    console.error('[consultoras] _consultora_ficha:', error.message);
+    return { ficha: null, indisponivel: true };
+  }
+  const linhas = (data as Ficha[] | null) ?? [];
+  return { ficha: linhas[0] ?? null, indisponivel: false };
+}
+
+export async function salvarFichaDe(
+  consultoraId: string,
+  babyId: string,
+  f: Omit<Ficha, 'atualizado_em'>,
+): Promise<string> {
+  const { data, error } = await appDb().rpc('_consultora_salvar_ficha', {
+    p_consultora: consultoraId,
+    p_baby: babyId,
+    p_inicio: f.inicio,
+    p_encontros_feitos: f.encontros_feitos,
+    p_encontros_total: f.encontros_total,
+    p_pais_nomes: f.pais_nomes,
+    p_bebe_apelido: f.bebe_apelido,
+    p_whatsapp: f.whatsapp,
+    p_observacoes: f.observacoes,
+  });
+  if (error) {
+    console.error('[consultoras] _consultora_salvar_ficha:', error.message);
+    return 'erro';
+  }
+  return String(data);
 }
 
 // ── Contagem pública (site) ───────────────────────────────

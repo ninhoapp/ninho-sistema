@@ -15,13 +15,14 @@
  */
 import { headers } from 'next/headers';
 import { appDb } from '@/lib/supabase/server';
-import { consultoraAtivaPorCodigo } from '@/lib/consultoras';
+import { consultoraAtivaPorCodigo, inserirPedido } from '@/lib/consultoras';
+import { juntarTelefone } from '@/lib/telefone';
 import {
   ACEITE_SITE_VERSAO,
   EMAIL_RE,
   normalizarEmail,
   normalizarInstagram,
-  normalizarWhatsapp,
+  normalizarComoSoube,
 } from '@/lib/consultoras-regras';
 
 export interface PedidoState {
@@ -58,11 +59,13 @@ export async function enviarPedidoSite(_prev: PedidoState, fd: FormData): Promis
   const nome = txt('nome');
   const email = normalizarEmail(txt('email'));
   const wBruto = txt('whatsapp');
+  const comoSoube = normalizarComoSoube(txt('como_soube'));
+  const comentario = txt('comentario').slice(0, 500) || null;
   const iBruto = txt('instagram');
   const cod = txt('codigo');
   if (nome.length < 2 || nome.length > 80) return { error: 'Coloque seu nome.' };
   if (!EMAIL_RE.test(email) || email.length > 254) return { error: 'Coloque o e-mail que você vai usar no app.' };
-  const whatsapp = wBruto ? normalizarWhatsapp(wBruto) : null;
+  const whatsapp = wBruto ? juntarTelefone(txt('whatsapp_pais'), wBruto) : null;
   if (wBruto && !whatsapp) return { error: 'WhatsApp com DDD (ex.: 11 98765-4321).' };
   const instagram = iBruto ? normalizarInstagram(iBruto) : null;
   if (iBruto && !instagram) return { error: 'Instagram inválido. Use só o seu @.' };
@@ -81,7 +84,7 @@ export async function enviarPedidoSite(_prev: PedidoState, fd: FormData): Promis
     if ((hoje ?? 0) >= TETO_DIA) return { error: 'Recebemos muitos pedidos hoje. Tente de novo amanhã ou fale com a gente no Instagram @useninho.app.' };
 
     const indicadora = cod ? await consultoraAtivaPorCodigo(cod) : null;
-    const { error } = await sb.from('consultora_pedidos').insert({
+    const { error } = await inserirPedido({
       nome,
       email,
       instagram,
@@ -89,6 +92,8 @@ export async function enviarPedidoSite(_prev: PedidoState, fd: FormData): Promis
       indicada_por: indicadora?.id ?? null,
       origem: 'site',
       aceite_versao: ACEITE_SITE_VERSAO,
+      como_soube: comoSoube,
+      comentario,
     });
     if (error) {
       if (error.code === '23505') return { ok: true };

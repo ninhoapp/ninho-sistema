@@ -15,6 +15,8 @@ import {
   apagarFoto,
   responderPedidoVinculo,
   convidarFamiliaPorEmail,
+  inserirPedido,
+  salvarFichaDe,
   CONSULTORAS_TAG,
   type Consultora,
 } from '@/lib/consultoras';
@@ -23,13 +25,14 @@ import {
   normalizarCpf,
   normalizarEmail,
   normalizarInstagram,
-  normalizarWhatsapp,
+  normalizarComoSoube,
 } from '@/lib/consultoras-regras';
+import { juntarTelefone } from '@/lib/telefone';
 
 const BASE = '/admin/consultora';
 
-function volta(aba: string, r: { ok?: string; erro?: string }): never {
-  const q = new URLSearchParams({ aba });
+function volta(aba: string, r: { ok?: string; erro?: string }, extra: Record<string, string> = {}): never {
+  const q = new URLSearchParams({ aba, ...extra });
   if (r.ok) q.set('ok', r.ok);
   if (r.erro) q.set('erro', r.erro);
   revalidateTag(CONSULTORAS_TAG);
@@ -57,7 +60,7 @@ export async function salvarPerfil(fd: FormData) {
   const uf = /^[A-Z]{2}$/.test(ufBruto) ? ufBruto : null;
   if (ufBruto && !uf) volta('perfil', { erro: 'UF com 2 letras (ex.: SP).' });
   const wBruto = txt(fd, 'whatsapp');
-  const whatsapp = wBruto ? normalizarWhatsapp(wBruto) : null;
+  const whatsapp = wBruto ? juntarTelefone(txt(fd, 'whatsapp_pais'), wBruto) : null;
   if (wBruto && !whatsapp) volta('perfil', { erro: 'WhatsApp com DDD (ex.: 11 98765-4321).' });
   const iBruto = txt(fd, 'instagram');
   const instagram = iBruto ? normalizarInstagram(iBruto) : null;
@@ -108,13 +111,19 @@ export async function enviarFoto(fd: FormData) {
 
 export async function indicarConsultora(fd: FormData) {
   const c = await eu();
-  if (c.estado !== 'ativa' || !c.termo_aceito_em) volta('indicar', { erro: 'Só consultora ativa pode indicar.' });
+  // A mesma indicação fica em Meu perfil e em Indicar consultora.
+  const aba = txt(fd, 'volta') === 'perfil' ? 'perfil' : 'indicar';
+  if (c.estado !== 'ativa' || !c.termo_aceito_em) volta(aba, { erro: 'Só consultora ativa pode indicar.' });
   const nome = txt(fd, 'nome');
   const email = normalizarEmail(txt(fd, 'email'));
   const iBruto = txt(fd, 'instagram');
   const wBruto = txt(fd, 'whatsapp');
-  if (nome.length < 2 || nome.length > 80) volta('indicar', { erro: 'Coloque o nome.' });
-  if (!EMAIL_RE.test(email)) volta('indicar', { erro: 'Coloque o e-mail que ela vai usar no app.' });
+  if (nome.length < 2 || nome.length > 80) volta(aba, { erro: 'Coloque o nome.' });
+  if (!EMAIL_RE.test(email)) volta(aba, { erro: 'Coloque o e-mail que ela vai usar no app.' });
+  const whatsapp = wBruto ? juntarTelefone(txt(fd, 'whatsapp_pais'), wBruto) : null;
+  if (wBruto && !whatsapp) volta(aba, { erro: 'WhatsApp com DDD (ex.: 11 98765-4321).' });
+  const instagram = iBruto ? normalizarInstagram(iBruto) : null;
+  if (iBruto && !instagram) volta(aba, { erro: 'Instagram inválido. Use só o @ dela.' });
 
   const sb = appDb();
   const [{ data: jaC }, { data: jaP }, { count: pend }, { count: dia }] = await Promise.all([
@@ -123,20 +132,23 @@ export async function indicarConsultora(fd: FormData) {
     sb.from('consultora_pedidos').select('id', { count: 'exact', head: true }).eq('indicada_por', c.id).eq('status', 'pendente'),
     sb.from('consultora_pedidos').select('id', { count: 'exact', head: true }).eq('indicada_por', c.id).gt('criado_em', new Date(Date.now() - 86_400_000).toISOString()),
   ]);
-  if ((jaC?.length ?? 0) > 0 || (jaP?.length ?? 0) > 0) volta('indicar', { erro: 'Essa pessoa já foi indicada ou liberada.' });
-  // Mesmos limites da função do app: até 5 pendentes e 10 por dia.
-  if ((pend ?? 0) >= 5 || (dia ?? 0) >= 10) volta('indicar', { erro: 'Você chegou ao limite de indicações por agora. Tente amanhã.' });
+  // Mesmas travas de consultora_indicar: ja_existe, até 5 pendentes e 10 por dia.
+  if ((jaC?.length ?? 0) > 0 || (jaP?.length ?? 0) > 0) volta(aba, { erro: 'Essa pessoa já foi indicada ou liberada.' });
+  if ((pend ?? 0) >= 5 || (dia ?? 0) >= 10) volta(aba, { erro: 'Você chegou ao limite de indicações por agora. Tente amanhã.' });
 
-  const { error } = await sb.from('consultora_pedidos').insert({
+  // origem 'app' (o check da tabela só aceita 'app' e 'site'): é a consultora pedindo.
+  const { error } = await inserirPedido({
     nome: nome.slice(0, 80),
     email,
-    instagram: iBruto ? (normalizarInstagram(iBruto) ?? iBruto.slice(0, 40)) : null,
-    whatsapp: wBruto ? wBruto.slice(0, 30) : null,
+    instagram,
+    whatsapp,
     indicada_por: c.id,
     origem: 'app',
+    como_soube: normalizarComoSoube(txt(fd, 'como_soube')),
+    comentario: txt(fd, 'comentario').slice(0, 500) || null,
   });
-  if (error) volta('indicar', { erro: error.code === '23505' ? 'Essa pessoa já tem um pedido.' : error.message });
-  volta('indicar', { ok: 'Indicação enviada. O Ninho vai conferir.' });
+  if (error) volta(aba, { erro: error.code === '23505' ? 'Essa pessoa já tem um pedido.' : 'Não consegui enviar agora. Tente de novo.' });
+  volta(aba, { ok: 'Indicação enviada. O Ninho vai conferir.' });
 }
 
 // ── Vínculo com aceite dos dois lados (00109) ─────────────
@@ -176,4 +188,42 @@ export async function convidarFamilia(fd: FormData) {
   };
   if (r === 'ok') volta('convidar', { ok: msg.ok });
   volta('convidar', { erro: msg[r] ?? msg.erro });
+}
+
+// ── Ficha da família (00111) ──────────────────────────────
+export async function salvarFicha(fd: FormData) {
+  const c = await eu();
+  const baby = txt(fd, 'baby');
+  if (!/^[0-9a-f-]{36}$/i.test(baby)) volta('familias', { erro: 'Família não encontrada.' });
+  const ancora = { ficha: baby };
+  const inicioBruto = txt(fd, 'inicio');
+  const inicio = /^\d{4}-\d{2}-\d{2}$/.test(inicioBruto) ? inicioBruto : null;
+  const num = (k: string) => {
+    const v = txt(fd, k);
+    if (!v) return null;
+    const n = Number(v);
+    return Number.isInteger(n) && n >= 0 && n <= 999 ? n : NaN;
+  };
+  const feitos = num('encontros_feitos');
+  const total = num('encontros_total');
+  if (Number.isNaN(feitos) || Number.isNaN(total)) volta('familias', { erro: 'Encontros: use números de 0 a 999.' }, ancora);
+  const wBruto = txt(fd, 'whatsapp');
+  const whatsapp = wBruto ? juntarTelefone(txt(fd, 'whatsapp_pais'), wBruto, 8) : null;
+  if (wBruto && !whatsapp) volta('familias', { erro: 'WhatsApp inválido.' }, ancora);
+  const r = await salvarFichaDe(c.id, baby, {
+    inicio,
+    encontros_feitos: feitos,
+    encontros_total: total,
+    pais_nomes: txt(fd, 'pais_nomes').slice(0, 120) || null,
+    bebe_apelido: txt(fd, 'bebe_apelido').slice(0, 60) || null,
+    whatsapp,
+    observacoes: txt(fd, 'observacoes').slice(0, 2000) || null,
+  });
+  const msg: Record<string, string> = {
+    sem_acesso: 'Essa família não compartilha mais a rotina com você.',
+    invalido: 'Confira os campos da ficha.',
+    erro: 'Não consegui salvar a ficha agora. Tente de novo.',
+  };
+  if (r !== 'ok') volta('familias', { erro: msg[r] ?? msg.erro }, ancora);
+  volta('familias', { ok: 'Ficha salva.' }, ancora);
 }

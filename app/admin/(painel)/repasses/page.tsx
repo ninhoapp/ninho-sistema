@@ -10,16 +10,38 @@ import { Tabela, Td } from '@/components/admin/Tabela';
 import { ExportExcelButton } from '@/components/admin/ExportExcelButton';
 import { IconCash, IconClock, IconUsers } from '@/components/admin/icons';
 import { repasseConfirmado, repasseDoParceiro, competencias, confirmadoDaCompetencia } from '@/lib/parceiros';
+import { baseComissoesAgora, totalDe, pagamentoDe } from '@/lib/consultoras';
+import { prazoPix, dataBr, nomeCompetencia } from '@/lib/consultoras-regras';
+import { marcarPago } from '@/app/admin/(painel)/consultor/actions';
 
 export const dynamic = 'force-dynamic';
 
-export default async function RepassesPage() {
+export default async function RepassesPage({ searchParams }: { searchParams: { ok?: string; erro?: string } }) {
   requireRole('admin');
-  const [perfis, users, outcomes] = await Promise.all([
+  const [perfis, users, outcomes, cons] = await Promise.all([
     listPerfis(),
     fetchAppUsers(),
     listOutcomes(),
+    // Sem cache: Financeiro nunca mostra valor velho depois de um "Marcar como pago".
+    baseComissoesAgora().catch((e) => {
+      console.error('[repasses] comissões de consultoras falharam:', e instanceof Error ? e.message : e);
+      return null;
+    }),
   ]);
+
+  // Consultoras de sono: o MESMO cálculo e a MESMA tabela de pagamentos de
+  // Parcerias › Consultoras de sono (lib/consultoras.ts + consultora_pagamentos).
+  const linhasConsultoras = cons
+    ? Array.from(new Set(cons.linhas.map((l) => l.competencia)))
+        .sort()
+        .reverse()
+        .flatMap((mes) =>
+          cons.consultoras
+            .map((c) => ({ c, mes, valor: totalDe(cons.linhas, c.id, mes), pago: pagamentoDe(cons.pagamentos, c.id, mes) }))
+            .filter((x) => x.valor > 0 || x.pago),
+        )
+    : [];
+  const consultorasEmAberto = linhasConsultoras.filter((x) => !x.pago).reduce((s, x) => s + x.valor, 0);
 
   const repasses = buildRepasses(perfis, users, outcomes).filter(
     (r) => r.convertidos > 0 || r.consolidado > 0
@@ -45,6 +67,17 @@ export default async function RepassesPage() {
     .filter((r) => r.pagantes > 0 || r.aPagar > 0 || r.emAberto > 0);
   const totalParceiros = parceiros.reduce((s, r) => s + r.aPagar, 0);
 
+  const paraExcelConsultoras = linhasConsultoras.map((x) => ({
+    Conversor: `${x.c.nome ?? 'Consultora'} (consultora ${x.c.codigo ?? ''})`,
+    Usuário: x.c.email_liberado ?? '',
+    Comissão: `consultora · ${nomeCompetencia(x.mes)}`,
+    'Chave PIX': x.c.pix_chave || '',
+    Convertidos: 0,
+    Pagando: 0,
+    'A pagar': x.pago ? 0 : x.valor,
+    Previsto: 0,
+  }));
+
   const paraExcel = repasses.map((r) => ({
     Conversor: r.perfil.display_name,
     Usuário: r.perfil.username,
@@ -65,16 +98,21 @@ export default async function RepassesPage() {
       'A pagar': r.aPagar,
       Previsto: r.emAberto,
     })),
-  );
+  ).concat(paraExcelConsultoras);
 
   return (
     <>
       <PageHeader
         title="Repasses"
-        subtitle="Quanto pagar a cada conversor e a cada parceiro. Conversor: leads que ele marcou como convertido e que hoje pagam. Parceiro: cobranças da loja nas contas que vieram do link ou do código dele."
+        subtitle="Quanto pagar a cada conversor, parceiro e consultora de sono. Conversor: leads que ele marcou como convertido e que hoje pagam. Parceiro: cobranças da loja nas contas que vieram do link ou do código dele. Consultora: o mesmo extrato de Parcerias › Consultoras de sono."
         right={<ExportExcelButton rows={paraExcel} filename="ninho-repasses" sheetName="Repasses" />}
       />
 
+      {(searchParams.ok || searchParams.erro) && (
+        <div className={`mb-4 rounded-2xl px-4 py-3 text-sm font-semibold ${searchParams.erro ? 'bg-red-50 text-red-600' : 'bg-[#EEF8F1] text-[#256B43]'}`} role="status">
+          {searchParams.erro || searchParams.ok}
+        </div>
+      )}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           label="A pagar agora"
@@ -149,6 +187,43 @@ export default async function RepassesPage() {
             <Td>{r.pagantes}</Td>
             <Td className="whitespace-nowrap font-semibold text-ninho-roxo-escuro">{formatBRL(r.aPagar)}</Td>
             <Td className="whitespace-nowrap text-ninho-cinza">{formatBRL(r.emAberto)}</Td>
+          </tr>
+        ))}
+      </Tabela>
+
+      <h2 className="mb-3 mt-8 text-base font-bold text-ninho-grafite">Consultoras de sono</h2>
+      <p className="mb-3 text-sm text-ninho-cinza">
+        Pix até o 5º dia útil do mês seguinte ao das cobranças (feriado nacional não conta). Em aberto agora:{' '}
+        {formatBRL(consultorasEmAberto)}. &ldquo;Marcar como pago&rdquo; aqui ou em Parcerias › Consultoras de sono grava no
+        mesmo lugar, e a consultora vê &ldquo;Pago&rdquo; no app e no painel.
+      </p>
+      {!cons && <Notice tone="warn">Não consegui ler as comissões das consultoras agora. Recarregue a página.</Notice>}
+      <Tabela
+        headers={['Consultora', 'Mês das cobranças', 'Chave PIX', 'Valor', 'Prazo do Pix', 'Situação']}
+        vazio="Nenhuma comissão de consultora ainda."
+      >
+        {linhasConsultoras.map((x) => (
+          <tr key={`${x.c.id}-${x.mes}`}>
+            <Td className="font-medium">{x.c.nome}</Td>
+            <Td>{nomeCompetencia(x.mes)}</Td>
+            <Td className="font-mono text-xs">{x.c.pix_chave || <span className="text-red-500">não cadastrada</span>}</Td>
+            <Td className="whitespace-nowrap font-semibold text-ninho-roxo-escuro">{formatBRL(x.pago ? x.pago.valor : x.valor)}</Td>
+            <Td className="whitespace-nowrap">{dataBr(prazoPix(x.mes))}</Td>
+            <Td>
+              {x.pago ? (
+                <span className="text-xs font-semibold text-[#2F8A55]">
+                  Pago em {new Date(x.pago.pago_em).toLocaleDateString('pt-BR', { timeZone: 'Asia/Dubai' })}
+                  {Math.abs(x.pago.valor - x.valor) >= 0.01 && <span className="block font-normal text-[#B7791F]">extrato hoje: {formatBRL(x.valor)}</span>}
+                </span>
+              ) : (
+                <form action={marcarPago}>
+                  <input type="hidden" name="id" value={x.c.id} />
+                  <input type="hidden" name="competencia" value={x.mes} />
+                  <input type="hidden" name="volta" value="repasses" />
+                  <button className="rounded-pill bg-[#F1EBFC] px-3 py-1.5 text-xs font-bold text-[#7C5CD6]">Marcar como pago</button>
+                </form>
+              )}
+            </Td>
           </tr>
         ))}
       </Tabela>

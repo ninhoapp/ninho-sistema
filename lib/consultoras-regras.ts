@@ -38,9 +38,17 @@ export const TEXTO_QUEM_GERA_COMISSAO =
   'Você ganha comissão pelas famílias que criam a conta no Ninho pelo seu link ou código. A comissão para quando a família cancela ou pede reembolso. Só o vínculo (a família compartilhar a rotina com você) não gera comissão, e famílias que encontraram você pela lista "Encontrar consultora" dentro do Ninho também não.';
 
 /** Aceite da CONSULTORA ao aprovar ou convidar uma família (texto do Darck, migration 00109). */
-export const ACEITE_VINCULO_CONSULTORA_VERSAO = 'consultora-vinculo-2026-11-07';
+export const ACEITE_VINCULO_CONSULTORA_VERSAO = 'consultora-vinculo-2026-11-07-v2';
 export const ACEITE_VINCULO_CONSULTORA_TEXTO =
-  'Atendo esta família como profissional independente, e todas as orientações que eu der são de minha responsabilidade exclusiva. O Ninho não presta aconselhamento de saúde nem supervisiona meu atendimento. Uso a rotina do bebê só para atender esta família, sem copiar, guardar ou divulgar.';
+  'Atendo esta família como profissional independente, e todas as orientações que eu der são de minha responsabilidade exclusiva. O Ninho não presta aconselhamento de saúde nem supervisiona meu atendimento. Uso a rotina do bebê só para atender esta família, sem copiar ou divulgar fora do Ninho. Nas anotações, registro só o necessário para o atendimento, sem diagnóstico nem remédio.';
+
+/** "Como ficou sabendo do Ninho?" no pedido para ser consultora (consultora_pedidos.como_soube). */
+export const COMO_SOUBE_OPCOES = ['Instagram', 'Indicação de outra consultora', 'Google', 'Família/cliente', 'Outro'] as const;
+
+export function normalizarComoSoube(v: string): string | null {
+  const t = v.trim();
+  return (COMO_SOUBE_OPCOES as readonly string[]).includes(t) ? t : null;
+}
 
 /** Versão do aceite gravada nos pedidos do site (texto do Darck). */
 export const ACEITE_SITE_VERSAO = 'site-2026-11-06';

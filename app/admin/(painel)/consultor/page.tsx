@@ -4,6 +4,8 @@ import { fetchAppUsers, accountStatus } from '@/lib/app-users';
 import { liquido } from '@/lib/precos';
 import { mesNoPainel } from '@/lib/dashboard-charts';
 import { SITE_URL } from '@/lib/config';
+import { telefoneLegivel } from '@/lib/telefone';
+import { ExcluirConsultora } from '@/components/consultoras/ExcluirConsultora';
 import {
   baseComissoes,
   listPedidos,
@@ -269,7 +271,7 @@ export default async function ConsultorPage({
             <div className="min-w-[220px] flex-1 text-[13px] leading-snug">
               <b className="text-[#24164F]">{p.nome}</b>
               {p.instagram ? ` · @${p.instagram.replace(/^@/, '')}` : ''} · {p.email}
-              {p.whatsapp ? ` · ${p.whatsapp}` : ''}
+              {p.whatsapp ? ` · ${telefoneLegivel(p.whatsapp)}` : ''}
               <br />
               {p.indicada_por && porId.has(p.indicada_por) ? (
                 <>indicada por <b>{porId.get(p.indicada_por)!.nome}</b></>
@@ -280,6 +282,8 @@ export default async function ConsultorPage({
               )}{' '}
               · {dataDubai(p.criado_em)}
               {p.aceite_versao ? ` · aceites ${p.aceite_versao}` : ''}
+              {p.como_soube && <><br />Como soube: <b>{p.como_soube}</b></>}
+              {p.comentario && <><br /><span className="text-ninho-cinza">&ldquo;{p.comentario}&rdquo;</span></>}
             </div>
             <form action={decidirPedido} className="flex gap-2">
               <input type="hidden" name="id" value={p.id} />
@@ -661,6 +665,7 @@ function Detalhe({
         ) : (
           <form action={pausarConsultora}><input type="hidden" name="id" value={c.id} /><button className={botao.vermelho}>Pausar</button></form>
         )}
+        <ExcluirConsultora id={c.id} nome={c.nome ?? 'consultora'} />
       </div>
 
       <div className="mt-4 overflow-x-auto">

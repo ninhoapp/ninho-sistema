@@ -7,12 +7,16 @@ import { PRECOS } from '@/lib/precos';
 import {
   consultoraDoPerfil,
   familiasDa,
+  fichaDe,
   pedidosVinculoDa,
   montarGanhos,
   rotinaDe,
   type Consultora,
   type FamiliaDaConsultora,
+  type Ficha,
 } from '@/lib/consultoras';
+import { TelefonePais } from '@/components/TelefonePais';
+import { telefoneLegivel } from '@/lib/telefone';
 import {
   PCT_DIRETO,
   PCT_REDE,
@@ -25,6 +29,7 @@ import {
   valorComissao,
   TEXTO_QUEM_GERA_COMISSAO,
   ACEITE_VINCULO_CONSULTORA_TEXTO,
+  COMO_SOUBE_OPCOES,
 } from '@/lib/consultoras-regras';
 import {
   descreverRegistro,
@@ -40,7 +45,7 @@ import {
 } from '@/lib/consultoras-rotina';
 import { Avatar, Aviso, Card, Kpi, Retorno, Selo, botao, brl, campo, rotuloCampo, td, th } from '@/components/consultoras/ui';
 import { CopyLink } from '@/components/admin/CopyLink';
-import { convidarFamilia, enviarFoto, indicarConsultora, responderPedidoFamilia, salvarPerfil } from './actions';
+import { convidarFamilia, enviarFoto, indicarConsultora, responderPedidoFamilia, salvarFicha, salvarPerfil } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +54,7 @@ const H = 3600 * 1000;
 const pctTxt = (p: number) => `${String(p).replace('.', ',')}%`;
 const primeiro = (n: string | null) => (n || '').split(' ')[0];
 
-type Busca = { aba?: string; bebe?: string; dia?: string; mes?: string; filtro?: string; q?: string; ok?: string; erro?: string };
+type Busca = { ficha?: string; aba?: string; bebe?: string; dia?: string; mes?: string; filtro?: string; q?: string; ok?: string; erro?: string };
 
 /**
  * Área da CONSULTORA (role consultora). Desenho e comportamento:
@@ -70,7 +75,7 @@ export default async function ConsultoraPage({ searchParams }: { searchParams: B
   else if (aba === 'convidar') corpo = <Convidar c={c} />;
   else if (aba === 'ganhos') corpo = await Ganhos({ c, mes: searchParams.mes });
   else if (aba === 'indicar') corpo = await Indicar({ c });
-  else if (aba === 'perfil') corpo = <Perfil c={c} />;
+  else if (aba === 'perfil') corpo = await Perfil({ c });
   else corpo = await Familias({ c, sp: searchParams });
 
   return (
@@ -238,7 +243,67 @@ async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
           )}
         </div>
       </Card>
+      {fs.length > 0 && <Fichas c={c} familias={fs} aberta={sp.ficha} />}
     </>
+  );
+}
+
+// ── Fichas (anotações da consultora sobre cada família, 00111) ──
+async function Fichas({ c, familias, aberta }: { c: Consultora; familias: FamiliaDaConsultora[]; aberta?: string }) {
+  const lista = familias.slice(0, 60);
+  const fichas = await Promise.all(lista.map((f) => fichaDe(c.id, f.baby_id)));
+  if (fichas.some((x) => x.indisponivel)) {
+    return (
+      <Card titulo="Fichas das famílias" className="mt-4">
+        <p className="py-4 text-center text-sm text-ninho-cinza">As fichas ainda não estão disponíveis. Assim que o Ninho liberar, aparecem aqui.</p>
+      </Card>
+    );
+  }
+  const dataBrOuVazio = (d: string | null) => (d ? dataBr(d) : null);
+  return (
+    <Card titulo="Fichas das famílias" direita="Só você vê estas anotações." className="mt-4">
+      {lista.map((f, i) => {
+        const fi: Ficha | null = fichas[i].ficha;
+        const encontros = fi?.encontros_total ? `${fi.encontros_feitos ?? 0} de ${fi.encontros_total} encontros` : fi?.encontros_feitos ? `${fi.encontros_feitos} encontros feitos` : null;
+        return (
+          <details key={f.baby_id} id={`ficha-${f.baby_id}`} open={aberta === f.baby_id} className="mt-2 rounded-2xl bg-[#F8F6FC] px-4 py-3">
+            <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px]">
+              <b>{f.bebe_nome}{fi?.bebe_apelido ? ` (${fi.bebe_apelido})` : ''}</b>
+              <span className="text-ninho-cinza">{fi?.pais_nomes || f.mae_nome || '—'}</span>
+              {fi?.inicio && <Selo cor="lilas">desde {dataBrOuVazio(fi.inicio)}</Selo>}
+              {encontros && <Selo cor="verde">{encontros}</Selo>}
+              {fi?.whatsapp && <span className="text-xs text-ninho-cinza">{telefoneLegivel(fi.whatsapp)}</span>}
+              {!fi && <span className="text-xs text-[#9A95AD]">sem ficha ainda</span>}
+            </summary>
+            <form action={salvarFicha} className="mt-3">
+              <input type="hidden" name="baby" value={f.baby_id} />
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div><label className={rotuloCampo}>Início da consultoria</label><input type="date" name="inicio" defaultValue={fi?.inicio ?? ''} className={campo} /></div>
+                <div><label className={rotuloCampo}>Encontros feitos</label><input type="number" min={0} max={999} name="encontros_feitos" defaultValue={fi?.encontros_feitos ?? ''} className={campo} /></div>
+                <div><label className={rotuloCampo}>Encontros combinados</label><input type="number" min={0} max={999} name="encontros_total" defaultValue={fi?.encontros_total ?? ''} className={campo} /></div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div><label className={rotuloCampo}>Nomes dos pais</label><input name="pais_nomes" maxLength={120} defaultValue={fi?.pais_nomes ?? ''} className={campo} /></div>
+                <div><label className={rotuloCampo}>Como você chama o bebê</label><input name="bebe_apelido" maxLength={60} defaultValue={fi?.bebe_apelido ?? ''} className={campo} /></div>
+              </div>
+              <label className={rotuloCampo}>WhatsApp da família</label>
+              <TelefonePais name="whatsapp" valor={fi?.whatsapp} classeSelect={campo} classeInput={campo} />
+              <label className={rotuloCampo}>Observações</label>
+              <textarea name="observacoes" maxLength={2000} rows={3} defaultValue={fi?.observacoes ?? ''} className={`${campo} h-auto py-2`} />
+              <small className="mt-1 block text-[11.5px] text-ninho-cinza">Anote só o que precisa para o atendimento. Não registre diagnóstico, remédio nem dado de saúde.</small>
+              <small className="mt-1 block text-[11.5px] text-ninho-cinza">Anote só o que precisa para o atendimento. Não registre diagnóstico, remédio nem dado de saúde.</small>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button className={botao.suave}>Salvar ficha</button>
+                <span className="text-[11.5px] text-ninho-cinza">
+                  Só você vê estas anotações. A família não vê, e elas somem se a família tirar o seu acesso.
+                  {fi?.atualizado_em ? ` Salva em ${new Date(fi.atualizado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.` : ''}
+                </span>
+              </div>
+            </form>
+          </details>
+        );
+      })}
+    </Card>
   );
 }
 
@@ -590,7 +655,7 @@ async function Ganhos({ c, mes }: { c: Consultora; mes?: string }) {
           {g.meses.map((mm) => (
             <div key={mm.competencia} className="flex justify-between py-1.5 text-[13px]">
               <span>{nomeCompetencia(mm.competencia)}</span>
-              <span className="tabular-nums"><b>{brl(mm.total)}</b>{' '}{mm.status === 'pago' ? <Selo cor="verde">Pago em {new Date(mm.pago_em!).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</Selo> : <Selo cor="ambar">Pix até {dataBr(mm.prazo)}</Selo>}</span>
+              <span className="tabular-nums"><b>{brl(mm.total)}</b>{' '}{mm.status === 'pago' ? <Selo cor="verde">Recebido em {new Date(mm.pago_em!).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</Selo> : <Selo cor="ambar">Recebe até {dataBr(mm.prazo)}</Selo>}</span>
             </div>
           ))}
           {g.meses.length === 0 && <p className="py-2 text-[13px] text-ninho-cinza">Nenhuma comissão ainda.</p>}
@@ -624,7 +689,7 @@ async function Ganhos({ c, mes }: { c: Consultora; mes?: string }) {
 }
 
 // ── Indicar ───────────────────────────────────────────────
-async function Indicar({ c }: { c: Consultora }) {
+async function Indicar({ c, noPerfil = false }: { c: Consultora; noPerfil?: boolean }) {
   const sb = appDb();
   const [{ data: peds }, { data: libs }] = await Promise.all([
     sb.from('consultora_pedidos').select('id,nome,email,status,criado_em').eq('indicada_por', c.id).order('criado_em', { ascending: false }).limit(50),
@@ -635,18 +700,30 @@ async function Indicar({ c }: { c: Consultora }) {
   const pedidos = ((peds as { id: string; nome: string; email: string; status: string; criado_em: string }[] | null) ?? []).filter((p) => !emailsLib.has(p.email.toLowerCase()));
   return (
     <>
-      <Titulo t="Indicar consultora" sub={`O Ninho confere e libera a conta dela. Depois, as famílias dela dão ${pctTxt(PCT_REDE)} para ela e ${pctTxt(PCT_REDE)} para você.`} />
+      {noPerfil ? (
+        <h2 className="mb-2 mt-6 text-lg font-black text-[#24164F]">Indicar consultora</h2>
+      ) : (
+        <Titulo t="Indicar consultora" sub={`O Ninho confere e libera a conta dela. Depois, as famílias dela dão ${pctTxt(PCT_REDE)} para ela e ${pctTxt(PCT_REDE)} para você.`} />
+      )}
       <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
         <Card titulo="Quem você quer indicar">
           <form action={indicarConsultora}>
+            <input type="hidden" name="volta" value={noPerfil ? 'perfil' : 'indicar'} />
             <label className={rotuloCampo}>Nome</label>
             <input name="nome" required minLength={2} maxLength={80} placeholder="Nome e sobrenome" className={campo} />
-            <label className={rotuloCampo}>Instagram</label>
-            <input name="instagram" placeholder="@" className={campo} />
-            <label className={rotuloCampo}>WhatsApp</label>
-            <input name="whatsapp" placeholder="+55" className={campo} />
             <label className={rotuloCampo}>E-mail que ela vai usar no app</label>
             <input name="email" type="email" required placeholder="nome@gmail.com" className={campo} />
+            <label className={rotuloCampo}>WhatsApp</label>
+            <TelefonePais name="whatsapp" classeSelect={campo} classeInput={campo} />
+            <label className={rotuloCampo}>Instagram</label>
+            <input name="instagram" placeholder="@" className={campo} />
+            <label className={rotuloCampo}>Como ela ficou sabendo do Ninho?</label>
+            <select name="como_soube" defaultValue="Indicação de outra consultora" className={campo}>
+              <option value="">Escolha</option>
+              {COMO_SOUBE_OPCOES.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+            <label className={rotuloCampo}>Comentário (opcional)</label>
+            <textarea name="comentario" maxLength={500} rows={2} className={`${campo} h-auto py-2`} />
             <button className={`${botao.grad} mt-4 w-full`} disabled={c.estado !== 'ativa'}>Enviar indicação ao Ninho</button>
           </form>
         </Card>
@@ -670,7 +747,7 @@ async function Indicar({ c }: { c: Consultora }) {
 }
 
 // ── Meu perfil ────────────────────────────────────────────
-function Perfil({ c }: { c: Consultora }) {
+async function Perfil({ c }: { c: Consultora }) {
   const naLista = c.na_lista && c.estado === 'ativa' && !!c.perfil_aprovado_em;
   const exemplo = valorComissao(PRECOS.premium.mensal, PCT_DIRETO);
   return (
@@ -682,7 +759,8 @@ function Perfil({ c }: { c: Consultora }) {
       />
       <div className="grid gap-4 lg:grid-cols-2">
         <Card titulo="Editar">
-          <form action={salvarPerfil}>
+          {/* key: depois de salvar, os campos voltam com o que está no banco (não o que ficou digitado). */}
+          <form action={salvarPerfil} key={c.atualizado_em}>
             <label className={rotuloCampo}>Texto curto (até 160 letras)</label>
             <textarea name="bio" maxLength={160} defaultValue={c.bio_pendente ?? c.bio ?? ''} rows={3} className={`${campo} h-auto py-2`} />
             {c.bio_pendente && <p className="mt-1 text-[11.5px] text-[#7C5CD6]">Texto novo esperando o Ninho aprovar.</p>}
@@ -691,8 +769,8 @@ function Perfil({ c }: { c: Consultora }) {
               <div><label className={rotuloCampo}>UF</label><input name="uf" defaultValue={c.uf ?? ''} maxLength={2} className={`${campo} uppercase`} /></div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div><label className={rotuloCampo}>WhatsApp</label><input name="whatsapp" defaultValue={c.whatsapp ?? ''} className={campo} /></div>
-              <div><label className={rotuloCampo}>Instagram</label><input name="instagram" defaultValue={c.instagram ? `@${c.instagram}` : ''} className={campo} /></div>
+              <div className="col-span-2"><label className={rotuloCampo}>WhatsApp</label><TelefonePais name="whatsapp" valor={c.whatsapp} classeSelect={campo} classeInput={campo} /></div>
+              <div className="col-span-2"><label className={rotuloCampo}>Instagram</label><input name="instagram" defaultValue={c.instagram ? `@${c.instagram}` : ''} className={campo} /></div>
             </div>
             <label className={rotuloCampo}>Idades que atende</label>
             <input name="idades" defaultValue={c.idades ?? ''} maxLength={40} placeholder="Ex.: 0 a 2 anos" className={campo} />
@@ -702,9 +780,14 @@ function Perfil({ c }: { c: Consultora }) {
             </div>
             <p className="mt-4 text-[11px] font-extrabold tracking-[0.09em] text-[#9A95AD]">PARA RECEBER (SÓ O NINHO VÊ)</p>
             <div className="grid grid-cols-2 gap-2">
-              <div><label className={rotuloCampo}>CPF {c.cpf ? '(cadastrado)' : ''}</label><input name="cpf" inputMode="numeric" placeholder={c.cpf ? '•••••••••••' : 'só números'} className={campo} /></div>
-              <div><label className={rotuloCampo}>Chave Pix {c.pix_chave ? '(cadastrada)' : ''}</label><input name="pix" placeholder={c.pix_chave ? 'deixe vazio para manter' : ''} className={campo} /></div>
+              <div><label className={rotuloCampo}>CPF</label><input name="cpf" inputMode="numeric" placeholder={c.cpf ? 'trocar o CPF' : 'só números'} className={campo} /></div>
+              <div><label className={rotuloCampo}>Chave Pix</label><input name="pix" placeholder={c.pix_chave ? 'trocar a chave' : ''} className={campo} /></div>
             </div>
+            <p className="mt-1 text-[11.5px] text-ninho-cinza">
+              {c.cpf ? `CPF salvo: •••.•••.•${c.cpf.slice(-4, -2)}-${c.cpf.slice(-2)}` : 'CPF ainda não cadastrado'} ·{' '}
+              {c.pix_chave ? `Pix salvo: ${c.pix_chave.length > 6 ? `${c.pix_chave.slice(0, 3)}•••${c.pix_chave.slice(-3)}` : '•••'}` : 'Pix ainda não cadastrado'}.
+              Por segurança, os campos ficam vazios: deixe vazio para manter.
+            </p>
             <button className={`${botao.grad} mt-4 w-full`}>Salvar</button>
             <p className="mt-2 text-xs leading-snug text-ninho-cinza">Texto e foto novos passam pelo Ninho antes de aparecer. Cidade, contato e atendimento valem na hora.</p>
           </form>
@@ -730,10 +813,17 @@ function Perfil({ c }: { c: Consultora }) {
               pode receber comissão do Ninho se a família assinar pelo link dela.
             </p>
           </div>
+          {c.bio_pendente && (
+            <Aviso tom="ambar">
+              Texto novo esperando o Ninho aprovar: &ldquo;{c.bio_pendente}&rdquo;. Até lá, a lista do app mostra o texto acima.
+            </Aviso>
+          )}
+          <p className="mt-3 text-[11.5px] text-ninho-cinza">Última alteração salva: {new Date(c.atualizado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.</p>
           <Aviso>Antes de te chamar, a família marca que você é independente, que suas orientações são de sua responsabilidade e que você pode receber comissão.</Aviso>
           <Aviso tom="verde">Exemplo: cada família no Premium mensal pelo seu link dá {brl(exemplo)} por mês, por {PARCELAS_MENSAL} meses.</Aviso>
         </Card>
       </div>
+      {await Indicar({ c, noPerfil: true })}
     </>
   );
 }

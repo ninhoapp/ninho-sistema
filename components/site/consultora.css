@@ -98,7 +98,9 @@
 .nc-fld { margin-top: 11px; }
 .nc-fld label { display: block; font-size: 11.5px; font-weight: 700; color: var(--tx3); margin: 0 2px 5px; }
 .nc-fld input { width: 100%; height: 42px; border-radius: 12px; background: #F5F2FB; border: 1.5px solid transparent; padding: 0 12px; font-size: 14px; font-weight: 600; outline: none; font-family: inherit; }
-.nc-fld input:focus { border-color: var(--lil); }
+.nc-fld input:focus, .nc-fld select:focus, .nc-fld textarea:focus { border-color: var(--lil); }
+.nc-fld select { height: 42px; border-radius: 12px; background: #F5F2FB; border: 1.5px solid transparent; padding: 0 8px; font-size: 13.5px; font-weight: 600; outline: none; font-family: inherit; width: 100%; }
+.nc-fld textarea { width: 100%; border-radius: 12px; background: #F5F2FB; border: 1.5px solid transparent; padding: 10px 12px; font-size: 14px; font-weight: 600; outline: none; font-family: inherit; resize: vertical; }
 .nc-ck { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.5; margin-top: 14px; cursor: pointer; }
 .nc-ck input { width: 20px; height: 20px; accent-color: #4CAF74; flex: none; margin-top: 1px; }
 .nc-err { font-size: 13px; color: #E85D5D; font-weight: 700; margin-top: 10px; min-height: 18px; }
@@ -112,6 +114,7 @@
 
 @media (max-width: 900px) {
   .nc-hero-grid, .nc-g3, .nc-g2 { grid-template-columns: 1fr; }
+  .nc-g3 > *, .nc-g2 > * { grid-column: auto !important; }
   .nc-web-side { display: none; }
   .nc-hide-sm { display: none; }
 }
