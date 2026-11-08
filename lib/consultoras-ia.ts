@@ -169,7 +169,7 @@ export type ResultadoGerar =
 export async function gerarRelatorio(consultoraId: string, babyId: string, dias: 7 | 14): Promise<ResultadoGerar> {
   try {
     const { data, error } = await appDb().functions.invoke('relatorio-consultora', {
-      body: { consultora_id: consultoraId, baby_id: babyId, dias, origem: 'painel' },
+      body: { consultora_id: consultoraId, baby_id: babyId, periodo_dias: dias, lang: 'pt' },
     });
     if (error) {
       const msg = error.message || '';
@@ -182,8 +182,12 @@ export async function gerarRelatorio(consultoraId: string, babyId: string, dias:
       return { ok: false, motivo: 'erro', mensagem: 'Não consegui gerar agora. Tente de novo em instantes.' };
     }
     const o = obj(data) ?? {};
-    const r = str(o.resultado) ?? str(o.status) ?? (o.id ? 'ok' : null);
-    if (r === 'ok' || o.ok === true) return { ok: true, id: str(o.id) ?? str(o.relatorio_id) };
+    // Contrato da relatorio-consultora (Vitor, 00116): status pronto | sem_dados |
+    // erro (com id), sem_cota (motivo sem_assinatura | limite_mes), em_andamento, sem_acesso.
+    let r = str(o.resultado) ?? str(o.status) ?? (o.id ? 'ok' : null);
+    if (r === 'pronto' || r === 'ok' || o.ok === true) return { ok: true, id: str(o.id) ?? str(o.relatorio_id) };
+    if (r === 'sem_cota') r = str(o.motivo) === 'limite_mes' ? 'limite' : 'sem_assinatura';
+    if (r === 'em_andamento') return { ok: false, motivo: 'erro', mensagem: 'Já há um relatório sendo gerado. Aguarde um instante.' };
     const motivos: Record<string, ResultadoGerar & { ok: false }> = {
       sem_assinatura: { ok: false, motivo: 'sem_assinatura', mensagem: 'Seu relatório grátis já foi usado. Assine pelo app do Ninho para continuar.' },
       limite: { ok: false, motivo: 'limite', mensagem: `Você chegou aos ${IA_LIMITE_MES} relatórios deste mês.` },
@@ -244,11 +248,12 @@ export function secoes(c: Record<string, unknown> | null): SecoesRelatorio {
       return { titulo: str(x.titulo ?? x.padrao) ?? '', evidencia: str(x.evidencia ?? x.texto ?? x.descricao) ?? '', forca: Math.max(1, Math.min(3, Math.round(f))) };
     })
     .filter((p): p is Padrao => !!p && !!(p.titulo || p.evidencia));
-  const difBrutas = primeiro(mp, 'diferencas') ?? o.diferencas;
+  // Henrique: o backend grava melhores_piores como LISTA de {aspecto, melhores, piores}.
+  const difBrutas = Array.isArray(o.melhores_piores) ? o.melhores_piores : primeiro(mp, 'diferencas') ?? o.diferencas;
   const diferencas = (Array.isArray(difBrutas) ? difBrutas : [])
     .map((d) => {
       const x = obj(d);
-      return x ? { item: str(x.item ?? x.o_que) ?? '', melhores: str(x.melhores ?? x.boas) ?? '', piores: str(x.piores ?? x.agitadas) ?? '' } : null;
+      return x ? { item: str(x.item ?? x.aspecto ?? x.o_que) ?? '', melhores: str(x.melhores ?? x.boas) ?? '', piores: str(x.piores ?? x.agitadas) ?? '' } : null;
     })
     .filter((d): d is { item: string; melhores: string; piores: string } => !!d && !!d.item);
   return {
