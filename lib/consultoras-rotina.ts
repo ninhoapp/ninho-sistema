@@ -48,7 +48,7 @@ export function dur(min: number): string {
   return m < 60 ? `${m} min` : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
 }
 
-interface Sono {
+export interface Sono {
   a: number;
   b: number;
   emAndamento: boolean;
@@ -227,4 +227,176 @@ export function idadeMeses(nascimento: string | null, hojeDia: string): number |
   let m = (y2 - y1) * 12 + (m2 - m1);
   if (d2 < d1) m--;
   return m;
+}
+
+// ═══ v3 (desenho aprovado em 08/11/2026: docs/design/consultora/v3.html) ═══
+// O dia vai "do acordar ao acordar": acordou em D → sonecas e janelas → dormiu
+// em D → noite → acordou em D+1. Sem registro, sem número.
+
+export interface DiaV3 {
+  dia: string;
+  temRegistro: boolean;
+  /** Acordou na manhã de D (fim da noite anterior). */
+  acordou: number | null;
+  /** Dormiu na noite de D. */
+  dormiu: number | null;
+  /** Acordou na manhã de D+1 (fim da noite de D). */
+  acordouSeguinte: number | null;
+  sonecas: ResumoDia['sonecas'];
+  sonecasMin: number;
+  janelas: ResumoDia['janelas'];
+  /** Da última soneca (ou do acordar) até dormir, em minutos. */
+  janelaAntesDeDormir: number | null;
+  fimUltimaSoneca: number | null;
+  noite: Noite;
+  /** A noite só conta nas médias se tem dormir e acordar. */
+  noiteCompleta: boolean;
+  /** Intervalos acordado dentro da noite. */
+  despertaresLista: { a: number; b: number; min: number }[];
+  /** Mamadas entre dormir e acordar. */
+  mamadasMadrugada: number[];
+  /** Mamadas do dia (do acordar ao dormir). */
+  mamadasDia: number[];
+  /** Sonecas do dia + a noite seguinte. */
+  sono24: number | null;
+  resumo: ResumoDia;
+}
+
+export function diaV3(regs: RegistroRotina[], dia: string, agora: number): DiaV3 {
+  const r = resumoDoDia(regs, dia, agora);
+  const n = r.noite;
+  const fimUltimaSoneca = r.sonecas.length ? r.sonecas[r.sonecas.length - 1].b : null;
+  const inicioJanela = fimUltimaSoneca ?? r.acordou;
+  const janelaAntesDeDormir = n.dormiu !== null && inicioJanela !== null && n.dormiu > inicioJanela ? (n.dormiu - inicioJanela) / 60000 : null;
+  const despertaresLista = n.segmentos.slice(1).map((s, i) => ({ a: n.segmentos[i].b, b: s.a, min: (s.a - n.segmentos[i].b) / 60000 }));
+  const mamadas = regs.filter((x) => x.tipo === 'feeding').map((x) => new Date(x.inicio).getTime());
+  const fimNoite = n.acordou ?? (n.dormiu !== null ? Math.min(agora, inicioDoDia(dia) + 35 * H) : null);
+  const mamadasMadrugada = n.dormiu !== null && fimNoite !== null ? mamadas.filter((t) => t >= n.dormiu! && t <= fimNoite) : [];
+  const ini = r.acordou ?? inicioDoDia(dia) + 6 * H;
+  const fimDia = n.dormiu ?? inicioDoDia(dia) + 20 * H;
+  const mamadasDia = mamadas.filter((t) => t >= ini && t < fimDia);
+  const noiteCompleta = n.dormiu !== null && n.acordou !== null;
+  return {
+    dia,
+    temRegistro: r.temRegistro,
+    acordou: r.acordou,
+    dormiu: n.dormiu,
+    acordouSeguinte: n.acordou,
+    sonecas: r.sonecas,
+    sonecasMin: r.sonecasMin,
+    janelas: r.janelas,
+    janelaAntesDeDormir,
+    fimUltimaSoneca,
+    noite: n,
+    noiteCompleta,
+    despertaresLista,
+    mamadasMadrugada,
+    mamadasDia,
+    sono24: noiteCompleta ? r.sonecasMin + (n.totalMin ?? 0) : null,
+    resumo: r,
+  };
+}
+
+/** Minutos desde a meia-noite local (para comparar horários de dias diferentes). */
+export function minutoDoDia(t: number): number {
+  const d = new Date(t + FUSO_MS);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
+}
+
+/** Hora de dormir em minutos, com o que passa da meia-noite somado a 24h (00:30 → 24:30). */
+export function minutoDaNoite(t: number): number {
+  const m = minutoDoDia(t);
+  return m < 12 * 60 ? m + 1440 : m;
+}
+
+/** "06:15" de minutos (aceita > 1440). */
+export function hhmm(min: number): string {
+  const m = ((Math.round(min) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
+function media(xs: number[]): number | null {
+  return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+}
+
+export interface FaixaHorario {
+  rotulo: string;
+  /** Um valor por dia (minutos, ver minutoDoDia/minutoDaNoite) ou null. */
+  valores: (number | null)[];
+  min: number | null;
+  max: number | null;
+  /** Variação max − min, em minutos. */
+  variacao: number | null;
+  /** Variou 1h ou mais: o desenho marca em laranja. */
+  irregular: boolean;
+  /** Em quantos dias apareceu (ex.: a 3ª soneca). */
+  dias: number;
+}
+
+export interface SemanaV3 {
+  dias: DiaV3[];
+  /** Médias só com noites completas / dias com registro. */
+  noiteMed: number | null;
+  despertaresMed: number | null;
+  blocoMed: number | null;
+  sonecasPorDia: number | null;
+  sonecasMinMed: number | null;
+  sono24Med: number | null;
+  noitesCompletas: number;
+  /** Os 2 dias com as melhores noites (mais sono, depois maior 1º bloco). */
+  melhores: string[];
+  /** Maior janela acordado da semana (minutos). */
+  maiorJanela: number | null;
+  horarios: FaixaHorario[];
+}
+
+function faixa(rotulo: string, valores: (number | null)[]): FaixaHorario {
+  const v = valores.filter((x): x is number => x !== null);
+  const min = v.length ? Math.min(...v) : null;
+  const max = v.length ? Math.max(...v) : null;
+  const variacao = min !== null && max !== null ? max - min : null;
+  return { rotulo, valores, min, max, variacao, irregular: (variacao ?? 0) >= 60, dias: v.length };
+}
+
+/** `n` dias terminando em `ultimoDia` (inclusive). */
+export function semanaV3(regs: RegistroRotina[], ultimoDia: string, agora: number, n = 7): SemanaV3 {
+  const dias = Array.from({ length: n }, (_, i) => diaV3(regs, somarDias(ultimoDia, i - (n - 1)), agora));
+  const completas = dias.filter((d) => d.noiteCompleta);
+  const comDia = dias.filter((d) => d.temRegistro && d.acordou !== null && d.dormiu !== null);
+  const melhores = [...completas]
+    .sort((a, b) => (b.noite.totalMin ?? 0) - (a.noite.totalMin ?? 0) || (b.noite.primeiroTrechoMin ?? 0) - (a.noite.primeiroTrechoMin ?? 0))
+    .slice(0, 2)
+    .map((d) => d.dia);
+  const todasJanelas = dias.flatMap((d) => d.janelas.map((j) => j.min));
+  const sonecaN = (k: number) => dias.map((d) => (d.sonecas[k] ? minutoDoDia(d.sonecas[k].a) : null));
+  return {
+    dias,
+    noiteMed: media(completas.map((d) => d.noite.totalMin ?? 0)),
+    despertaresMed: media(completas.map((d) => d.noite.despertares ?? 0)),
+    blocoMed: media(completas.map((d) => d.noite.primeiroTrechoMin).filter((x): x is number => x !== null)),
+    sonecasPorDia: media(comDia.map((d) => d.sonecas.length)),
+    sonecasMinMed: media(comDia.map((d) => d.sonecasMin)),
+    sono24Med: media(dias.map((d) => d.sono24).filter((x): x is number => x !== null)),
+    noitesCompletas: completas.length,
+    melhores,
+    maiorJanela: todasJanelas.length ? Math.max(...todasJanelas) : null,
+    horarios: [
+      faixa('Acordou', dias.map((d) => (d.acordou !== null ? minutoDoDia(d.acordou) : null))),
+      faixa('1ª soneca', sonecaN(0)),
+      faixa('2ª soneca', sonecaN(1)),
+      faixa('3ª soneca', sonecaN(2)),
+      faixa('Dormiu', dias.map((d) => (d.dormiu !== null ? minutoDaNoite(d.dormiu) : null))),
+    ].filter((f) => f.dias > 0),
+  };
+}
+
+/** "De costume" do próprio bebê: a semana antes do dia, para comparar o dia. */
+export function costumeAntes(regs: RegistroRotina[], dia: string, agora: number): SemanaV3 {
+  return semanaV3(regs, somarDias(dia, -1), agora, 7);
+}
+
+/** Texto curto de uma faixa: "06:15–06:50" (ou um horário só). */
+export function faixaTxt(f: FaixaHorario | undefined): string | null {
+  if (!f || f.min === null || f.max === null) return null;
+  return f.min === f.max ? hhmm(f.min) : `${hhmm(f.min)}–${hhmm(f.max)}`;
 }

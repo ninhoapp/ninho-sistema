@@ -4,6 +4,7 @@ import { AdminLogo } from '@/components/admin/AdminLogo';
 import { SidebarNav } from '@/components/admin/SidebarNav';
 import { SetorTabs } from '@/components/admin/SetorTabs';
 import { AlertaAtendimento } from '@/components/admin/AlertaAtendimento';
+import { ContaMenu } from '@/components/consultoras/ContaMenu';
 import '../admin.css';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,9 @@ export default async function PainelLayout({ children }: { children: React.React
             <span className="block text-[11px] text-ninho-cinza">Painel</span>
           </div>
         </div>
+        {session.role === 'consultora' ? (
+          <ContaMenu nome={session.name} />
+        ) : (
         <div className="flex items-center gap-3">
           <div className="text-right leading-tight">
             <span className="block text-sm font-medium text-ninho-grafite">{session.name}</span>
@@ -46,6 +50,7 @@ export default async function PainelLayout({ children }: { children: React.React
             </button>
           </form>
         </div>
+        )}
       </header>
 
       <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6 sm:px-6">

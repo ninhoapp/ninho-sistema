@@ -1,0 +1,23 @@
+/*
+ * Versão de impressão (PDF) do Relatório IA da consultora. Sem biblioteca:
+ * window.print() + "Salvar como PDF". Esconde o painel (topo, menu, avisos) e
+ * mostra o cabeçalho da consultora; as seções desmarcadas para a família somem.
+ */
+.print-only { display: none; }
+
+@media print {
+  @page { margin: 14mm; }
+  html, body { background: #fff !important; }
+  body * { box-shadow: none !important; }
+  header, aside, main > details, .no-print { display: none !important; }
+  main { padding: 0 !important; }
+  .print-only { display: flex !important; }
+  .relatorio-ia .grid { display: block !important; }
+  .relatorio-ia .grid > * { margin-bottom: 14px; }
+  .relatorio-secao { break-inside: avoid; page-break-inside: avoid; }
+  .oculta-1 [data-secao="1"], .oculta-2 [data-secao="2"], .oculta-3 [data-secao="3"], .oculta-4 [data-secao="4"],
+  .oculta-5 [data-secao="5"], .oculta-6 [data-secao="6"], .oculta-7 [data-secao="7"], .oculta-8 [data-secao="8"] {
+    display: none !important;
+  }
+  a { text-decoration: none; color: inherit; }
+}

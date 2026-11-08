@@ -28,6 +28,8 @@ import {
   normalizarComoSoube,
 } from '@/lib/consultoras-regras';
 import { juntarTelefone } from '@/lib/telefone';
+import { gerarRelatorio } from '@/lib/consultoras-ia';
+import { familiasDa } from '@/lib/consultoras';
 
 const BASE = '/admin/consultora';
 
@@ -226,4 +228,23 @@ export async function salvarFicha(fd: FormData) {
   };
   if (r !== 'ok') volta('familias', { erro: msg[r] ?? msg.erro }, ancora);
   volta('familias', { ok: 'Ficha salva.' }, ancora);
+}
+
+// ── Relatório IA ──────────────────────────────────────────
+/** Pede um relatório. Bebê precisa ser uma família ativa dela, com plano. */
+export async function pedirRelatorio(fd: FormData) {
+  const c = await eu();
+  const baby = txt(fd, 'bebe');
+  const dias = txt(fd, 'dias') === '14' ? 14 : 7;
+  if (c.estado !== 'ativa') volta('relatorio', { erro: 'Sua conta não está ativa agora.' });
+  const fams = await familiasDa(c.id);
+  const f = fams.find((x) => x.baby_id === baby);
+  if (!f) volta('relatorio', { erro: 'Família não encontrada.' });
+  if (!f.plano_ok) volta('relatorio', { erro: 'Essa família está sem plano: a rotina volta quando ela assinar.' }, { bebe: baby });
+  const r = await gerarRelatorio(c.id, baby, dias);
+  if (r.ok) {
+    if (r.id) volta('relatorio', { ok: 'Relatório pronto.' }, { id: r.id });
+    volta('relatorio', { ok: 'Relatório pedido. Ele aparece na lista em instantes.' }, { bebe: baby, dias: String(dias) });
+  }
+  volta('relatorio', { erro: r.mensagem }, { bebe: baby, dias: String(dias) });
 }

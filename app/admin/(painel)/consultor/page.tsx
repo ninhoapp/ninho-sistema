@@ -7,6 +7,7 @@ import { SITE_URL } from '@/lib/config';
 import { telefoneLegivel } from '@/lib/telefone';
 import { ExcluirConsultora } from '@/components/consultoras/ExcluirConsultora';
 import { FunilTabela } from '@/components/consultoras/Funil';
+import { iaStatus, type IaStatus } from '@/lib/consultoras-ia';
 import {
   baseComissoes,
   listPedidos,
@@ -218,6 +219,12 @@ export default async function ConsultorPage({
 
   if (aba === 'consultoras') {
     const det = searchParams.id ? porId.get(searchParams.id) ?? null : null;
+    // Assinatura do Relatório IA de cada consultora (00115 do Vitor; sem ela, "—").
+    const ia = new Map(
+      await Promise.all(consultoras.filter((c) => c.estado !== 'esperando').map(async (c) => [c.id, await iaStatus(c.id)] as const)),
+    );
+    const iaTxt = (st: IaStatus | null | undefined) =>
+      !st ? '—' : st.assinante ? `assina${st.assinaturaAte ? ` até ${dataBr(st.assinaturaAte)}` : ''} · ${st.usadosMes}/${st.limiteMes} no mês` : st.gratisUsado ? 'grátis usado' : '1 grátis livre';
     const ativasOpc = consultoras.filter((c) => c.estado === 'ativa');
     conteudo = (
       <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
@@ -248,7 +255,7 @@ export default async function ConsultorPage({
           <Card titulo="Todas as consultoras" direita="clique no nome para abrir">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead><tr><th className={th}>Consultora</th><th className={th}>Indicada por</th><th className={th}>Famílias</th><th className={th}>Assinam</th><th className={`${th} text-right`}>{nomeMes(mesAtual)} (R$)</th><th className={th}>Pedidos de vínculo</th><th className={th}>Na lista</th><th className={th}>Estado</th></tr></thead>
+                <thead><tr><th className={th}>Consultora</th><th className={th}>Indicada por</th><th className={th}>Famílias</th><th className={th}>Assinam</th><th className={`${th} text-right`}>{nomeMes(mesAtual)} (R$)</th><th className={th}>Pedidos de vínculo</th><th className={th}>Relatório IA</th><th className={th}>Na lista</th><th className={th}>Estado</th></tr></thead>
                 <tbody>
                   {consultoras.map((c) => (
                     <tr key={c.id} className={det?.id === c.id ? 'bg-[#F3EEFC]' : 'hover:bg-[#FAF8FE]'}>
@@ -267,6 +274,7 @@ export default async function ConsultorPage({
                           <>{pedVincPor(c.id).length}<small className="block text-[11px] text-ninho-cinza">desde {dataDubai(pedVincPor(c.id)[pedVincPor(c.id).length - 1].criado_em)}</small></>
                         ) : '—'}
                       </td>
+                      <td className={`${td} text-[12px]`}>{iaTxt(ia.get(c.id))}</td>
                       <td className={td}>
                         <form action={alternarLista}><input type="hidden" name="id" value={c.id} /><Chave ligada={c.na_lista && c.estado !== 'pausada'} desabilitada={c.estado === 'pausada'} /></form>
                       </td>
@@ -288,6 +296,7 @@ export default async function ConsultorPage({
               pedidosVinculo={pedVincPor(det.id)}
               funil={funilDe(det.id)}
               funilIndisponivel={!eventos}
+              ia={ia.get(det.id) ?? null}
               comissaoMes={(babyFam: string) => somar(linhas.filter((l) => l.consultoraId === det.id && l.familiaId === babyFam && l.competencia === mesAtual).map((l) => l.valor))}
               mesAtual={mesAtual}
             />
@@ -589,6 +598,7 @@ function Detalhe({
   pedidosVinculo,
   funil,
   funilIndisponivel,
+  ia,
   comissaoMes,
   mesAtual,
 }: {
@@ -600,6 +610,7 @@ function Detalhe({
   pedidosVinculo: { origem: 'familia' | 'consultora'; criado_em: string }[];
   funil: MesFunil[];
   funilIndisponivel: boolean;
+  ia: IaStatus | null;
   comissaoMes: (familiaId: string) => number;
   mesAtual: string;
 }) {
@@ -719,6 +730,18 @@ function Detalhe({
         <ExcluirConsultora id={c.id} nome={c.nome ?? 'consultora'} />
       </div>
 
+      <div className="mt-4 rounded-[20px] bg-[#F8F6FC] p-4">
+        <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.09em] text-[#9A95AD]">Relatório IA</p>
+        {!ia ? (
+          <p className="text-[13px] text-ninho-cinza">Situação indisponível (o Relatório IA ainda não foi liberado no banco).</p>
+        ) : (
+          <div className="grid gap-2 text-[13px] sm:grid-cols-3">
+            <p><span className="block text-[11.5px] font-bold text-[#9A95AD]">Assinatura</span><b>{ia.assinante ? `ativa${ia.assinaturaAte ? ` até ${dataBr(ia.assinaturaAte)}` : ''}` : 'sem assinatura'}</b>{!ia.assinante && <span className="block text-[11.5px] text-ninho-cinza">{ia.gratisUsado ? 'grátis já usado' : '1 grátis disponível'}</span>}</p>
+            <p><span className="block text-[11.5px] font-bold text-[#9A95AD]">Relatórios no mês</span><b className="tabular-nums">{ia.usadosMes} de {ia.assinante ? ia.limiteMes : 1}</b></p>
+            <p><span className="block text-[11.5px] font-bold text-[#9A95AD]">Custo de IA no mês</span><b className="tabular-nums">{ia.custoMes !== null ? `${ia.custoMoeda ?? 'USD'} ${ia.custoMes.toFixed(2).replace('.', ',')}` : '—'}</b></p>
+          </div>
+        )}
+      </div>
       <div className="mt-4">
         <p className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.09em] text-[#9A95AD]">Funil do link {SITE_URL.replace(/^https?:\/\//, '')}/c/{(c.codigo ?? '').toLowerCase()}</p>
         <FunilTabela meses={funil} indisponivel={funilIndisponivel} />

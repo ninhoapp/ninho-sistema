@@ -28,14 +28,16 @@ const PARCEIRO: NavItem[] = [
   { href: '/admin/conta', label: 'Minha conta' },
 ];
 
+// Área da consultora (v3): segue a barra do app: Início, Rotina, Semana,
+// Relatório IA; embaixo, Convidar e Ganhos.
 const CONSULTORA: NavItem[] = [
-  { href: '/admin/consultora', label: 'Famílias' },
-  { href: '/admin/consultora?aba=rotina', label: 'Rotina do bebê' },
+  { href: '/admin/consultora', label: 'Início' },
+  { href: '/admin/consultora?aba=rotina', label: 'Rotina' },
   { href: '/admin/consultora?aba=semana', label: 'Semana' },
+  { href: '/admin/consultora?aba=relatorio', label: 'Relatório IA' },
   { href: '/admin/consultora?aba=convidar', label: 'Convidar família' },
   { href: '/admin/consultora?aba=ganhos', label: 'Ganhos' },
-  { href: '/admin/consultora?aba=indicar', label: 'Indicar consultora' },
-  { href: '/admin/consultora?aba=perfil', label: 'Meu perfil na lista' },
+  // Meu perfil, Indicar, Assinatura IA e Ajuda ficam no menu de conta (nome, no topo).
 ];
 
 function item(active: boolean) {
@@ -54,8 +56,10 @@ export function SidebarNav({ role }: { role: Role }) {
       <nav className="flex flex-col gap-1">
         {CONSULTORA.map((i) => {
           const alvo = i.href.split('aba=')[1] ?? '';
+          // Início também responde pelo nome antigo (aba=familias).
+          const ativo = pathname === '/admin/consultora' && (aba === alvo || (alvo === '' && (aba === 'inicio' || aba === 'familias')));
           return (
-            <Link key={i.href} href={i.href} className={item(pathname === '/admin/consultora' && aba === alvo)}>{i.label}</Link>
+            <Link key={i.href} href={i.href} className={item(ativo)}>{i.label}</Link>
           );
         })}
       </nav>

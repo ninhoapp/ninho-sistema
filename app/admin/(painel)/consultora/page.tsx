@@ -38,20 +38,28 @@ import {
   COMO_SOUBE_OPCOES,
 } from '@/lib/consultoras-regras';
 import {
+  costumeAntes,
   descreverRegistro,
   diaLocalDe,
+  diaV3,
   dur,
+  faixaTxt,
   hora,
   idadeMeses,
   inicioDoDia,
-  resumoDoDia,
+  minutoDaNoite,
+  minutoDoDia,
+  semanaV3,
   somarDias,
   FUSO_MS,
-  type ResumoDia,
+  type SemanaV3,
 } from '@/lib/consultoras-rotina';
+import { BarrasSemana, DiaStrip, FaixasNoites, Horarios, JanelaAntesDeDormir, Legenda, MiniNoites, Sequencia, SonecasNoite, diaCurto } from '@/components/consultoras/RotinaV3';
+import { CompartilharRelatorio } from '@/components/consultoras/CompartilharRelatorio';
+import { IA_LIMITE_MES, IA_PERIODOS, IA_PRECO_MENSAL, RODAPE_IA, iaStatus, lerRelatorio, listarRelatorios, secoes, type IaStatus } from '@/lib/consultoras-ia';
 import { Avatar, Aviso, Card, Kpi, Retorno, Selo, botao, brl, campo, rotuloCampo, td, th } from '@/components/consultoras/ui';
 import { CopyLink } from '@/components/admin/CopyLink';
-import { convidarFamilia, enviarFoto, indicarConsultora, responderPedidoFamilia, salvarFicha, salvarPerfil } from './actions';
+import { convidarFamilia, enviarFoto, indicarConsultora, pedirRelatorio, responderPedidoFamilia, salvarFicha, salvarPerfil } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,7 +68,7 @@ const H = 3600 * 1000;
 const pctTxt = (p: number) => `${String(p).replace('.', ',')}%`;
 const primeiro = (n: string | null) => (n || '').split(' ')[0];
 
-type Busca = { ficha?: string; aba?: string; bebe?: string; dia?: string; mes?: string; filtro?: string; q?: string; ok?: string; erro?: string };
+type Busca = { ficha?: string; aba?: string; bebe?: string; dia?: string; dias?: string; id?: string; mes?: string; filtro?: string; q?: string; ok?: string; erro?: string };
 
 /**
  * Área da CONSULTORA (role consultora). Desenho e comportamento:
@@ -73,7 +81,8 @@ export default async function ConsultoraPage({ searchParams }: { searchParams: B
   const s = await requireSessionAtiva('consultora');
   const c = await consultoraDoPerfil(s.sub);
   if (!c) redirect('/admin/login?porta=consultora');
-  const aba = searchParams.aba || 'familias';
+  // 'familias' é o nome antigo do Início (ações e links antigos ainda usam).
+  const aba = searchParams.aba || 'inicio';
   const pausada = c.estado === 'pausada';
 
   let corpo: React.ReactNode;
@@ -82,11 +91,14 @@ export default async function ConsultoraPage({ searchParams }: { searchParams: B
   else if (aba === 'ganhos') corpo = await Ganhos({ c, mes: searchParams.mes });
   else if (aba === 'indicar') corpo = await Indicar({ c });
   else if (aba === 'perfil') corpo = await Perfil({ c });
+  else if (aba === 'relatorio') corpo = await RelatorioIA({ c, sp: searchParams });
+  else if (aba === 'assinatura') corpo = await AssinaturaIA({ c });
+  else if (aba === 'ajuda') corpo = <Ajuda c={c} />;
   else corpo = await Familias({ c, sp: searchParams });
 
   return (
     <>
-      <div className="mb-4 flex items-center gap-3 rounded-2xl bg-white p-3">
+      <div className="no-print mb-4 flex items-center gap-3 rounded-2xl bg-white p-3">
         <Avatar id={c.id} nome={c.nome} foto={c.foto_url} tamanho={40} />
         <div className="flex-1 leading-tight">
           <b className="text-[14px]">{c.nome}</b>
@@ -101,7 +113,7 @@ export default async function ConsultoraPage({ searchParams }: { searchParams: B
         </Aviso>
       )}
       <div className="mt-4">
-        <Retorno ok={searchParams.ok} erro={searchParams.erro} />
+        <div className="no-print"><Retorno ok={searchParams.ok} erro={searchParams.erro} /></div>
         {corpo}
       </div>
     </>
@@ -145,32 +157,83 @@ function SeloAgora({ f }: { f: FamiliaDaConsultora }) {
   return <Selo cor="ambar">Último registro às {hora(new Date(f.ultimo_registro_em).getTime())}</Selo>;
 }
 
-// ── Famílias ──────────────────────────────────────────────
+// ── Início (v3) ───────────────────────────────────────────
+// "Olhe primeiro" (noite agitada e sem registro), noites calmas de ontem,
+// quem está dormindo, Relatório IA e as famílias com as 7 noites em barrinhas.
+interface FamiliaComSemana {
+  f: FamiliaDaConsultora;
+  semana: SemanaV3 | null;
+  ficha: Ficha | null;
+}
+
+function waLink(digitos: string | null | undefined, texto: string): string {
+  const n = (digitos ?? '').replace(/\D/g, '');
+  return n ? `https://wa.me/${n}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`;
+}
+
 async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
-  const [todas, pv] = await Promise.all([
+  const [todas, pv, ia] = await Promise.all([
     c.estado === 'ativa' ? familiasDa(c.id) : Promise.resolve([] as FamiliaDaConsultora[]),
     c.estado === 'ativa' ? pedidosVinculoDa(c.id) : Promise.resolve({ pedidos: [], indisponivel: false }),
+    iaStatus(c.id),
   ]);
-  const semReg = (f: FamiliaDaConsultora) => f.plano_ok && !f.dormindo_desde && (!f.ultimo_registro_em || Date.now() - new Date(f.ultimo_registro_em).getTime() >= 12 * H);
+  const agora = Date.now();
+  const hoje = hojeSP();
+  const ontem = somarDias(hoje, -1);
+  // As 7 noites que já terminaram (a última é a de ontem, que terminou hoje cedo).
+  const lista = todas.slice(0, 40);
+  const dados: FamiliaComSemana[] = await Promise.all(
+    lista.map(async (f) => {
+      const [rot, fi] = await Promise.all([
+        f.plano_ok ? rotinaDe(c.id, f.baby_id, new Date(inicioDoDia(somarDias(hoje, -7)) - 12 * H), new Date(agora + 60_000)) : Promise.resolve({ registros: [], semAcesso: true }),
+        fichaDe(c.id, f.baby_id),
+      ]);
+      return { f, semana: rot.semAcesso ? null : semanaV3(rot.registros, ontem, agora), ficha: fi.ficha };
+    }),
+  );
+  const porBebe = new Map(dados.map((d) => [d.f.baby_id, d]));
+  const noiteOntem = (d: FamiliaComSemana) => d.semana?.dias.find((x) => x.dia === ontem) ?? null;
+  const semReg = (f: FamiliaDaConsultora) => f.plano_ok && !f.dormindo_desde && (!f.ultimo_registro_em || agora - new Date(f.ultimo_registro_em).getTime() >= 12 * H);
+  const agitada = (d: FamiliaComSemana) => {
+    const n = noiteOntem(d);
+    return !!n && n.noiteCompleta && (n.noite.despertares ?? 0) >= 3;
+  };
+  const comNoite = dados.filter((d) => noiteOntem(d)?.noiteCompleta);
+  const calmas = comNoite.filter((d) => (noiteOntem(d)!.noite.despertares ?? 0) <= 2);
+  const dormindo = todas.filter((f) => f.plano_ok && f.dormindo_desde);
+  const prioridade = dados.filter((d) => agitada(d) || semReg(d.f));
+
   const filtro = sp.filtro || 'todas';
   const q = (sp.q || '').trim().toLowerCase();
   let fs = todas;
   if (filtro === 'dorme') fs = fs.filter((f) => f.plano_ok && f.dormindo_desde);
   if (filtro === 'semreg') fs = fs.filter(semReg);
+  if (filtro === 'agitada') fs = fs.filter((f) => porBebe.get(f.baby_id) && agitada(porBebe.get(f.baby_id)!));
   if (filtro === 'semplano') fs = fs.filter((f) => !f.plano_ok);
   if (q) fs = fs.filter((f) => `${f.bebe_nome ?? ''} ${f.mae_nome ?? ''}`.toLowerCase().includes(q));
-  const atencao = todas.filter(semReg);
+  // Atenção primeiro.
+  fs = [...fs].sort((a, b) => {
+    const pa = porBebe.get(a.baby_id);
+    const pb = porBebe.get(b.baby_id);
+    const peso = (f: FamiliaDaConsultora, d?: FamiliaComSemana) => (d && agitada(d) ? 2 : 0) + (semReg(f) ? 1 : 0);
+    return peso(b, pb) - peso(a, pa) || (a.bebe_nome ?? '').localeCompare(b.bebe_nome ?? '');
+  });
   const chip = (k: string, t: string) => (
-    <Link key={k} href={`${BASE}?aba=familias&filtro=${k}${q ? `&q=${encodeURIComponent(q)}` : ''}`} className={`rounded-pill px-3 py-1.5 text-xs font-bold ${filtro === k ? 'bg-[#24164F] text-white' : 'bg-white text-ninho-cinza shadow-[inset_0_0_0_1.5px_#ECE6F5]'}`}>{t}</Link>
+    <Link key={k} href={`${BASE}?aba=inicio&filtro=${k}${q ? `&q=${encodeURIComponent(q)}` : ''}`} className={`rounded-pill px-3 py-1.5 text-xs font-bold ${filtro === k ? 'bg-[#24164F] text-white' : 'bg-white text-ninho-cinza shadow-[inset_0_0_0_1.5px_#ECE6F5]'}`}>{t}</Link>
   );
+  const horaDoDia = new Date(agora + FUSO_MS).getUTCHours();
+  const saudacao = horaDoDia < 12 ? 'Bom dia' : horaDoDia < 18 ? 'Boa tarde' : 'Boa noite';
+  const dataHoje = new Date(agora).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: 'numeric', month: 'long' });
+  const iaTxt = !ia ? { v: '—', s: 'ainda não disponível' } : ia.assinante ? { v: `${ia.usadosMes} de ${ia.limiteMes}`, s: 'usados neste mês' } : ia.gratisUsado ? { v: 'grátis usado', s: 'assine pelo app' } : { v: '1 grátis', s: 'ainda não usado' };
+
   return (
     <>
       <Titulo
-        t="Suas famílias"
-        sub={`${todas.length} família${todas.length === 1 ? '' : 's'} compartilha${todas.length === 1 ? '' : 'm'} a rotina com você`}
+        t={`${saudacao}, ${primeiro(c.nome)}`}
+        sub={`${todas.length} família${todas.length === 1 ? '' : 's'} compartilha${todas.length === 1 ? '' : 'm'} a rotina com você · ${dataHoje}`}
         direita={
           <form className="flex h-10 items-center gap-2 rounded-pill bg-white px-4 shadow-[inset_0_0_0_1.5px_#ECE6F5]">
-            <input type="hidden" name="aba" value="familias" />
+            <input type="hidden" name="aba" value="inicio" />
             <input type="hidden" name="filtro" value={filtro} />
             <input name="q" defaultValue={sp.q} placeholder="Buscar bebê ou mãe" className="w-48 bg-transparent text-[13.5px] outline-none" />
           </form>
@@ -208,38 +271,79 @@ async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
           ))}
         </Card>
       )}
-      {atencao.length > 0 && (
-        <Card titulo="Precisa de atenção hoje" className="mb-4">
-          {atencao.map((f) => (
-            <Link key={f.baby_id} href={`${BASE}?aba=rotina&bebe=${f.baby_id}`} className="mt-2 flex items-center gap-3 rounded-2xl bg-[#FFF8EC] px-3 py-2.5">
-              <div className="flex-1">
-                <p className="text-[13.5px] font-extrabold">{f.bebe_nome} · sem registro {f.ultimo_registro_em ? `desde ${desdeTxt(f.ultimo_registro_em)}, ${hora(new Date(f.ultimo_registro_em).getTime())}` : 'ainda'}</p>
-                <p className="text-xs text-ninho-cinza">Mãe: {f.mae_nome ?? '—'}</p>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card titulo="Olhe primeiro" direita="o que mudou desde ontem">
+          {prioridade.length === 0 && <p className="py-5 text-center text-sm text-ninho-cinza">Nada pedindo atenção agora.</p>}
+          {prioridade.map((d) => {
+            const n = noiteOntem(d);
+            if (agitada(d) && n) {
+              return (
+                <div key={d.f.baby_id} className="mt-2 flex flex-wrap items-center gap-3 rounded-2xl bg-[#FFF8EC] px-3 py-2.5">
+                  <Link href={`${BASE}?aba=rotina&bebe=${d.f.baby_id}&dia=${ontem}`} className="min-w-[200px] flex-1">
+                    <p className="text-[13.5px] font-extrabold">{d.f.bebe_nome} · noite agitada</p>
+                    <p className="text-xs tabular-nums text-ninho-cinza">
+                      {n.noite.despertares} despertares{n.noite.primeiroTrechoMin !== null ? `, 1º bloco de ${dur(n.noite.primeiroTrechoMin)}` : ''}. Dia com {n.sonecas.length} soneca{n.sonecas.length === 1 ? '' : 's'}.
+                    </p>
+                  </Link>
+                  <Link href={`${BASE}?aba=relatorio&bebe=${d.f.baby_id}`} className={botao.suave}>Relatório IA</Link>
+                </div>
+              );
+            }
+            const desde = d.f.ultimo_registro_em ? `desde ${desdeTxt(d.f.ultimo_registro_em)}, ${hora(new Date(d.f.ultimo_registro_em).getTime())}` : 'ainda';
+            return (
+              <div key={d.f.baby_id} className="mt-2 flex flex-wrap items-center gap-3 rounded-2xl bg-[#F4F2F8] px-3 py-2.5">
+                <div className="min-w-[200px] flex-1">
+                  <p className="text-[13.5px] font-extrabold">{d.f.bebe_nome} · sem registro</p>
+                  <p className="text-xs text-ninho-cinza">Nada marcado {desde}.</p>
+                </div>
+                <a
+                  href={waLink(d.ficha?.whatsapp, `Oi! Tudo bem? Vi que não tem registro do ${d.ficha?.bebe_apelido || d.f.bebe_nome || 'bebê'} no Ninho desde ontem. Consegue marcar o sono e as mamadas de hoje? Assim eu acompanho direitinho.`)}
+                  target="_blank"
+                  rel="noopener"
+                  className={botao.cinza}
+                  title="Abre o WhatsApp com a mensagem pronta. Você revisa e envia."
+                >
+                  Lembrar no WhatsApp
+                </a>
               </div>
-              <span className="text-[#BDB8CC]">›</span>
-            </Link>
-          ))}
+            );
+          })}
         </Card>
-      )}
-      <Card titulo={<div className="flex flex-wrap gap-1.5">{chip('todas', 'Todas')}{chip('dorme', 'Dormindo agora')}{chip('semreg', 'Sem registro')}{chip('semplano', 'Sem plano')}</div>} direita={`${fs.length} de ${todas.length}`}>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Kpi rotulo="Noites calmas ontem" valor={comNoite.length ? `${calmas.length} de ${comNoite.length}` : '—'} sub="famílias com registro" />
+          <Kpi rotulo="Dormindo agora" valor={dormindo.length} sub={dormindo.slice(0, 3).map((f) => f.bebe_nome).join(', ') || 'ninguém'} />
+          <Kpi rotulo="Relatórios IA" valor={iaTxt.v} sub={iaTxt.s} />
+        </div>
+      </div>
+
+      <Card
+        className="mt-4"
+        titulo={<div className="flex flex-wrap gap-1.5">{chip('todas', 'Todas')}{chip('agitada', 'Noite agitada')}{chip('dorme', 'Dormindo agora')}{chip('semreg', 'Sem registro')}{chip('semplano', 'Sem plano')}</div>}
+        direita={`${fs.length} de ${todas.length} · atenção primeiro`}
+      >
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead><tr><th className={th}>Bebê</th><th className={th}>Mãe</th><th className={th}>Agora</th><th className={th}>Com você desde</th><th className={th} /></tr></thead>
+            <thead><tr><th className={th}>Bebê</th><th className={th}>Mãe</th><th className={th}>7 noites</th><th className={th}>Agora</th><th className={th}>Com você desde</th><th className={th} /></tr></thead>
             <tbody>
-              {fs.map((f) => (
-                <tr key={f.baby_id} className="hover:bg-[#FAF8FE]">
-                  <td className={td}>
-                    <Link href={`${BASE}?aba=rotina&bebe=${f.baby_id}`} className="flex items-center gap-2.5">
-                      <Avatar id={f.baby_id} nome={f.bebe_nome} tamanho={34} />
-                      <span><b>{f.bebe_nome}</b><small className="block text-[11.5px] text-ninho-cinza">{idadeTxt(f.nascimento)}</small></span>
-                    </Link>
-                  </td>
-                  <td className={td}>{f.mae_nome ?? '—'}</td>
-                  <td className={td}><SeloAgora f={f} /></td>
-                  <td className={td}>{desdeTxt(f.vinculado_em)}</td>
-                  <td className={td}><Link href={`${BASE}?aba=rotina&bebe=${f.baby_id}`} className="text-[#BDB8CC]">›</Link></td>
-                </tr>
-              ))}
+              {fs.map((f) => {
+                const d = porBebe.get(f.baby_id);
+                return (
+                  <tr key={f.baby_id} className="hover:bg-[#FAF8FE]">
+                    <td className={td}>
+                      <Link href={`${BASE}?aba=rotina&bebe=${f.baby_id}`} className="flex items-center gap-2.5">
+                        <Avatar id={f.baby_id} nome={f.bebe_nome} tamanho={34} />
+                        <span><b>{f.bebe_nome}</b><small className="block text-[11.5px] text-ninho-cinza">{idadeTxt(f.nascimento)}</small></span>
+                      </Link>
+                    </td>
+                    <td className={td}>{f.mae_nome ?? '—'}</td>
+                    <td className={td}>{d?.semana ? <Link href={`${BASE}?aba=semana&bebe=${f.baby_id}`}><MiniNoites s={d.semana} /></Link> : <span className="text-xs text-[#9A95AD]">—</span>}</td>
+                    <td className={td}><SeloAgora f={f} /></td>
+                    <td className={td}>{desdeTxt(f.vinculado_em)}</td>
+                    <td className={td}>{d && agitada(d) ? <Link href={`${BASE}?aba=relatorio&bebe=${f.baby_id}`} className={botao.suave}>Relatório</Link> : <Link href={`${BASE}?aba=rotina&bebe=${f.baby_id}`} className="text-[#BDB8CC]">›</Link>}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {fs.length === 0 && (
@@ -248,6 +352,7 @@ async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
             </p>
           )}
         </div>
+        <Legenda itens={[['#9F86E0', 'noite calma (até 2 despertares)'], ['#F0B456', '3 ou mais'], ['#E4E1EA', 'sem registro']]} />
       </Card>
       {fs.length > 0 && <Fichas c={c} familias={fs} aberta={sp.ficha} />}
     </>
@@ -312,53 +417,38 @@ async function Fichas({ c, familias, aberta }: { c: Consultora; familias: Famili
   );
 }
 
-// ── Rotina e semana ───────────────────────────────────────
-function Barra24({ r, hoje }: { r: ResumoDia; hoje: boolean }) {
-  const ini = inicioDoDia(r.dia);
-  const pos = (t: number) => `${((t - ini) / (24 * H)) * 100}%`;
-  const cor = { noite: '#3B2C78', soneca: '#9F86E0', andamento: 'repeating-linear-gradient(45deg,#9F86E0,#9F86E0 6px,#B9A6EC 6px,#B9A6EC 12px)' };
-  return (
-    <>
-      <div className="relative mt-4 h-[30px] overflow-hidden rounded-[10px] bg-[#F4F0FC]">
-        {r.blocos.map((b, i) => (
-          <i key={i} className="absolute bottom-0 top-0 rounded-md" style={{ left: pos(b.a), width: `${((b.b - b.a) / (24 * H)) * 100}%`, background: cor[b.tipo] }} />
-        ))}
-        {r.marcas.filter((m) => m.tipo === 'mamada').map((m, i) => (
-          <i key={`m${i}`} className="absolute bottom-[9px] top-[9px] w-1 rounded bg-[#E8607E]" style={{ left: pos(m.t) }} />
-        ))}
-        {hoje && <i className="absolute bottom-0 top-0 w-0.5 bg-[#E85D5D]" style={{ left: pos(Date.now()) }} />}
-      </div>
-      <div className="mt-1 flex justify-between text-[10.5px] font-semibold tabular-nums text-[#9A95AD]">
-        {[0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => <span key={h}>{h}h</span>)}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-3.5 text-[11.5px] font-semibold text-ninho-cinza">
-        <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-[#3B2C78]" />Noite</span>
-        <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-[#9F86E0]" />Soneca</span>
-        <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-[#E8607E]" />Mamada</span>
-        {hoje && <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-[#E85D5D]" />Agora</span>}
-      </div>
-    </>
-  );
-}
-
-const minDoDia = (t: number) => {
-  const d = new Date(t + FUSO_MS);
-  return d.getUTCHours() * 60 + d.getUTCMinutes();
-};
-const hhmm = (min: number) => {
-  const m = ((Math.round(min) % 1440) + 1440) % 1440;
-  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-};
-const media = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
-
+// ── Rotina e semana (v3) ──────────────────────────────────
 function diaRotulo(dia: string): string {
   const hoje = hojeSP();
   if (dia === hoje) return 'Hoje';
-  if (dia === somarDias(hoje, -1)) return 'Ontem';
-  const d = new Date(`${dia}T12:00:00Z`);
-  const sem = d.toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '');
-  return `${sem.charAt(0).toUpperCase()}${sem.slice(1)}, ${d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', timeZone: 'UTC' }).replace('.', '')}`;
+  if (dia === somarDias(hoje, -1)) return `Ontem, ${diaCurto(dia)}`;
+  return diaCurto(dia).replace(/^./, (x) => x.toUpperCase());
 }
+
+function KpiDelta({ rotulo, valor, sub, grande = false }: { rotulo: string; valor: React.ReactNode; sub?: React.ReactNode; grande?: boolean }) {
+  return (
+    <div className={`rounded-[22px] p-5 shadow-[0_10px_30px_-22px_rgba(80,40,160,.35)] ${grande ? 'bg-gradient-to-b from-[#F1E9FF] to-white' : 'bg-white'}`}>
+      <p className="text-xs font-bold text-[#9A95AD]">{rotulo}</p>
+      <p className={`mt-1 font-black tabular-nums tracking-tight text-ninho-grafite ${grande ? 'text-[30px]' : 'text-[24px]'}`}>{valor}</p>
+      {sub && <div className="mt-0.5 text-xs tabular-nums text-ninho-cinza">{sub}</div>}
+    </div>
+  );
+}
+
+/** Comparação com a semana anterior: seta verde quando melhora, cinza quando piora (nada de alarme). */
+function Delta({ agora, antes, melhorQuando, fmt }: { agora: number | null; antes: number | null; melhorQuando: 'maior' | 'menor'; fmt: (x: number) => string }) {
+  if (agora === null || antes === null) return null;
+  const dif = agora - antes;
+  if (Math.abs(dif) < 0.05 * Math.max(Math.abs(antes), 1)) return <span className="mr-1 rounded-pill bg-[#F0EEF4] px-2 py-0.5 text-[11px] font-extrabold text-ninho-cinza">parecido</span>;
+  const melhorou = melhorQuando === 'maior' ? dif > 0 : dif < 0;
+  return (
+    <span className={`mr-1 rounded-pill px-2 py-0.5 text-[11px] font-extrabold ${melhorou ? 'bg-[#E7F5EC] text-[#2F8A55]' : 'bg-[#F0EEF4] text-ninho-cinza'}`}>
+      {dif > 0 ? '↑' : '↓'} {fmt(Math.abs(dif))}
+    </span>
+  );
+}
+
+const um = (x: number) => x.toFixed(1).replace('.', ',');
 
 async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boolean }) {
   const fams = c.estado === 'ativa' ? await familiasDa(c.id) : [];
@@ -372,13 +462,16 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
       </>
     );
   }
-  const seletor = (
+  const hoje = hojeSP();
+  const agora = Date.now();
+  const seletor = (extra: React.ReactNode = null) => (
     <form className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="aba" value={aba} />
       <select name="bebe" defaultValue={f.baby_id} className="h-10 rounded-pill bg-white px-4 text-sm font-bold shadow-[inset_0_0_0_1.5px_#ECE6F5]">
-        {fams.map((x) => <option key={x.baby_id} value={x.baby_id}>{x.bebe_nome} · {x.mae_nome ?? '—'}</option>)}
+        {fams.map((x) => <option key={x.baby_id} value={x.baby_id}>{x.bebe_nome} · {primeiro(x.mae_nome) || '—'}</option>)}
       </select>
       <button className={botao.suave}>Abrir</button>
+      {extra}
     </form>
   );
   const sub = `Mãe: ${f.mae_nome ?? '—'} · com você desde ${desdeTxt(f.vinculado_em)}${idadeTxt(f.nascimento) ? ` · ${idadeTxt(f.nascimento)}` : ''}`;
@@ -388,19 +481,17 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
   if (!f.plano_ok) {
     return (
       <>
-        <Titulo t={f.bebe_nome} sub={sub} direita={seletor} />
+        <Titulo t={f.bebe_nome} sub={sub} direita={seletor()} />
         {trava(<><b className="text-ninho-grafite">A família da {primeiro(f.mae_nome)} está sem plano</b>O teste grátis acabou e ela não assinou. A rotina volta a aparecer quando ela assinar o Básico ou o Premium.</>)}
       </>
     );
   }
 
-  const agora = Date.now();
-  const hoje = hojeSP();
-
   if (!semana) {
-    const dia = sp.dia && /^\d{4}-\d{2}-\d{2}$/.test(sp.dia) && sp.dia <= hoje && sp.dia >= somarDias(hoje, -30) ? sp.dia : hoje;
-    const de = new Date(inicioDoDia(dia) - 12 * H);
-    const ate = new Date(Math.min(inicioDoDia(dia) + 36 * H, agora + 60_000));
+    // Padrão: ontem (o último dia que já tem a noite inteira); hoje também abre.
+    const dia = sp.dia && /^\d{4}-\d{2}-\d{2}$/.test(sp.dia) && sp.dia <= hoje && sp.dia >= somarDias(hoje, -30) ? sp.dia : somarDias(hoje, -1);
+    const de = new Date(inicioDoDia(somarDias(dia, -8)) - 12 * H);
+    const ate = new Date(Math.min(inicioDoDia(somarDias(dia, 1)) + 14 * H, agora + 60_000));
     const { registros, semAcesso } = await rotinaDe(c.id, f.baby_id, de, ate);
     const nav = (
       <div className="flex items-center gap-2 rounded-pill bg-white p-1 shadow-[inset_0_0_0_1.5px_#ECE6F5]">
@@ -409,67 +500,49 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
         {dia < hoje ? <Link href={`${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${somarDias(dia, 1)}`} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F3EEFC] text-[#7C5CD6]">›</Link> : <span className="h-8 w-8" />}
       </div>
     );
-    const head = <Titulo t={<>{f.bebe_nome}</>} sub={sub} direita={<div className="flex flex-wrap items-center gap-2">{seletor}{nav}</div>} />;
+    const head = <Titulo t={f.bebe_nome} sub={sub} direita={seletor(nav)} />;
     if (semAcesso) return <>{head}{trava('Sem acesso à rotina deste bebê agora (vínculo removido, família sem plano ou conta pausada).')}</>;
-    const r = resumoDoDia(registros, dia, agora);
-    if (!r.temRegistro) return <>{head}{trava(<><b className="text-ninho-grafite">Nada registrado neste dia</b>Sem registro, sem número.</>)}</>;
-    const n = r.noiteAnterior;
-    const caixa = (k: string, v: React.ReactNode, s?: React.ReactNode, alerta = false) => (
-      <div className="rounded-2xl bg-[#F7F4FD] p-3">
-        <p className="text-[11.5px] font-bold text-[#9A95AD]">{k}</p>
-        <p className="mt-0.5 text-[22px] font-black tabular-nums tracking-tight">{v}</p>
-        {s && <p className={`text-[11.5px] ${alerta ? 'font-extrabold text-[#E85D5D]' : 'text-ninho-cinza'}`}>{s}</p>}
-      </div>
-    );
+    const d = diaV3(registros, dia, agora);
+    if (!d.temRegistro) return <>{head}{trava(<><b className="text-ninho-grafite">Nada registrado neste dia</b>Sem registro, sem número.</>)}</>;
+    const cost = costumeAntes(registros, dia, agora);
+    const ac = cost.horarios.find((h) => h.rotulo === 'Acordou');
+    const dm = cost.horarios.find((h) => h.rotulo === 'Dormiu');
+    const fora = (v: number | null, faixaH: { min: number | null; max: number | null } | undefined) =>
+      v !== null && faixaH && faixaH.min !== null && faixaH.max !== null && (v < faixaH.min - 15 || v > faixaH.max + 15);
+    const acM = d.acordou !== null ? minutoDoDia(d.acordou) : null;
+    const dmM = d.dormiu !== null ? minutoDaNoite(d.dormiu) : null;
+    const despFora = cost.despertaresMed !== null && (d.noite.despertares ?? 0) >= Math.max(3, cost.despertaresMed + 1.5);
+    const laranja = 'font-extrabold text-[#A8670F]';
     return (
       <>
         {head}
-        <div className="grid gap-4 lg:grid-cols-[1.25fr_1fr]">
-          <Card titulo={dia === hoje ? 'Hoje até agora' : 'O dia'}>
-            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {caixa('Acordou de manhã', r.acordou ? hora(r.acordou) : '—', n.dormiu ? `dormiu ${hora(n.dormiu)} na véspera` : undefined)}
-              {caixa('Noite', n.totalMin !== null ? dur(n.totalMin) : '—', n.despertares !== null ? `${n.despertares} despertar${n.despertares === 1 ? '' : 'es'}` : undefined, (n.despertares ?? 0) >= 4)}
-              {caixa('1º despertar', n.primeiroTrechoMin !== null ? dur(n.primeiroTrechoMin) : '—', 'de sono seguido')}
-              {caixa('Dormiu à noite', r.noite.dormiu ? hora(r.noite.dormiu) : '—', r.noite.dormiu ? undefined : dia === hoje ? 'ainda não' : 'sem registro')}
-              {caixa('Sonecas', r.sonecas.length, r.sonecas.length ? `${dur(r.sonecasMin)} somadas` : undefined)}
-              {caixa('Mamadas', r.mamadas, r.ml ? `${r.ml} ml na mamadeira` : undefined)}
-              {caixa('Fraldas', r.fraldas, 'trocas')}
-              {caixa('Comida', r.comidas, 'registros')}
-            </div>
-            <Barra24 r={r} hoje={dia === hoje} />
-            {(r.sonecas.length > 0 || r.janelas.length > 0) && (
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <div>
-                  <p className="text-[11px] font-extrabold uppercase tracking-[0.09em] text-[#9A95AD]">Sonecas</p>
-                  {r.sonecas.map((x, i) => (
-                    <p key={i} className="flex justify-between border-b border-[#F3F0F8] py-1.5 text-[13px] tabular-nums">
-                      <span>{i + 1}ª · {hora(x.a)}{x.emAndamento ? ' · agora' : ` – ${hora(x.b)}`}</span><b>{dur(x.min)}</b>
-                    </p>
-                  ))}
-                  {r.sonecas.length === 0 && <p className="py-1.5 text-[13px] text-ninho-cinza">Nenhuma registrada.</p>}
-                </div>
-                <div>
-                  <p className="text-[11px] font-extrabold uppercase tracking-[0.09em] text-[#9A95AD]">Janelas acordado</p>
-                  {r.janelas.map((j, i) => (
-                    <p key={i} className="flex justify-between border-b border-[#F3F0F8] py-1.5 text-[13px] tabular-nums">
-                      <span>{j.rotulo}</span><b>{dur(j.min)}</b>
-                    </p>
-                  ))}
-                  {r.janelas.length === 0 && <p className="py-1.5 text-[13px] text-ninho-cinza">Faltam registros para calcular.</p>}
-                </div>
-              </div>
-            )}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiDelta grande rotulo="Sono nas 24h" valor={d.sono24 !== null ? dur(d.sono24) : '—'} sub={<>{dur(d.sonecasMin)} de sonecas{d.noiteCompleta ? ` + ${dur(d.noite.totalMin ?? 0)} de noite` : ''}{cost.sono24Med !== null ? <> · média {dur(cost.sono24Med)}</> : null}</>} />
+          <KpiDelta rotulo="Noite" valor={d.noiteCompleta ? dur(d.noite.totalMin ?? 0) : d.dormiu !== null ? 'em curso' : '—'} sub={<>{cost.noiteMed !== null ? `média ${dur(cost.noiteMed)} · ` : ''}<span className={despFora ? laranja : ''}>{d.noite.despertares ?? 0} despertares</span>{cost.despertaresMed !== null ? ` (média ${um(cost.despertaresMed)})` : ''}{d.noite.primeiroTrechoMin !== null ? ` · 1º bloco ${dur(d.noite.primeiroTrechoMin)}` : ''}</>} />
+          <KpiDelta rotulo="Sonecas" valor={`${d.sonecas.length} · ${dur(d.sonecasMin)}`} sub={cost.sonecasPorDia !== null ? `de costume ${um(cost.sonecasPorDia)} · ${dur(cost.sonecasMinMed ?? 0)}` : 'sem semana anterior para comparar'} />
+          <KpiDelta
+            rotulo="Acordou · dormiu"
+            valor={`${d.acordou !== null ? hora(d.acordou) : '—'} · ${d.dormiu !== null ? hora(d.dormiu) : '—'}`}
+            sub={<>de costume <span className={fora(acM, ac) ? laranja : ''}>{faixaTxt(ac) ?? '—'}</span> · <span className={fora(dmM, dm) ? laranja : ''}>{faixaTxt(dm) ?? '—'}</span></>}
+          />
+        </div>
+        <Card className="mt-4" titulo="Do acordar ao acordar" direita={d.acordou !== null ? `${diaCurto(dia)}, ${hora(d.acordou)} → ${d.acordouSeguinte !== null ? `${diaCurto(somarDias(dia, 1))}, ${hora(d.acordouSeguinte)}` : 'agora'}` : 'sem a hora de acordar'}>
+          <DiaStrip d={d} maiorJanela={cost.maiorJanela !== null ? Math.max(cost.maiorJanela, ...d.janelas.map((j) => j.min)) : null} agora={agora} />
+        </Card>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <Card titulo="Sequência do dia" direita="janelas em tamanho real">
+            <Sequencia d={d} maiorJanela={cost.maiorJanela !== null ? Math.max(cost.maiorJanela, ...d.janelas.map((j) => j.min)) : null} />
           </Card>
-          <Card titulo="Registros" direita={`${r.registros.length}`}>
-            <div className="max-h-[440px] overflow-auto">
-              {r.registros.map((reg) => {
-                const d = descreverRegistro(reg, agora);
+          <Card titulo="Registros" direita={`${d.resumo.registros.length}`}>
+            <div className="max-h-[460px] overflow-auto">
+              {d.resumo.registros.map((reg) => {
+                const x = descreverRegistro(reg, agora);
                 return (
                   <div key={reg.id} className="flex items-center gap-3 border-b border-[#F3F0F8] py-2.5 last:border-0">
-                    <span className="h-9 w-9 shrink-0 rounded-full" style={{ background: `${d.cor}33`, boxShadow: `inset 0 0 0 3px ${d.cor}` }} />
+                    <span className="h-9 w-9 shrink-0 rounded-full" style={{ background: `${x.cor}33`, boxShadow: `inset 0 0 0 3px ${x.cor}` }} />
                     <div className="flex-1">
-                      <p className="text-sm font-bold">{d.titulo}</p>
-                      <p className="text-xs tabular-nums text-ninho-cinza">{d.detalhe}</p>
+                      <p className="text-sm font-bold">{x.titulo}</p>
+                      <p className="text-xs tabular-nums text-ninho-cinza">{x.detalhe}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-[13px] font-extrabold tabular-nums">{hora(new Date(reg.inicio).getTime())}</p>
@@ -486,76 +559,414 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
     );
   }
 
-  // Semana: últimos 7 dias (hoje até agora + 6 dias completos).
-  const dias = Array.from({ length: 7 }, (_, i) => somarDias(hoje, i - 6));
-  const de = new Date(inicioDoDia(dias[0]) - 12 * H);
-  const { registros, semAcesso } = await rotinaDe(c.id, f.baby_id, de, new Date(agora + 60_000));
-  const head = <Titulo t={`Semana de ${f.bebe_nome}`} sub="Sono dos últimos 7 dias. Bom para levar à conversa com a família." direita={seletor} />;
+  // Semana: os 7 dias que já terminaram (o último é ontem), comparados aos 7 anteriores.
+  const ultimo = sp.dia && /^\d{4}-\d{2}-\d{2}$/.test(sp.dia) && sp.dia < hoje && sp.dia >= somarDias(hoje, -28) ? sp.dia : somarDias(hoje, -1);
+  const de = new Date(inicioDoDia(somarDias(ultimo, -14)) - 12 * H);
+  const ate = new Date(Math.min(inicioDoDia(somarDias(ultimo, 1)) + 14 * H, agora + 60_000));
+  const { registros, semAcesso } = await rotinaDe(c.id, f.baby_id, de, ate);
+  const ini = somarDias(ultimo, -6);
+  const nav = (
+    <div className="flex items-center gap-2 rounded-pill bg-white p-1 shadow-[inset_0_0_0_1.5px_#ECE6F5]">
+      {ultimo > somarDias(hoje, -28) ? <Link href={`${BASE}?aba=semana&bebe=${f.baby_id}&dia=${somarDias(ultimo, -7)}`} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F3EEFC] text-[#7C5CD6]">‹</Link> : <span className="h-8 w-8" />}
+      <b className="min-w-[140px] text-center text-[13.5px]">{dataBr(ini).slice(0, 5)} – {dataBr(ultimo).slice(0, 5)}</b>
+      {ultimo < somarDias(hoje, -1) ? <Link href={`${BASE}?aba=semana&bebe=${f.baby_id}&dia=${somarDias(ultimo, 7) < hoje ? somarDias(ultimo, 7) : somarDias(hoje, -1)}`} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F3EEFC] text-[#7C5CD6]">›</Link> : <span className="h-8 w-8" />}
+    </div>
+  );
+  const head = (
+    <Titulo
+      t={`Semana de ${f.bebe_nome}`}
+      sub={`${dataBr(ini).slice(0, 5)} a ${dataBr(ultimo).slice(0, 5)} · comparado a ${dataBr(somarDias(ini, -7)).slice(0, 5)} a ${dataBr(somarDias(ultimo, -7)).slice(0, 5)}`}
+      direita={seletor(<>{nav}<Link href={`${BASE}?aba=relatorio&bebe=${f.baby_id}&dias=7`} className={botao.grad}>Relatório IA desta semana</Link></>)}
+    />
+  );
   if (semAcesso) return <>{head}{trava('Sem acesso à rotina deste bebê agora.')}</>;
-  const rs = dias.map((d) => resumoDoDia(registros, d, agora));
-  const completos = rs.filter((r) => r.dia !== hoje && r.temRegistro);
-  const acordou = media(completos.filter((r) => r.acordou).map((r) => minDoDia(r.acordou!)));
-  const dormiu = media(completos.filter((r) => r.noite.dormiu).map((r) => { const m = minDoDia(r.noite.dormiu!); return m < 12 * 60 ? m + 1440 : m; }));
-  const sonecasDia = media(completos.map((r) => r.sonecas.length));
-  const sonecasMin = media(completos.filter((r) => r.sonecas.length).map((r) => r.sonecasMin));
-  const janelas = media(completos.flatMap((r) => r.janelas.map((j) => j.min)));
-  const primeiroTrecho = media(completos.map((r) => r.noite.primeiroTrechoMin).filter((x): x is number => x !== null));
-  const despert = media(completos.map((r) => r.noite.despertares).filter((x): x is number => x !== null));
-  // Noites completas (que começaram nos 6 dias anteriores), as de sono seguido mais longo primeiro.
-  const noites = completos
-    .map((r) => r.noite)
-    .filter((n) => n.dormiu !== null && n.primeiroTrechoMin !== null && n.acordou !== null)
-    .sort((a, b) => b.primeiroTrechoMin! - a.primeiroTrechoMin! || (a.despertares ?? 0) - (b.despertares ?? 0))
-    .slice(0, 3);
-  const totais = rs.map((r) => ({ r, noite: r.noiteAnterior.totalMin ?? 0, son: r.sonecasMin }));
-  const mx = Math.max(...totais.map((t) => t.noite + t.son), 1);
-  const vazio = (v: number | null, f2: (x: number) => string) => (v === null ? '—' : f2(v));
+  const s = semanaV3(registros, ultimo, agora);
+  const a = semanaV3(registros, somarDias(ultimo, -7), agora);
   return (
     <>
       {head}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi rotulo="Acordou de manhã (média)" valor={vazio(acordou, hhmm)} sub="dias completos" />
-        <Kpi rotulo="Dormiu à noite (média)" valor={vazio(dormiu, hhmm)} sub="hora de dormir" />
-        <Kpi rotulo="Sonecas por dia" valor={vazio(sonecasDia, (x) => x.toFixed(1).replace('.', ','))} sub={sonecasMin !== null ? `${dur(sonecasMin)} somadas por dia` : undefined} />
-        <Kpi rotulo="Janela acordado (média)" valor={vazio(janelas, dur)} sub="entre acordar, sonecas e noite" />
-        <Kpi rotulo="Até o 1º despertar (média)" valor={vazio(primeiroTrecho, dur)} sub="sono seguido no começo da noite" />
-        <Kpi rotulo="Despertares por noite" valor={vazio(despert, (x) => x.toFixed(1).replace('.', ','))} />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">
+        <KpiDelta grande rotulo="Noite, em média" valor={s.noiteMed !== null ? dur(s.noiteMed) : '—'} sub={<><Delta agora={s.noiteMed} antes={a.noiteMed} melhorQuando="maior" fmt={(x) => dur(x)} />{a.noiteMed !== null ? `antes ${dur(a.noiteMed)}` : ''} · {s.noitesCompletas} de 7 noites completas</>} />
+        <KpiDelta rotulo="Despertares por noite" valor={s.despertaresMed !== null ? um(s.despertaresMed) : '—'} sub={<><Delta agora={s.despertaresMed} antes={a.despertaresMed} melhorQuando="menor" fmt={um} />{a.despertaresMed !== null ? `antes ${um(a.despertaresMed)}` : ''}</>} />
+        <KpiDelta rotulo="1º bloco" valor={s.blocoMed !== null ? dur(s.blocoMed) : '—'} sub={<><Delta agora={s.blocoMed} antes={a.blocoMed} melhorQuando="maior" fmt={(x) => dur(x)} />{a.blocoMed !== null ? `antes ${dur(a.blocoMed)}` : ''}</>} />
+        <KpiDelta rotulo="Sonecas por dia" valor={s.sonecasPorDia !== null ? `${um(s.sonecasPorDia)} · ${dur(s.sonecasMinMed ?? 0)}` : '—'} sub={a.sonecasPorDia !== null ? `antes ${um(a.sonecasPorDia)} · ${dur(a.sonecasMinMed ?? 0)}` : undefined} />
       </div>
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <Card titulo="Sono por dia" direita="noite (que terminou na manhã do dia) + sonecas">
-          <div className="mt-5 flex h-[220px] items-end gap-3.5 px-1.5">
-            {totais.map(({ r, noite, son }) => (
-              <Link key={r.dia} href={`${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${r.dia}`} className="flex flex-1 flex-col items-center gap-1.5 text-[11.5px] font-bold text-ninho-cinza">
-                <span className="text-xs font-extrabold tabular-nums text-ninho-grafite">{noite + son > 0 ? dur(noite + son) : '—'}</span>
-                <div className="flex w-full max-w-[56px] flex-col overflow-hidden rounded-[10px]" style={{ height: noite + son > 0 ? `${((noite + son) / mx) * 170}px` : 4, background: noite + son > 0 ? undefined : '#EEE' }}>
-                  {son > 0 && <div style={{ flex: son, background: '#9F86E0' }} />}
-                  {noite > 0 && <div style={{ flex: noite, background: '#3B2C78' }} />}
-                </div>
-                {r.dia === hoje ? 'Hoje*' : diaRotulo(r.dia).split(',')[0]}
-              </Link>
-            ))}
-          </div>
-          <p className="mt-2.5 text-xs text-ninho-cinza">* Hoje até agora. Clique num dia para abrir a rotina.</p>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.25fr]">
+        <Card titulo="Sono por dia" direita="sonecas do dia + a noite seguinte">
+          <BarrasSemana s={s} href={(dia) => `${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${dia}`} />
         </Card>
-        <Card titulo="Noites em que dormiu melhor" direita="maior sono seguido">
-          {noites.length === 0 && <p className="py-6 text-center text-sm text-ninho-cinza">Sem noites completas registradas nesta semana.</p>}
-          {noites.map((n, i) => (
-            <div key={n.dia} className="flex items-center gap-3 border-b border-[#F3F0F8] py-2.5 last:border-0">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#24164F] text-sm font-black text-white">{i + 1}</span>
-              <div className="flex-1">
-                <p className="text-sm font-bold">Noite de {diaRotulo(n.dia).toLowerCase()}</p>
-                <p className="text-xs tabular-nums text-ninho-cinza">
-                  dormiu {hora(n.dormiu!)} · acordou {hora(n.acordou!)} · {n.despertares} despertar{n.despertares === 1 ? '' : 'es'}
-                </p>
-              </div>
-              <b className="text-sm tabular-nums">{dur(n.primeiroTrechoMin!)}</b>
-            </div>
-          ))}
+        <Card titulo="Noites" direita="de quando dormiu até quando acordou">
+          <FaixasNoites s={s} />
+        </Card>
+      </div>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1.25fr_1fr]">
+        <Card titulo="Sonecas e a noite seguinte" direita="linhas verdes: 2 melhores noites">
+          <SonecasNoite s={s} />
+        </Card>
+        <Card titulo="Horários" direita="ponto = cada dia · faixa = de onde a onde">
+          <Horarios s={s} />
+          <h3 className="mt-5 text-[15px] font-extrabold text-ninho-grafite">Janela antes de dormir</h3>
+          <JanelaAntesDeDormir s={s} />
         </Card>
       </div>
       <p className="mt-3 text-[11.5px] text-ninho-cinza">
-        Sem registro, sem número: médias só com os dias completos que têm registro. Horário de Brasília.
+        Sem registro, sem número: médias só com as noites completas e os dias com registro. Horário de Brasília. A tela só
+        mostra; quem tira conclusão é você.
       </p>
+    </>
+  );
+}
+
+// ── Relatório IA ──────────────────────────────────────────
+async function RelatorioIA({ c, sp }: { c: Consultora; sp: Busca & { dias?: string; id?: string; gerando?: string } }) {
+  const [status, fams] = await Promise.all([iaStatus(c.id), c.estado === 'ativa' ? familiasDa(c.id) : Promise.resolve([] as FamiliaDaConsultora[])]);
+  const elegiveis = fams.filter((f) => f.plano_ok);
+  if (sp.id) return <RelatorioCompleto c={c} id={sp.id} status={status} fams={fams} />;
+
+  const f = elegiveis.find((x) => x.baby_id === sp.bebe) ?? elegiveis[0];
+  const dias: 7 | 14 = sp.dias === '14' ? 14 : 7;
+  const agora = Date.now();
+  const hoje = hojeSP();
+  let chips: { ok: boolean; txt: string }[] = [];
+  if (f) {
+    const ultimo = somarDias(hoje, -1);
+    const { registros, semAcesso } = await rotinaDe(c.id, f.baby_id, new Date(inicioDoDia(somarDias(ultimo, -dias)) - 12 * H), new Date(agora + 60_000));
+    if (!semAcesso) {
+      const s = semanaV3(registros, ultimo, agora, dias);
+      const sonecas = s.dias.reduce((x, d) => x + d.sonecas.length, 0);
+      const mamadas = registros.filter((r) => r.tipo === 'feeding' && new Date(r.inicio).getTime() >= inicioDoDia(somarDias(ultimo, -(dias - 1)))).length;
+      chips = [
+        { ok: s.noitesCompletas >= Math.ceil(dias * 0.7), txt: `${s.noitesCompletas} de ${dias} noites completas` },
+        { ok: sonecas >= dias, txt: `${sonecas} sonecas` },
+        { ok: mamadas > 0, txt: `${mamadas} mamadas` },
+      ];
+    }
+  }
+  const lista = status ? await listarRelatorios(c.id, null) : null;
+  const nomeBebe = new Map(fams.map((x) => [x.baby_id, x.bebe_nome]));
+  const semCota = status && !status.podeGerar;
+
+  return (
+    <>
+      <Titulo t="Relatório IA" sub="Uma leitura dos registros de 7 ou 14 dias, para levar à conversa com a família. Fica salvo aqui e no app." />
+      {!status && (
+        <Aviso tom="ambar">O Relatório IA ainda não está disponível no painel. Assim que o Ninho liberar, ele aparece aqui. Enquanto isso, a Semana mostra os mesmos desenhos.</Aviso>
+      )}
+      <div className="mt-4 grid gap-4 lg:grid-cols-[380px_1fr]">
+        <div className="flex flex-col gap-4">
+          {semCota ? (
+            <Card>
+              <div className="py-2 text-center">
+                <p className="text-[20px] font-black leading-tight tracking-tight">Relatórios para todas as suas famílias</p>
+                <p className="mt-1.5 text-[13px] text-ninho-cinza">
+                  {status!.assinante ? `Você usou os ${status!.limiteMes} relatórios deste mês. A cota volta no mês que vem.` : 'Seu relatório grátis continua salvo.'}
+                </p>
+              </div>
+              {!status!.assinante && (
+                <>
+                  <ul className="mt-3 space-y-2 text-[13.5px]">
+                    <li>• Um relatório para cada bebê que você acompanha (até {IA_LIMITE_MES} por mês)</li>
+                    <li>• Períodos de 7 ou 14 dias, comparando com antes</li>
+                    <li>• PDF pronto para a conversa com a família</li>
+                  </ul>
+                  <div className="mt-4 rounded-2xl bg-[#EEF8F1] p-4 text-center">
+                    <p className="text-[13px] font-bold text-[#2F8A55]">Assinatura da consultora</p>
+                    <p className="text-[24px] font-black tabular-nums text-[#2F8A55]">{brl(IA_PRECO_MENSAL)}<span className="text-sm font-bold"> /mês</span></p>
+                  </div>
+                  <Aviso>
+                    <b>Assine pelo app do Ninho</b>: na sua área de consultora, toque em Relatório IA › Assinar. A compra é pela
+                    App Store ou pelo Google Play e renova todo mês; cancele quando quiser nos ajustes da loja. Depois de
+                    assinar, os relatórios aparecem aqui também.
+                  </Aviso>
+                </>
+              )}
+            </Card>
+          ) : (
+            <Card titulo="Pedir relatório" direita={status && !status.assinante && !status.gratisUsado ? <Selo cor="verde">1º grátis</Selo> : status?.assinante ? `${status.usadosMes} de ${status.limiteMes} no mês` : undefined}>
+              {elegiveis.length === 0 ? (
+                <p className="py-4 text-center text-sm text-ninho-cinza">Nenhuma família com plano agora.</p>
+              ) : (
+                <>
+                  <form className="mt-1">
+                    <input type="hidden" name="aba" value="relatorio" />
+                    <label className={rotuloCampo}>Para qual bebê?</label>
+                    <select name="bebe" defaultValue={f?.baby_id} className={campo}>
+                      {elegiveis.map((x) => <option key={x.baby_id} value={x.baby_id}>{x.bebe_nome} · {primeiro(x.mae_nome) || '—'}</option>)}
+                    </select>
+                    <label className={rotuloCampo}>Período</label>
+                    <div className="flex gap-2">
+                      {IA_PERIODOS.map((p) => (
+                        <label key={p} className={`flex-1 cursor-pointer rounded-xl px-3 py-2 text-center text-[13px] font-bold ${dias === p ? 'bg-[#24164F] text-white' : 'bg-[#F5F2FB] text-ninho-cinza'}`}>
+                          <input type="radio" name="dias" value={p} defaultChecked={dias === p} className="sr-only" />
+                          {p} dias
+                        </label>
+                      ))}
+                    </div>
+                    <button className={`${botao.cinza} mt-3`}>Conferir os dados</button>
+                  </form>
+                  {chips.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {chips.map((x) => (
+                        <span key={x.txt} className={`rounded-pill px-2.5 py-1 text-[11.5px] font-bold ${x.ok ? 'bg-[#E7F5EC] text-[#2F8A55]' : 'bg-[#FFF2D6] text-[#B7791F]'}`}>{x.ok ? '✓' : '!'} {x.txt}</span>
+                      ))}
+                    </div>
+                  )}
+                  <p className="mt-2 text-[12px] leading-snug text-ninho-cinza">Usa sono, sonecas, mamadas, horários e as notas dos registros. Não usa fotos, momentos nem o chat da família.</p>
+                  <form action={pedirRelatorio} className="mt-3">
+                    <input type="hidden" name="bebe" value={f?.baby_id ?? ''} />
+                    <input type="hidden" name="dias" value={dias} />
+                    <button className={`${botao.grad} w-full`} disabled={!status || !f}>Gerar relatório de {f?.bebe_nome ?? '—'} ({dias} dias)</button>
+                  </form>
+                  <p className="mt-2 text-center text-[11.5px] text-ninho-cinza">Leva uns 20 segundos. Se faltar registro, ele diz o que falta e não conta como usado.</p>
+                </>
+              )}
+            </Card>
+          )}
+        </div>
+        <Card titulo="Seus relatórios" direita={lista ? `${lista.length}` : undefined}>
+          {!lista || lista.length === 0 ? (
+            <p className="py-8 text-center text-sm text-ninho-cinza">{lista ? 'Nenhum relatório ainda.' : 'Os relatórios aparecem aqui quando o Relatório IA for liberado.'}</p>
+          ) : (
+            <table className="w-full">
+              <thead><tr><th className={th}>Bebê</th><th className={th}>Período</th><th className={th}>Gerado em</th><th className={th} /></tr></thead>
+              <tbody>
+                {lista.map((r) => (
+                  <tr key={r.id} className="hover:bg-[#FAF8FE]">
+                    <td className={td}><b>{r.bebe ?? (r.babyId ? nomeBebe.get(r.babyId) : null) ?? 'Bebê'}</b></td>
+                    <td className={td}>{r.dias ? `${r.dias} dias` : ''}{r.de && r.ate ? ` · ${dataBr(r.de).slice(0, 5)} a ${dataBr(r.ate).slice(0, 5)}` : ''}</td>
+                    <td className={td}>{r.criadoEm ? new Date(r.criadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                    <td className={td}><Link href={`${BASE}?aba=relatorio&id=${r.id}`} className={botao.suave}>Abrir</Link></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+      </div>
+    </>
+  );
+}
+
+async function RelatorioCompleto({ c, id, status, fams }: { c: Consultora; id: string; status: IaStatus | null; fams: FamiliaDaConsultora[] }) {
+  const r = await lerRelatorio(c.id, id);
+  if (!r) {
+    return (
+      <>
+        <Titulo t="Relatório" direita={<Link href={`${BASE}?aba=relatorio`} className={botao.cinza}>Voltar</Link>} />
+        <Card><p className="py-8 text-center text-sm text-ninho-cinza">Relatório não encontrado ou ainda não disponível.</p></Card>
+      </>
+    );
+  }
+  const fam = fams.find((x) => x.baby_id === r.babyId) ?? null;
+  const bebe = r.bebe ?? fam?.bebe_nome ?? 'Bebê';
+  const sx = secoes(r.conteudo);
+  // Desenhos do período do relatório, com os mesmos registros da Semana.
+  let s: SemanaV3 | null = null;
+  if (fam && fam.plano_ok && r.ate) {
+    const ultimo = r.ate.slice(0, 10);
+    const n = r.dias === 14 ? 14 : 7;
+    const rot = await rotinaDe(c.id, fam.baby_id, new Date(inicioDoDia(somarDias(ultimo, -n)) - 12 * H), new Date(Math.min(inicioDoDia(somarDias(ultimo, 1)) + 14 * H, Date.now() + 60_000)));
+    if (!rot.semAcesso) s = semanaV3(rot.registros, ultimo, Date.now(), n);
+  }
+  const ficha = fam ? (await fichaDe(c.id, fam.baby_id)).ficha : null;
+  const periodo = `${r.dias ? `${r.dias} dias` : ''}${r.de && r.ate ? ` · ${dataBr(r.de).slice(0, 5)} a ${dataBr(r.ate).slice(0, 5)}` : ''}`;
+  const geradoEm = r.criadoEm ? new Date(r.criadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  const msgFamilia = `Oi! Segue o relatório da rotina do ${ficha?.bebe_apelido || bebe} (${periodo.replace(/^ · /, '')}), feito a partir dos registros do Ninho. Vamos conversar sobre ele no nosso próximo encontro?`;
+  const Sec = ({ n, t, children, dica }: { n: number; t: string; children: React.ReactNode; dica?: string }) => (
+    <section data-secao={n} className="relatorio-secao border-t border-[#F0ECF6] pt-4 first:border-0 first:pt-0">
+      <div className="mb-2 flex items-center gap-2.5">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#24164F] text-[13px] font-black text-white">{n}</span>
+        <h2 className="text-[15.5px] font-extrabold text-[#24164F]">{t}</h2>
+        {dica && <span className="ml-auto text-[11.5px] text-ninho-cinza">{dica}</span>}
+      </div>
+      {children}
+    </section>
+  );
+  const P = ({ xs }: { xs: string[] }) => (xs.length ? <>{xs.map((x, i) => <p key={i} className="mt-1.5 text-[13.5px] leading-relaxed">{x}</p>)}</> : <p className="text-[13px] text-[#9A95AD]">Sem texto nesta seção.</p>);
+  return (
+    <div className="relatorio-ia">
+      <div className="no-print">
+        <Titulo
+          t={`Relatório de ${bebe}`}
+          sub={`${idadeTxt(fam?.nascimento ?? null) ? `${idadeTxt(fam?.nascimento ?? null)} · ` : ''}${periodo.replace(/^ · /, '')}${geradoEm ? ` · gerado em ${geradoEm}` : ''}`}
+          direita={<Link href={`${BASE}?aba=relatorio`} className={botao.cinza}>Voltar</Link>}
+        />
+      </div>
+      {/* Cabeçalho do PDF: só na impressão. */}
+      <div className="print-only mb-5 hidden items-center gap-3 border-b border-[#EFEAF7] pb-4">
+        <Avatar id={c.id} nome={c.nome} foto={c.foto_url} tamanho={52} />
+        <div className="flex-1">
+          <p className="text-[17px] font-black">{c.nome}</p>
+          <p className="text-[12.5px] text-ninho-cinza">Consultora independente</p>
+        </div>
+        <div className="text-right text-[12px] text-ninho-cinza">
+          <p className="font-extrabold text-[#24164F]">Relatório de {bebe}</p>
+          <p>{periodo.replace(/^ · /, '')}</p>
+          {geradoEm && <p>gerado em {geradoEm}</p>}
+        </div>
+      </div>
+      <CompartilharRelatorio whatsapp={ficha?.whatsapp ?? null} mensagem={msgFamilia}>
+        <div className="grid items-start gap-4 lg:grid-cols-[1fr_330px]">
+          <div className="flex flex-col gap-5 rounded-[22px] bg-white p-6 shadow-[0_10px_30px_-22px_rgba(80,40,160,.35)]">
+            {r.falta.length > 0 && (
+              <section className="rounded-2xl bg-[#FFF8EC] p-4">
+                <p className="font-extrabold">Ainda não dá para um relatório completo</p>
+                <ul className="mt-2 list-disc pl-5 text-[13.5px]">{r.falta.map((x, i) => <li key={i}>{x}</li>)}</ul>
+              </section>
+            )}
+            {sx.notaSaude && <Aviso tom="ambar">{sx.notaSaude}</Aviso>}
+            <Sec n={1} t="Resumo em 3 linhas">
+              {sx.resumo.length ? (
+                <ul className="flex flex-col gap-2">
+                  {sx.resumo.map((x, i) => <li key={i} className="flex gap-2.5 text-[14px] leading-relaxed"><i className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#9F86E0]" />{x}</li>)}
+                </ul>
+              ) : <P xs={[]} />}
+            </Sec>
+            <div className="grid gap-5 md:grid-cols-2">
+              <Sec n={2} t="Sono da noite">
+                {s && <FaixasNoites s={s} />}
+                <P xs={sx.noite} />
+              </Sec>
+              <Sec n={3} t="Sonecas e janelas">
+                {s && <JanelaAntesDeDormir s={s} />}
+                <P xs={sx.sonecas} />
+                {sx.faixaIdade && <p className="mt-2 rounded-xl bg-[#F8F6FC] p-2.5 text-[12px] text-ninho-cinza">{sx.faixaIdade}</p>}
+              </Sec>
+            </div>
+            <Sec n={4} t="O que acontece antes dos despertares" dica="padrões nos registros, não causas">
+              {sx.padroes.length ? (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {sx.padroes.map((p, i) => (
+                    <div key={i} className="rounded-2xl bg-[#F8F6FC] p-3">
+                      <p className="flex items-center justify-between gap-2 text-[13.5px] font-extrabold">
+                        {p.titulo}
+                        <span className="flex gap-0.5">{[1, 2, 3].map((k) => <i key={k} className="h-1.5 w-3 rounded-full" style={{ background: k <= p.forca ? '#7C5CD6' : '#E2DCEF' }} />)}</span>
+                      </p>
+                      {p.evidencia && <p className="mt-1 text-[13px] leading-relaxed text-ninho-cinza">{p.evidencia}</p>}
+                    </div>
+                  ))}
+                </div>
+              ) : <P xs={[]} />}
+            </Sec>
+            <div className="grid gap-5 md:grid-cols-2">
+              <Sec n={5} t="Melhores e piores noites">
+                {(sx.melhores.length > 0 || sx.piores.length > 0) && (
+                  <div className="grid grid-cols-2 gap-2 text-[12.5px]">
+                    <div className="rounded-xl bg-[#EEF8F1] p-2.5"><p className="font-extrabold text-[#2F8A55]">Melhores</p>{sx.melhores.map((x, i) => <p key={i}>{x}</p>)}</div>
+                    <div className="rounded-xl bg-[#FFF8EC] p-2.5"><p className="font-extrabold text-[#A8670F]">Mais agitadas</p>{sx.piores.map((x, i) => <p key={i}>{x}</p>)}</div>
+                  </div>
+                )}
+                {sx.diferencas.length > 0 && (
+                  <table className="mt-2 w-full text-[12.5px]">
+                    <tbody>
+                      {sx.diferencas.map((d2, i) => (
+                        <tr key={i} className="border-b border-[#F5F2FA]"><td className="py-1.5 pr-2 font-bold">{d2.item}</td><td className="py-1.5 pr-2 text-[#2F8A55]">{d2.melhores}</td><td className="py-1.5 text-[#A8670F]">{d2.piores}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {!sx.melhores.length && !sx.piores.length && !sx.diferencas.length && <P xs={[]} />}
+              </Sec>
+              <Sec n={6} t="Consistência dos horários">
+                {s && <Horarios s={s} />}
+                <P xs={sx.consistencia} />
+              </Sec>
+            </div>
+            <div className="grid gap-5 md:grid-cols-2">
+              <Sec n={7} t="Perguntas para levar à família" dica="roteiro seu">
+                {sx.perguntas.length ? <ol className="list-decimal space-y-1.5 pl-5 text-[13.5px] leading-relaxed">{sx.perguntas.map((x, i) => <li key={i}>{x}</li>)}</ol> : <P xs={[]} />}
+              </Sec>
+              <Sec n={8} t="O que observar nos próximos dias">
+                {sx.observar.length ? <ul className="space-y-1.5 text-[13.5px] leading-relaxed">{sx.observar.map((x, i) => <li key={i}>• {x}</li>)}</ul> : <P xs={[]} />}
+              </Sec>
+            </div>
+            {sx.outros.map((o) => (
+              <section key={o.titulo} className="border-t border-[#F0ECF6] pt-4">
+                <h2 className="mb-1 text-[14px] font-extrabold capitalize text-[#24164F]">{o.titulo}</h2>
+                <P xs={o.texto} />
+              </section>
+            ))}
+            <p className="mt-1 flex items-start gap-2 rounded-2xl bg-[#F3EEFC] p-3 text-[12.5px] leading-snug text-[#4B3A8C]">ⓘ {RODAPE_IA}</p>
+          </div>
+          <div className="no-print flex flex-col gap-4 lg:sticky lg:top-20">
+            {r.dadosUsados && (
+              <Card titulo="Dados usados">
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(r.dadosUsados).map(([k, v]) => (
+                    <span key={k} className="rounded-pill bg-[#F0EEF4] px-2.5 py-1 text-[11.5px] font-bold text-ninho-cinza">{k.replace(/_/g, ' ')}: {String(v)}</span>
+                  ))}
+                </div>
+                <p className="mt-2 text-[12px] text-ninho-cinza">Fotos, momentos e chat não entram.</p>
+              </Card>
+            )}
+            <Card titulo="Seus relatórios">
+              <p className="text-[13px] text-ninho-cinza">
+                {!status ? 'Situação da assinatura indisponível agora.' : status.assinante ? `Assinatura ativa${status.assinaturaAte ? ` até ${dataBr(status.assinaturaAte)}` : ''}. ${status.usadosMes} de ${status.limiteMes} relatórios usados neste mês.` : status.gratisUsado ? `Este foi o seu relatório grátis. Para os próximos, assine pelo app do Ninho (${brl(IA_PRECO_MENSAL)}/mês).` : 'Você ainda tem 1 relatório grátis.'}
+              </p>
+            </Card>
+          </div>
+        </div>
+      </CompartilharRelatorio>
+    </div>
+  );
+}
+
+// ── Assinatura IA e Ajuda (menu de conta) ─────────────────
+async function AssinaturaIA({ c }: { c: Consultora }) {
+  const st = await iaStatus(c.id);
+  return (
+    <>
+      <Titulo t="Assinatura IA" sub="Relatórios IA das suas famílias: o 1º é grátis; depois, a assinatura da consultora." />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card titulo="Sua situação">
+          {!st ? (
+            <p className="py-4 text-sm text-ninho-cinza">Situação indisponível agora. O Relatório IA ainda está sendo liberado.</p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Kpi rotulo="Assinatura" valor={st.assinante ? 'Ativa' : 'Sem assinatura'} sub={st.assinante && st.assinaturaAte ? `até ${dataBr(st.assinaturaAte)}` : st.gratisUsado ? 'relatório grátis já usado' : '1 relatório grátis disponível'} />
+              <Kpi rotulo="Relatórios neste mês" valor={`${st.usadosMes} de ${st.assinante ? st.limiteMes : 1}`} sub={st.podeGerar ? 'pode gerar agora' : 'sem relatório disponível'} />
+            </div>
+          )}
+          <Link href={`${BASE}?aba=relatorio`} className={`${botao.grad} mt-4`}>Ir para Relatório IA</Link>
+        </Card>
+        <Card titulo="Como assinar">
+          <div className="rounded-2xl bg-[#EEF8F1] p-4 text-center">
+            <p className="text-[13px] font-bold text-[#2F8A55]">Assinatura da consultora</p>
+            <p className="text-[24px] font-black tabular-nums text-[#2F8A55]">{brl(IA_PRECO_MENSAL)}<span className="text-sm font-bold"> /mês</span></p>
+            <p className="text-[12px] text-[#2F8A55]">até {IA_LIMITE_MES} relatórios por mês, de 7 ou 14 dias</p>
+          </div>
+          <Aviso>
+            A assinatura é feita <b>pelo app do Ninho</b> (Relatório IA › Assinar), com a App Store ou o Google Play. Ela
+            renova todo mês; cancele quando quiser nos ajustes da loja. A assinatura é separada da sua comissão: uma não
+            desconta da outra.
+          </Aviso>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function Ajuda({ c }: { c: Consultora }) {
+  const link = `${SITE_URL}/c/${(c.codigo ?? '').toLowerCase()}`;
+  return (
+    <>
+      <Titulo t="Código e ajuda" />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card titulo="Seu código e link">
+          <p className="text-[11px] font-extrabold tracking-[0.09em] text-[#9A95AD]">CÓDIGO</p>
+          <p className="text-3xl font-black tracking-[0.12em] text-[#24164F]">{c.codigo}</p>
+          <div className="mt-3"><CopyLink url={link} /></div>
+          <p className="mt-2 text-[12.5px] text-ninho-cinza">O link leva direto à loja e marca que a família veio de você. Quem já usa o Ninho digita o código em Cuidador ou Consultor › Adicionar › Consultora de sono.</p>
+        </Card>
+        <Card titulo="Ajuda">
+          <ul className="space-y-2 text-[13.5px] leading-relaxed">
+            <li><b>Entrar no computador:</b> no app, gere o código de 6 dígitos e use com o seu e-mail em useninho.com.br/admin/login (aba Sou consultora). Ele vale 10 minutos.</li>
+            <li><b>Rotina sumiu?</b> A família pode ter tirado o acesso, estar sem plano, ou a sua conta pode estar pausada.</li>
+            <li><b>Comissão:</b> {TEXTO_QUEM_GERA_COMISSAO}</li>
+            <li><b>Falar com o Ninho:</b> pelo botão Ajuda do app ou pelo e-mail suporte@useninho.com.br.</li>
+          </ul>
+        </Card>
+      </div>
     </>
   );
 }
