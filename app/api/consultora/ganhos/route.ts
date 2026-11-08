@@ -8,6 +8,10 @@
  * (Ninho-expo/docs/empresa/pedidos/consultoras-contrato.md). `via` = nome da
  * consultora indicada quando a linha é a parte de 12,5% de quem indicou.
  *
+ * Desde 08/11/2026 também traz o funil do link (/c/<código>): `cliques` e
+ * `funil` em cada item de `meses`, e `funil` no topo (últimos 6 meses, com
+ * `meses` mês a mês e `rastreio_disponivel`). Só campos novos.
+ *
  * 401 sem token válido · 404 se a conta não é consultora · 429 acima de 30
  * pedidos por minuto da mesma conta.
  */

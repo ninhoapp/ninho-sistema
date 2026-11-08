@@ -423,7 +423,22 @@ export function pagamentoDe(pagamentos: Pagamento[], consultoraId: string, compe
 export interface Ganhos {
   consultora: { nome: string; codigo: string | null; estado: EstadoConsultora; indicada_por_nome: string | null };
   resumo: { familias: number; assinantes: number; indicadas: number };
-  meses: { competencia: string; total: number; status: 'pago' | 'aberto'; prazo: string; pago_em: string | null }[];
+  meses: {
+    competencia: string;
+    total: number;
+    status: 'pago' | 'aberto';
+    prazo: string;
+    pago_em: string | null;
+    /** Cliques no link /c/<código> neste mês (0 se o rastreio ainda não está ligado). */
+    cliques: number;
+    funil: FunilGanhos;
+  }[];
+  /**
+   * Funil do link /c/<código> nos últimos 6 meses (mesmo cálculo de
+   * funilDaConsultora): o total e mês a mês. `rastreio_disponivel` = false
+   * enquanto a migration 00112 não estiver aplicada (cliques e downloads vêm 0).
+   */
+  funil: FunilGanhos & { rastreio_disponivel: boolean; meses: (FunilGanhos & { mes: string })[] };
   linhas: {
     competencia: string;
     bebe: string;
@@ -437,8 +452,28 @@ export interface Ganhos {
   }[];
 }
 
+export interface FunilGanhos {
+  cliques: number;
+  cliques_unicos: number;
+  downloads: number;
+  cadastros: number;
+  assinantes: number;
+  cancelamentos: number;
+}
+
+function funilJson(m: Omit<MesFunil, 'mes'>): FunilGanhos {
+  return {
+    cliques: m.cliques,
+    cliques_unicos: m.cliquesUnicos,
+    downloads: m.downloads,
+    cadastros: m.cadastros,
+    assinantes: m.assinantes,
+    cancelamentos: m.cancelamentos,
+  };
+}
+
 export async function montarGanhos(c: Consultora): Promise<Ganhos> {
-  const [base, vinculos] = await Promise.all([baseComissoes(), listVinculosAtivos()]);
+  const [base, vinculos, eventos] = await Promise.all([baseComissoes(), listVinculosAtivos(), eventosDosLinks()]);
   const nomePorId = new Map(base.consultoras.map((x) => [x.id, x.nome ?? 'Consultora']));
   const minhas = base.linhas.filter((l) => l.consultoraId === c.id);
 
@@ -482,14 +517,33 @@ export async function montarGanhos(c: Consultora): Promise<Ganhos> {
     },
     meses: competencias.map((comp) => {
       const pg = pagamentoDe(base.pagamentos, c.id, comp);
+      const fm = funilDaConsultora(c.id, base.familias, eventos, [comp])[0];
       return {
         competencia: comp,
         total: totalDe(base.linhas, c.id, comp),
         status: pg ? 'pago' : 'aberto',
         prazo: prazoPix(comp),
         pago_em: pg?.pago_em ?? null,
+        cliques: fm.cliques,
+        funil: funilJson(fm),
       };
     }),
+    funil: (() => {
+      const ms = funilDaConsultora(c.id, base.familias, eventos, ultimosMesesFunil(6));
+      const soma = (k: keyof Omit<MesFunil, 'mes'>) => ms.reduce((x, m) => x + m[k], 0);
+      return {
+        ...funilJson({
+          cliques: soma('cliques'),
+          cliquesUnicos: soma('cliquesUnicos'),
+          downloads: soma('downloads'),
+          cadastros: soma('cadastros'),
+          assinantes: soma('assinantes'),
+          cancelamentos: soma('cancelamentos'),
+        }),
+        rastreio_disponivel: eventos !== null,
+        meses: ms.map((m) => ({ mes: m.mes, ...funilJson(m) })),
+      };
+    })(),
     linhas: minhas.map((l) => ({
       competencia: l.competencia,
       bebe: rotulo(l),
