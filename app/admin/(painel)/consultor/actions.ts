@@ -210,12 +210,14 @@ export async function alternarLista(fd: FormData) {
   const c = await getConsultora(txt(fd, 'id'));
   const ret = txt(fd, 'aba') || 'consultoras';
   if (!c) volta({ aba: ret, erro: 'Consultora não encontrada.' });
+  // Chave ligada na lista (não na ficha): volta para a lista, sem abrir a ficha.
+  const idVolta = txt(fd, 'lista') ? undefined : c.id;
   const ligar = !c.na_lista;
   if (ligar) {
     // Dono (07/11/2026): pode ligar antes de ela criar a conta; o perfil fica
     // aprovado e ela aparece no app assim que ativar. Só a pausada não entra.
-    if (c.estado === 'pausada') volta({ aba: ret, id: c.id, erro: 'Consultora pausada não entra na lista. Reative primeiro.' });
-    if (!c.nome || !(c.whatsapp || c.instagram)) volta({ aba: ret, id: c.id, erro: 'Falta completar o perfil público (nome e WhatsApp ou Instagram).' });
+    if (c.estado === 'pausada') volta({ aba: ret, id: idVolta, erro: 'Consultora pausada não entra na lista. Reative primeiro.' });
+    if (!c.nome || !(c.whatsapp || c.instagram)) volta({ aba: ret, id: idVolta, erro: 'Falta completar o perfil público (nome e WhatsApp ou Instagram).' });
   }
   const { error } = await appDb()
     .from('consultoras')
@@ -226,10 +228,10 @@ export async function alternarLista(fd: FormData) {
       atualizado_em: agora(),
     })
     .eq('id', c.id);
-  if (error) volta({ aba: ret, id: c.id, erro: error.message });
+  if (error) volta({ aba: ret, id: idVolta, erro: error.message });
   volta({
     aba: ret,
-    id: c.id,
+    id: idVolta,
     ok: ligar
       ? `${c.nome?.split(' ')[0]} pode aparecer em "Encontrar consultora" assim que ativar a conta (até 10; quem mais traz assinantes vem primeiro).`
       : `${c.nome?.split(' ')[0]} saiu da lista do app.`,
@@ -395,7 +397,7 @@ export async function marcarPago(fd: FormData) {
   // De onde veio: Consultoras › Comissões ou Financeiro › Repasses (a mesma tabela).
   const daRepasses = txt(fd, 'volta') === 'repasses';
   const ir = (p: Record<string, string>): never =>
-    daRepasses ? volta(p, '/admin/repasses') : volta({ aba: 'comissoes', mes: competencia, ...p });
+    daRepasses ? volta(p, '/admin/repasses') : volta({ aba: 'dinheiro', mes: competencia, ...p });
   if (!/^\d{4}-\d{2}$/.test(competencia)) ir({ erro: 'Mês inválido.' });
   // O valor gravado é o calculado agora (o mesmo que a tela mostra).
   const base = await baseComissoesAgora();
