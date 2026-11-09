@@ -60,7 +60,9 @@ import {
   reativarConsultora,
   subirFotoDono,
   trocarIndicadaPor,
+  marcarSugestaoDono,
 } from './actions';
+import { todasSugestoes, type StatusSugestao } from '@/lib/consultoras-sugestoes';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,6 +74,7 @@ const ABAS: [string, string][] = [
   ['familias', 'Famílias ligadas'],
   ['comissoes', 'Comissões'],
   ['receita', 'Receita'],
+  ['sugestoes', 'Sugestões'],
 ];
 
 const pctTxt = (p: number) => `${String(p).replace('.', ',')}%`;
@@ -101,14 +104,16 @@ export default async function ConsultorPage({
   requireRole('admin');
   const aba = ABAS.some(([k]) => k === searchParams.aba) ? searchParams.aba! : 'geral';
 
-  const [base, pedidos, vinculos, users, pedVinc, eventos] = await Promise.all([
+  const [base, pedidos, vinculos, users, pedVinc, eventos, sugestoes] = await Promise.all([
     baseComissoes(),
     listPedidos('pendente'),
     listVinculosAtivos(),
     fetchAppUsers(),
     pedidosVinculoPendentes(),
     eventosDosLinks(),
+    todasSugestoes(),
   ]);
+  const sugNovas = sugestoes.lista.filter((s) => s.status === 'nova').length;
   const mesesFunil = ultimosMesesFunil(6);
   const funilDe = (id: string) => funilDaConsultora(id, base.familias, eventos, mesesFunil);
   // Pedidos de vínculo esperando resposta (00109): só contagem e datas, sem ação do dono.
@@ -310,6 +315,51 @@ export default async function ConsultorPage({
           )}
         </div>
       </div>
+    );
+  }
+
+  if (aba === 'sugestoes') {
+    const rot: Record<StatusSugestao, { t: string; cor: 'lilas' | 'ambar' | 'verde' }> = {
+      nova: { t: 'Nova', cor: 'lilas' },
+      lida: { t: 'Lida', cor: 'ambar' },
+      feita: { t: 'Feita', cor: 'verde' },
+    };
+    const acao = (id: string, status: StatusSugestao, t: string, cls: string) => (
+      <form action={marcarSugestaoDono}>
+        <input type="hidden" name="id" value={id} />
+        <button name="status" value={status} className={cls}>{t}</button>
+      </form>
+    );
+    conteudo = (
+      <Card titulo="Sugestões das consultoras" direita={sugNovas ? `${sugNovas} nova${sugNovas === 1 ? '' : 's'}` : 'o que elas gostariam de ter no painel'}>
+        {sugestoes.indisponivel && <Aviso tom="ambar">Falta aplicar a migration 00123 (consultora_sugestoes). Até lá a consultora vê &ldquo;abre em breve&rdquo;.</Aviso>}
+        {!sugestoes.indisponivel && sugestoes.lista.length === 0 && <p className="py-4 text-center text-sm text-ninho-cinza">Nenhuma sugestão ainda.</p>}
+        {sugestoes.lista.map((s) => {
+          const c = porId.get(s.consultora_id);
+          return (
+            <div key={s.id} className={`mt-2.5 flex flex-wrap items-start gap-3 rounded-2xl px-4 py-3 ${s.status === 'nova' ? 'bg-[#F3EEFC]' : 'bg-[#FAF8FE]'}`}>
+              <Avatar id={s.consultora_id} nome={c?.nome ?? 'Consultora'} foto={c?.foto_url} tamanho={38} />
+              <div className="min-w-[220px] flex-1 text-[13px] leading-snug">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link href={`${BASE}?aba=consultoras&id=${s.consultora_id}`} className="font-bold text-[#24164F]">{c?.nome ?? 'Consultora'}</Link>
+                  <span className="text-ninho-cinza">· {dataDubai(s.criado_em)}</span>
+                  <Selo cor={rot[s.status].cor}>{rot[s.status].t}</Selo>
+                </div>
+                <p className="mt-1 whitespace-pre-line text-[13.5px] leading-relaxed text-ninho-grafite">{s.texto}</p>
+              </div>
+              <div className="flex gap-2">
+                {s.status === 'nova' && acao(s.id, 'lida', 'Marcar como lida', botao.cinza)}
+                {s.status !== 'feita' && acao(s.id, 'feita', 'Virou melhoria', botao.verde)}
+                {s.status !== 'nova' && acao(s.id, 'nova', 'Voltar para nova', botao.suave)}
+              </div>
+            </div>
+          );
+        })}
+        <Aviso>
+          A consultora vê o estado de cada sugestão: <b>Lida pelo Ninho</b> quando você marca como lida e <b>Virou melhoria</b> quando
+          marca como feita.
+        </Aviso>
+      </Card>
     );
   }
 
@@ -578,7 +628,7 @@ export default async function ConsultorPage({
         </div>
         <span className="rounded-pill bg-[#E7F5EC] px-3 py-1 text-[11.5px] font-extrabold text-[#2F8A55]">Mesmos dados do app</span>
       </div>
-      <Abas base={BASE} atual={aba} abas={ABAS.map(([k, t]) => [k, k === 'pedidos' && pedidos.length + pendPerfil.length ? `${t} (${pedidos.length + pendPerfil.length})` : t])} />
+      <Abas base={BASE} atual={aba} abas={ABAS.map(([k, t]) => [k, k === 'pedidos' && pedidos.length + pendPerfil.length ? `${t} (${pedidos.length + pendPerfil.length})` : k === 'sugestoes' && sugNovas ? `${t} (${sugNovas})` : t])} />
       <Retorno ok={searchParams.ok} erro={searchParams.erro} />
       {familias.some((f) => f.dupla) && (
         <Aviso tom="ambar">

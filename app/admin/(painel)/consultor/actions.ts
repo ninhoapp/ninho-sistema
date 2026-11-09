@@ -11,6 +11,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { requireRole } from '@/lib/auth/guard';
+import { marcarSugestao, type StatusSugestao } from '@/lib/consultoras-sugestoes';
 import { verifyPassword } from '@/lib/auth/password';
 import { getPerfil, listPerfis } from '@/lib/painel/store';
 import { appDb, painelDb } from '@/lib/supabase/server';
@@ -405,4 +406,14 @@ export async function marcarPago(fd: FormData) {
     .insert({ consultora_id: id, competencia, valor, observacao: txt(fd, 'observacao') || null });
   if (error) ir({ erro: error.code === '23505' ? 'Esse mês já estava marcado como pago.' : error.message });
   ir({ ok: 'Marcado como pago. Ela vê "Pago" no app e no painel, e Repasses já mostra.' });
+}
+
+// ── Sugestões das consultoras (00123) ─────────────────────
+export async function marcarSugestaoDono(fd: FormData) {
+  requireRole('admin');
+  const id = txt(fd, 'id');
+  const status = txt(fd, 'status');
+  if (!/^[0-9a-f-]{36}$/i.test(id) || !['nova', 'lida', 'feita'].includes(status)) volta({ aba: 'sugestoes', erro: 'Sugestão não encontrada.' });
+  const ok = await marcarSugestao(id, status as StatusSugestao);
+  volta({ aba: 'sugestoes', erro: ok ? undefined : 'Não consegui salvar agora.' });
 }

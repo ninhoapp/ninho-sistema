@@ -62,7 +62,8 @@ import { IA_LIMITE_MES, IA_PERIODOS, IA_PRECO_MENSAL, RODAPE_IA, iaStatus, lerRe
 import { Avatar, Aviso, Card, Kpi, Retorno, Selo, botao, brl, campo, rotuloCampo, td, th } from '@/components/consultoras/ui';
 import { CopyLink } from '@/components/admin/CopyLink';
 import { ConfirmButton } from '@/components/admin/ConfirmButton';
-import { cancelarConviteFamilia, encerrarAcompanhamento, convidarFamilia, enviarFoto, indicarConsultora, pedirRelatorio, responderPedidoFamilia, salvarFicha, salvarPerfil } from './actions';
+import { cancelarConviteFamilia, encerrarAcompanhamento, convidarFamilia, enviarFoto, indicarConsultora, mandarSugestao, pedirRelatorio, responderPedidoFamilia, salvarFicha, salvarPerfil } from './actions';
+import { SUGESTAO_MAX, sugestoesDa, type StatusSugestao } from '@/lib/consultoras-sugestoes';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,6 +98,7 @@ export default async function ConsultoraPage({ searchParams }: { searchParams: B
   else if (aba === 'relatorio') corpo = await RelatorioIA({ c, sp: searchParams });
   else if (aba === 'assinatura') corpo = await AssinaturaIA({ c });
   else if (aba === 'ajuda') corpo = <Ajuda c={c} />;
+  else if (aba === 'sugestoes') corpo = await Sugestoes({ c });
   else if (aba === 'familias') corpo = await PedidosEConvites({ c, sp: searchParams });
   else corpo = await Familias({ c, sp: searchParams });
 
@@ -358,6 +360,86 @@ async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
         </div>
         <Legenda itens={[['#9F86E0', 'noite calma (até 2 despertares)'], ['#F0B456', '3 ou mais'], ['#E4E1EA', 'sem registro']]} />
       </Card>
+      <ConviteSugestao />
+    </>
+  );
+}
+
+// ── Sugestões para o Ninho (00123) ────────────────────────
+function ConviteSugestao() {
+  return (
+    <Link
+      href={`${BASE}?aba=sugestoes`}
+      className="no-print mt-4 flex flex-wrap items-center gap-4 rounded-[22px] bg-gradient-to-r from-[#F3EEFC] to-[#FBF8FF] px-5 py-4 shadow-[inset_0_0_0_1.5px_#E7DDFB]"
+    >
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-xl shadow-[0_6px_14px_-8px_rgba(140,92,248,.6)]" aria-hidden>💡</span>
+      <span className="min-w-[200px] flex-1 leading-snug">
+        <b className="block text-[15px] text-[#24164F]">O que você gostaria de ter por aqui?</b>
+        <span className="text-[12.5px] text-ninho-cinza">Conte sua ideia. A gente lê todas e é assim que o Ninho melhora para você.</span>
+      </span>
+      <span className={botao.suave}>Dar uma sugestão</span>
+    </Link>
+  );
+}
+
+const ROTULO_SUGESTAO: Record<StatusSugestao, { t: string; cor: 'ambar' | 'verde' | 'cinza' }> = {
+  nova: { t: 'Enviada', cor: 'cinza' },
+  lida: { t: 'Lida pelo Ninho', cor: 'ambar' },
+  feita: { t: 'Virou melhoria', cor: 'verde' },
+};
+
+async function Sugestoes({ c }: { c: Consultora }) {
+  const { lista, indisponivel } = await sugestoesDa(c.id);
+  return (
+    <>
+      <Titulo t="Sugestões" sub="Este espaço é seu para dizer o que falta, o que atrapalha e o que você gostaria de ver." />
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+        <section className="rounded-[22px] bg-gradient-to-br from-[#A46DFF] to-[#8C5CF8] p-[3px] shadow-[0_14px_34px_-22px_rgba(140,92,248,.9)]">
+          <div className="rounded-[20px] bg-white p-5">
+            <div className="flex items-center gap-3">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#F3EEFC] text-2xl" aria-hidden>💡</span>
+              <div className="leading-tight">
+                <h2 className="text-[18px] font-black text-[#24164F]">O que você gostaria de ter por aqui?</h2>
+                <p className="mt-0.5 text-[12.5px] text-ninho-cinza">Uma tela, um botão, um relatório, um jeito mais fácil de fazer algo. Vale tudo.</p>
+              </div>
+            </div>
+            <form action={mandarSugestao} className="mt-4">
+              <textarea
+                name="texto"
+                required
+                minLength={3}
+                maxLength={SUGESTAO_MAX}
+                rows={6}
+                placeholder="Ex.: queria ver a soma das sonecas da semana de todas as famílias numa tela só."
+                className="w-full resize-y rounded-2xl border-[1.5px] border-transparent bg-[#F5F2FB] px-4 py-3 text-[14px] leading-relaxed outline-none focus:border-ninho-roxo"
+                disabled={indisponivel}
+              />
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-[12px] text-ninho-cinza">Só o time do Ninho lê. Não coloque dados das famílias.</p>
+                <button className={botao.grad} disabled={indisponivel}>Enviar sugestão</button>
+              </div>
+              {indisponivel && <p className="mt-2 text-[12.5px] font-semibold text-[#B7791F]">As sugestões abrem em breve.</p>}
+            </form>
+          </div>
+        </section>
+        <Card titulo="Suas sugestões" direita={lista.length ? `${lista.length}` : undefined}>
+          {lista.length === 0 ? (
+            <p className="py-6 text-center text-sm text-ninho-cinza">Você ainda não mandou nenhuma. A primeira pode ser a próxima melhoria do Ninho.</p>
+          ) : (
+            <ul className="mt-1 space-y-2.5">
+              {lista.map((s) => (
+                <li key={s.id} className="rounded-2xl bg-[#FAF8FE] px-4 py-3">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="text-[11.5px] font-semibold text-[#9A95AD]">{new Date(s.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>
+                    <Selo cor={ROTULO_SUGESTAO[s.status].cor}>{ROTULO_SUGESTAO[s.status].t}</Selo>
+                  </div>
+                  <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-ninho-grafite">{s.texto}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
     </>
   );
 }

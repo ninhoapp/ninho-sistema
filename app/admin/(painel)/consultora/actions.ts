@@ -32,6 +32,7 @@ import {
 import { juntarTelefone } from '@/lib/telefone';
 import { gerarRelatorio } from '@/lib/consultoras-ia';
 import { familiasDa } from '@/lib/consultoras';
+import { SUGESTAO_MAX, SUGESTAO_MIN, enviarSugestao } from '@/lib/consultoras-sugestoes';
 
 const BASE = '/admin/consultora';
 
@@ -268,4 +269,15 @@ export async function encerrarAcompanhamento(fd: FormData) {
   const r = await encerrarFamilia(c.id, baby);
   if (r === 'ok') volta('familias', { ok: 'Acompanhamento encerrado. A família foi avisada.' });
   volta('familias', { erro: r === 'nao_encontrado' ? 'Essa família já não compartilhava a rotina com você.' : 'Não consegui encerrar agora. Tente de novo.' });
+}
+
+// ── Sugestões para o Ninho (00123) ────────────────────────
+export async function mandarSugestao(fd: FormData) {
+  const c = await eu();
+  const texto = txt(fd, 'texto').replace(/\s+\n/g, '\n');
+  if (texto.length < SUGESTAO_MIN) volta('sugestoes', { erro: 'Escreva sua ideia antes de enviar.' });
+  if (texto.length > SUGESTAO_MAX) volta('sugestoes', { erro: `Use até ${SUGESTAO_MAX} caracteres.` });
+  const r = await enviarSugestao(c.id, texto);
+  if (r === 'ok') volta('sugestoes', { ok: 'Recebemos sua sugestão. Obrigado por ajudar a melhorar o Ninho!' });
+  volta('sugestoes', { erro: r === 'indisponivel' ? 'As sugestões abrem em breve. Tente de novo mais tarde.' : 'Não consegui enviar agora. Tente de novo.' });
 }

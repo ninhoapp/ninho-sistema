@@ -13,6 +13,7 @@ export const ITENS_CONTA: [string, string, string][] = [
   ['/admin/consultora?aba=indicar', 'Indicar consultora', 'Traga uma amiga para o programa'],
   ['/admin/consultora?aba=assinatura', 'Assinatura IA', 'Relatórios do mês e validade'],
   ['/admin/consultora?aba=ajuda', 'Código e ajuda', 'Seu código, link e como entrar'],
+  ['/admin/consultora?aba=sugestoes', 'Sugestões', 'O que você gostaria de ter por aqui?'],
 ];
 
 export function ContaMenu({ nome }: { nome: string }) {
