@@ -6,7 +6,7 @@
  * senha provisória aparecem uma vez só, para o dono mandar ao parceiro; no
  * 1º acesso o painel obriga o parceiro a trocar a senha.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { aprovarPedidoParceiro, recusarPedidoParceiro, type AprovarState } from '@/app/admin/(painel)/parceiros/actions';
 import type { PedidoParceiro } from '@/lib/parceiros/pedidos';
@@ -130,6 +130,15 @@ function Pendente({ p, codigoSugerido }: { p: PedidoParceiro; codigoSugerido: st
 }
 
 export function PedidosParceiros({ pedidos, sugestoes }: { pedidos: PedidoParceiro[]; sugestoes: Record<string, string> }) {
+  // Os pedidos que já estavam na tela continuam nela até recarregar a página:
+  // aprovar recarrega os dados do servidor, o pedido sai dos pendentes e, sem
+  // isso, o quadro com a senha provisória sumia antes de o dono ver (teste de
+  // 09/11/2026). Pedido novo que chegar entra na lista.
+  const vistos = useRef(new Map<string, { p: PedidoParceiro; sug: string }>());
+  for (const p of pedidos) {
+    if (p.status === 'pendente' && !vistos.current.has(p.id)) vistos.current.set(p.id, { p, sug: sugestoes[p.id] ?? '' });
+  }
+  const naTela = Array.from(vistos.current.values());
   const pendentes = pedidos.filter((p) => p.status === 'pendente');
   const decididos = pedidos.filter((p) => p.status !== 'pendente');
   return (
@@ -141,10 +150,10 @@ export function PedidosParceiros({ pedidos, sugestoes }: { pedidos: PedidoParcei
         </h2>
         <span className="text-xs font-semibold text-ninho-cinza">vêm do formulário em useninho.com.br/sejaparceiro</span>
       </div>
-      {pendentes.length === 0 && <p className="text-[13px] text-ninho-cinza">Nenhum pedido esperando.</p>}
+      {naTela.length === 0 && <p className="text-[13px] text-ninho-cinza">Nenhum pedido esperando.</p>}
       <div className="flex flex-col gap-3">
-        {pendentes.map((p) => (
-          <Pendente key={p.id} p={p} codigoSugerido={sugestoes[p.id] ?? ''} />
+        {naTela.map(({ p, sug }) => (
+          <Pendente key={p.id} p={p} codigoSugerido={sug} />
         ))}
       </div>
       {decididos.length > 0 && (
