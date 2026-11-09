@@ -5,25 +5,17 @@ import { liquido } from '@/lib/precos';
 import { mesNoPainel } from '@/lib/dashboard-charts';
 import { SITE_URL } from '@/lib/config';
 import { telefoneLegivel } from '@/lib/telefone';
-import { ExcluirConsultora } from '@/components/consultoras/ExcluirConsultora';
 import { NovaConsultora } from '@/components/consultoras/NovaConsultora';
-import { Gaveta } from '@/components/consultoras/Gaveta';
-import { LimparRastreio } from '@/components/admin/LimparRastreio';
-import { CadastrosConsultora, type CadastroLinha } from '@/components/consultoras/CadastrosConsultora';
-import type { AppUser } from '@/lib/app-users';
-import { FunilTabela } from '@/components/consultoras/Funil';
-import { LimparLink } from '@/components/admin/LimparLink';
-import { iaStatus, type IaStatus } from '@/lib/consultoras-ia';
+import { Detalhe } from './Ficha';
+import { iaStatus } from '@/lib/consultoras-ia';
 import {
   baseComissoes,
   listPedidos,
   listVinculosAtivos,
   pedidosVinculoPendentes,
-  situacaoTxt,
   eventosDosLinks,
   funilDaConsultora,
   ultimosMesesFunil,
-  type MesFunil,
   bebesPorId,
   cuidadoresDe,
   totalDe,
@@ -45,7 +37,6 @@ import {
   SeloEstado,
   botao,
   brl,
-  campo,
   td,
   th,
 } from '@/components/consultoras/ui';
@@ -55,12 +46,7 @@ import {
   decidirFoto,
   decidirPedido,
   liberarConsultora,
-  ligarConta,
   marcarPago,
-  pausarConsultora,
-  reativarConsultora,
-  subirFotoDono,
-  trocarIndicadaPor,
   marcarSugestaoDono,
 } from './actions';
 import { todasSugestoes, type StatusSugestao } from '@/lib/consultoras-sugestoes';
@@ -234,7 +220,7 @@ export default async function ConsultorPage({
                 titulo={`${c.nome} mudou ${c.bio_pendente && c.foto_pendente_url ? 'o texto e a foto' : c.bio_pendente ? 'o texto' : 'a foto'} do perfil`}
                 sub={c.bio_pendente ? `“${c.bio_pendente.length > 90 ? `${c.bio_pendente.slice(0, 90)}…` : c.bio_pendente}”` : 'foto nova esperando aprovação'}
               >
-                <Link href={`${BASE}?aba=consultoras&id=${c.id}#g-perfil`} className={botao.suave}>Ver e aprovar</Link>
+                <Link href={`${BASE}?aba=consultoras&id=${c.id}#perfil`} className={botao.suave}>Ver e aprovar</Link>
               </Tarefa>
             ))}
             {aPagar.map((x) => {
@@ -260,7 +246,7 @@ export default async function ConsultorPage({
                 titulo={`${c.nome} tem comissão a receber e falta ${!c.pix_chave && !c.cpf ? 'Pix e CPF' : !c.pix_chave ? 'Pix' : 'CPF'}`}
                 sub="ela cadastra no painel dela, em Ganhos"
               >
-                <Link href={`${BASE}?aba=consultoras&id=${c.id}#g-conta`} className={botao.cinza}>Abrir</Link>
+                <Link href={`${BASE}?aba=consultoras&id=${c.id}#conta`} className={botao.cinza}>Abrir</Link>
               </Tarefa>
             ))}
             {esperando.map((c) => {
@@ -390,7 +376,7 @@ export default async function ConsultorPage({
                   return (
                     <tr key={c.id} className={det?.id === c.id ? 'bg-[#F3EEFC]' : 'hover:bg-[#FAF8FE]'}>
                       <td className={td}>
-                        <Link href={abrir} scroll={false} className="flex items-center gap-2.5">
+                        <Link href={abrir} className="flex items-center gap-2.5">
                           <Avatar id={c.id} nome={c.nome} foto={c.foto_url} tamanho={34} />
                           <span>
                             <b>{c.nome}</b>
@@ -417,7 +403,7 @@ export default async function ConsultorPage({
                         </span>
                       </td>
                       <td className={`${td} text-right`}>
-                        <Link href={abrir} scroll={false} className="px-1 text-lg font-bold text-[#9A95AD] hover:text-ninho-roxo-escuro" aria-label={`Abrir ${c.nome}`}>
+                        <Link href={abrir} className="px-1 text-lg font-bold text-[#9A95AD] hover:text-ninho-roxo-escuro" aria-label={`Abrir ${c.nome}`}>
                           ›
                         </Link>
                       </td>
@@ -434,13 +420,15 @@ export default async function ConsultorPage({
           </div>
         </Card>
         <p className="mt-3 text-xs text-ninho-cinza">Clique numa consultora para abrir a ficha: perfil público, link e funil, famílias, conta e Pix.</p>
-        {det && (
-          <Gaveta fechar={urlLista({})}>
+      </>
+    );
+    // Ficha aberta: ocupa a área da tela no lugar da lista (09/11/2026; a
+    // gaveta por cima da lista ficou ruim para o dono).
+    if (det)
+      conteudo = (
             <Detalhe
               c={det}
               fechar={urlLista({})}
-              ok={searchParams.ok}
-              erro={searchParams.erro}
               porId={porId}
               consultoras={consultoras}
               familias={familias.filter((f) => f.consultoraId === det.id)}
@@ -465,10 +453,7 @@ export default async function ConsultorPage({
               }
               mesAtual={mesAtual}
             />
-          </Gaveta>
-        )}
-      </>
-    );
+      );
   }
 
   if (aba === 'sugestoes') {
@@ -650,8 +635,18 @@ export default async function ConsultorPage({
     });
     const atual = rs[rs.length - 1];
     const mx = Math.max(...rs.map((r) => r.liq), 1);
-    const porCons = consultoras.filter((c) => c.estado !== 'esperando').map((c) => ({ c, liq: liquido(brutoDoMes(familias, mesAtual, c.id)) }));
-    const mx2 = Math.max(...porCons.map((x) => x.liq), 1);
+    // Por consultora: o número grande é a COMISSÃO dela no mês (o que o Ninho
+    // paga a ela). Antes mostrava a receita das famílias dela depois da loja
+    // (ex.: R$ 12,90 × 85% = R$ 10,97) e o dono leu como se fosse a comissão.
+    const porCons = consultoras
+      .filter((c) => c.estado !== 'esperando')
+      .map((c) => {
+        const liqC = liquido(brutoDoMes(familias, mesAtual, c.id));
+        const com = totalDe(linhas, c.id, mesAtual);
+        return { c, liq: liqC, com, fica: liqC - com };
+      })
+      .sort((a, z) => z.com - a.com);
+    const mx2 = Math.max(...porCons.map((x) => Math.max(x.liq, x.com)), 1);
 
     conteudo = (
       <>
@@ -775,18 +770,27 @@ export default async function ConsultorPage({
               <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-[#B9A6EC]" />Comissão</span>
             </div>
           </Card>
-          <Card titulo={`Por consultora (${nomeMes(mesAtual)}, R$ depois da loja)`}>
-            <div className="mt-3 flex flex-col gap-3">
+          <Card titulo={`Comissão por consultora (${nomeMes(mesAtual)})`} direita="o que o Ninho paga a cada uma">
+            <div className="mt-3 flex flex-col gap-3.5">
               {porCons.map((x) => (
                 <div key={x.c.id} className="flex items-center gap-3 text-[13px]">
                   <span className="w-24 truncate font-bold">{primeiro(x.c.nome)}</span>
-                  <div className="h-[22px] flex-1 overflow-hidden rounded-lg bg-[#F4F0FC]">
-                    <i className="block h-full" style={{ width: `${(x.liq / mx2) * 100}%`, background: '#9F86E0' }} />
+                  <div className="flex h-[22px] flex-1 overflow-hidden rounded-lg bg-[#F4F0FC]" title={`Famílias dela renderam ${brl(x.liq)} depois da loja: ${brl(x.com)} de comissão e ${brl(x.fica)} ficam com o Ninho`}>
+                    <i style={{ width: `${(x.com / mx2) * 100}%`, background: '#B9A6EC' }} />
+                    <i style={{ width: `${(Math.max(x.fica, 0) / mx2) * 100}%`, background: '#4CAF74' }} />
                   </div>
-                  <span className="w-24 text-right font-extrabold tabular-nums">{brl(x.liq)}</span>
+                  <span className="w-28 text-right leading-tight">
+                    <b className="font-extrabold tabular-nums">{brl(x.com)}</b>
+                    <small className="block text-[11px] tabular-nums text-ninho-cinza">de {brl(x.liq)}</small>
+                  </span>
                 </div>
               ))}
               {porCons.length === 0 && <p className="py-4 text-center text-sm text-ninho-cinza">Nenhuma consultora ativa ainda.</p>}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-4 text-[11.5px] font-semibold text-ninho-cinza">
+              <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-[#B9A6EC]" />Comissão dela</span>
+              <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-[#4CAF74]" />Fica com o Ninho</span>
+              <span>&ldquo;de&rdquo; = o que as famílias dela renderam depois dos 15% da loja</span>
             </div>
           </Card>
         </div>
@@ -825,7 +829,7 @@ export default async function ConsultorPage({
               : t,
         ])}
       />
-      {!det && <Retorno ok={searchParams.ok} erro={searchParams.erro} />}
+      <Retorno ok={searchParams.ok} erro={searchParams.erro} />
       {familias.some((f) => f.dupla) && (
         <Aviso tom="ambar">
           <b>Atribuição dupla:</b> {familias.filter((f) => f.dupla).length} conta(s) estão com um parceiro E com uma
@@ -896,306 +900,4 @@ function Tarefa({ icone, tom, titulo, sub, children }: { icone: keyof typeof ICO
   );
 }
 
-const tituloSecao = 'mb-3 text-[11px] font-extrabold uppercase tracking-[0.09em] text-[#9A95AD]';
-const secao = 'scroll-mt-24 border-t border-[#F0ECF6] px-6 py-5';
 
-/** Ficha da consultora, dentro da gaveta da aba Consultoras. */
-function Detalhe({
-  c,
-  fechar,
-  ok,
-  erro,
-  porId,
-  consultoras,
-  familias,
-  vinculos,
-  assinam,
-  comissaoTotalMes,
-  pedidosVinculo,
-  funil,
-  funilIndisponivel,
-  linkTotais,
-  ia,
-  comissaoMes,
-  mesAtual,
-  usuarios,
-}: {
-  c: Consultora;
-  fechar: string;
-  ok?: string;
-  erro?: string;
-  porId: Map<string, Consultora>;
-  consultoras: Consultora[];
-  familias: FamiliaAtribuida[];
-  vinculos: number;
-  assinam: number;
-  comissaoTotalMes: number;
-  pedidosVinculo: { origem: 'familia' | 'consultora'; criado_em: string }[];
-  funil: MesFunil[];
-  funilIndisponivel: boolean;
-  linkTotais: { cliques: number; downloads: number } | null;
-  ia: IaStatus | null;
-  comissaoMes: (familiaId: string) => number;
-  mesAtual: string;
-  usuarios: Map<string, AppUser>;
-}) {
-  const filhas = consultoras.filter((x) => x.indicada_por === c.id);
-  const opcoes = consultoras.filter((x) => x.id !== c.id && x.estado === 'ativa' && x.indicada_por !== c.id);
-  const atual = c.indicada_por ? porId.get(c.indicada_por) : null;
-  const link = `${SITE_URL.replace(/^https?:\/\//, '')}/c/${(c.codigo ?? '').toLowerCase()}`;
-  const cliques6m = funil.reduce((s, m) => s + m.cliques, 0);
-  const perfilNovo = Boolean(c.bio_pendente || c.foto_pendente_url);
-  const dt = 'font-bold text-[#9A95AD]';
-  const dd = 'font-semibold';
-
-  return (
-    <>
-      <div className="sticky top-0 z-10 bg-white px-6 pt-5">
-        <div className="flex items-center gap-3">
-          <Avatar id={c.id} nome={c.nome} foto={c.foto_url} tamanho={50} />
-          <div className="min-w-0 flex-1">
-            <b className="text-[17px] text-[#24164F]">{c.nome}</b>
-            <p className="truncate text-[12px] text-ninho-cinza">
-              {c.instagram ? `@${c.instagram.replace(/^@/, '')} · ` : ''}
-              {c.ativada_em ? `ativa desde ${dataDubai(c.ativada_em)}` : `liberada em ${dataDubai(c.liberada_em ?? c.criado_em)}`}
-            </p>
-          </div>
-          <SeloEstado estado={c.estado} />
-          <Link href={fechar} scroll={false} className={`${botao.cinza} h-9 w-9 px-0`} aria-label="Fechar">✕</Link>
-        </div>
-        <nav className="mt-4 flex gap-5 overflow-x-auto border-b border-[#ECE6F5] text-[12.5px] font-bold text-ninho-cinza">
-          {[
-            ['g-resumo', 'Resumo'],
-            ['g-perfil', perfilNovo ? 'Perfil público •' : 'Perfil público'],
-            ['g-link', 'Link e funil'],
-            ['g-familias', `Famílias (${familias.length})`],
-            ['g-conta', 'Conta e Pix'],
-          ].map(([id, t]) => (
-            <a key={id} href={`#${id}`} className="shrink-0 pb-2.5 hover:text-ninho-roxo-escuro">{t}</a>
-          ))}
-        </nav>
-      </div>
-
-      <div id="g-resumo" className="scroll-mt-24 px-6 pb-5 pt-4">
-        <Retorno ok={ok} erro={erro} />
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {[
-            ['Famílias ligadas', String(vinculos)],
-            ['Assinam', String(assinam)],
-            ['Cliques (6 meses)', funilIndisponivel ? '—' : String(cliques6m)],
-          ].map(([r, v]) => (
-            <div key={r} className="rounded-2xl bg-[#F8F6FC] px-3 py-2.5">
-              <p className="text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[#9A95AD]">{r}</p>
-              <b className="text-lg tabular-nums">{v}</b>
-            </div>
-          ))}
-          <div className="rounded-2xl bg-[#EEF8F1] px-3 py-2.5">
-            <p className="text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[#9A95AD]">{nomeMes(mesAtual)} (R$)</p>
-            <b className="text-lg tabular-nums text-[#2F8A55]">{brl(comissaoTotalMes)}</b>
-          </div>
-        </div>
-        {perfilNovo && (
-          <a href="#g-perfil" className="mt-3 flex items-center gap-2 rounded-2xl bg-[#F3EEFC] px-4 py-2.5 text-[13px] text-[#4B3A8C]">
-            <span className="flex-1">Mudou {c.bio_pendente && c.foto_pendente_url ? 'o texto e a foto' : c.bio_pendente ? 'o texto' : 'a foto'} do perfil.</span>
-            <b>Ver e aprovar ›</b>
-          </a>
-        )}
-        <dl className="mt-4 grid grid-cols-[128px_1fr] gap-x-3 gap-y-2.5 text-[13px]">
-          <dt className={dt}>E-mail liberado</dt>
-          <dd className={dd}>{c.email_liberado}</dd>
-          <dt className={dt}>Link</dt>
-          <dd className={dd}>{link}</dd>
-          <dt className={dt}>Indicada por</dt>
-          <dd>
-            <form action={trocarIndicadaPor} className="flex flex-wrap items-center gap-2">
-              <input type="hidden" name="id" value={c.id} />
-              <select name="indicada_por" defaultValue={c.indicada_por ?? ''} className={`${campo} h-8 max-w-[220px] text-xs`}>
-                <option value="">Ninguém ({pctTxt(PCT_DIRETO)})</option>
-                {atual && !opcoes.some((o) => o.id === atual.id) && <option value={atual.id}>{atual.nome}</option>}
-                {opcoes.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
-              </select>
-              <button className={botao.cinza}>Salvar</button>
-            </form>
-            <small className="text-[11px] text-ninho-cinza">só muda famílias atribuídas daqui para frente</small>
-          </dd>
-          <dt className={dt}>Ela indicou</dt>
-          <dd className={dd}>{filhas.map((x) => x.nome).join(', ') || 'ninguém ainda'}</dd>
-          <dt className={dt}>Pedidos de vínculo</dt>
-          <dd className={dd}>
-            {pedidosVinculo.length === 0
-              ? 'nenhum esperando'
-              : `${pedidosVinculo.filter((p) => p.origem === 'familia').length} de famílias esperando ela · ${pedidosVinculo.filter((p) => p.origem === 'consultora').length} convites dela esperando a família`}
-          </dd>
-          <dt className={dt}>Relatório IA</dt>
-          <dd className={dd}>
-            {!ia
-              ? 'indisponível'
-              : ia.assinante
-                ? `assina${ia.assinaturaAte ? ` até ${dataBr(ia.assinaturaAte)}` : ''} · ${ia.usadosMes} de ${ia.limiteMes} no mês`
-                : ia.gratisUsado
-                  ? 'sem assinatura · grátis já usado'
-                  : 'sem assinatura · 1 grátis disponível'}
-            {ia && ia.custoMes !== null && (
-              <small className="block text-[11px] font-normal text-ninho-cinza">custo de IA no mês: {ia.custoMoeda ?? 'USD'} {ia.custoMes.toFixed(2).replace('.', ',')}</small>
-            )}
-          </dd>
-          <dt className={dt}>Na lista do app</dt>
-          <dd className="flex items-start gap-2">
-            <form action={alternarLista}>
-              <input type="hidden" name="id" value={c.id} />
-              <Chave ligada={c.na_lista && c.estado !== 'pausada'} desabilitada={c.estado === 'pausada'} />
-            </form>
-            <small className="text-[11.5px] leading-snug text-ninho-cinza">aparece no app assim que ela ativar a conta (até 10; quem mais traz assinantes vem primeiro)</small>
-          </dd>
-        </dl>
-      </div>
-
-      <div id="g-perfil" className={secao}>
-        <p className={tituloSecao}>
-          Perfil público · como as famílias veem
-          {c.bio_pendente && <span className="ml-2"><Selo cor="lilas">texto novo</Selo></span>}
-          {c.foto_pendente_url && <span className="ml-2"><Selo cor="lilas">foto nova</Selo></span>}
-        </p>
-        <div className="rounded-[20px] bg-[#F8F6FC] p-4">
-          <div className="flex items-center gap-3">
-            <Avatar id={c.id} nome={c.nome} foto={c.foto_url} tamanho={48} />
-            <div>
-              <b className="text-base">{c.nome}</b>
-              <p className="text-[12.5px] text-ninho-cinza">Consultora independente · {c.cidade ? `${c.cidade}${c.uf ? ` · ${c.uf}` : ''}` : 'cidade a preencher'}</p>
-              <p className="text-xs text-ninho-cinza">
-                {[c.atende_online && 'Online', c.atende_presencial && 'Presencial'].filter(Boolean).join(' e ')}
-                {c.idades ? ` · ${c.idades}` : ''}
-              </p>
-            </div>
-          </div>
-          <p className={`mt-2 text-[13.5px] leading-relaxed ${c.bio ? '' : 'text-[#9A95AD]'}`}>{c.bio || 'Sem texto ainda.'}</p>
-          {c.bio_pendente && (
-            <form action={decidirBio} className="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-white p-2.5 text-[13px]">
-              <input type="hidden" name="id" value={c.id} />
-              <input type="hidden" name="aba" value="consultoras" />
-              <span className="min-w-[200px] flex-1">Novo: &ldquo;{c.bio_pendente}&rdquo;</span>
-              <button name="decisao" value="recusar" className={botao.cinza}>Recusar</button>
-              <button name="decisao" value="aprovar" className={botao.verde}>Aprovar texto</button>
-            </form>
-          )}
-          {c.foto_pendente_url && (
-            <form action={decidirFoto} className="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-white p-2.5 text-[13px]">
-              <input type="hidden" name="id" value={c.id} />
-              <input type="hidden" name="aba" value="consultoras" />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={c.foto_pendente_url} alt="Foto nova" width={56} height={56} className="h-14 w-14 rounded-full object-cover" />
-              <span className="flex-1">Foto nova</span>
-              <button name="decisao" value="recusar" className={botao.cinza}>Recusar</button>
-              <button name="decisao" value="aprovar" className={botao.verde}>Aprovar foto</button>
-            </form>
-          )}
-          <p className="mt-3 text-[11px] leading-snug text-[#9A95AD]">
-            Consultora independente. As orientações são de responsabilidade dela e não substituem o pediatra. Ela pode receber comissão do Ninho se a
-            família assinar pelo link dela.
-          </p>
-        </div>
-        <form action={subirFotoDono} className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          <input type="hidden" name="id" value={c.id} />
-          <input type="file" name="foto" accept="image/jpeg,image/png,image/webp" className="max-w-[220px] text-xs" />
-          <button className={botao.suave}>Trocar foto</button>
-          <span className="text-ninho-cinza">JPG, PNG ou WebP até 2 MB</span>
-        </form>
-      </div>
-
-      <div id="g-link" className={secao}>
-        <p className={tituloSecao}>Link e funil · {link}</p>
-        <FunilTabela meses={funil} indisponivel={funilIndisponivel} titulo="Rastreio do link" />
-        <div className="mt-2 flex flex-wrap justify-end gap-2">
-          {c.codigo ? <LimparRastreio tipo="consultora" id={c.id} codigo={c.codigo} /> : null}
-          <LimparLink tipo="consultora" id={c.id} nome={c.nome ?? 'consultora'} cliques={linkTotais?.cliques ?? null} downloads={linkTotais?.downloads ?? null} />
-        </div>
-      </div>
-
-      <div id="g-familias" className={secao}>
-        <p className={tituloSecao}>Famílias · as que geram comissão</p>
-        <p className="mb-2 text-[12px] text-ninho-cinza">
-          {vinculos} família{vinculos === 1 ? '' : 's'} ligada{vinculos === 1 ? '' : 's'} no app agora. Abaixo, as famílias atribuídas a ela.
-        </p>
-        <div className="overflow-x-auto">
-          <CadastrosConsultora
-            mes={nomeMes(mesAtual)}
-            linhas={familias.map((f): CadastroLinha => {
-              const u = usuarios.get(f.id);
-              const como: Record<string, string> = {
-                link: 'Link',
-                codigo_cadastro: 'Código no cadastro',
-                manual: 'Manual (dono)',
-                vinculo: 'Vínculo',
-                dupla_parceiro: 'Também de parceiro',
-              };
-              return {
-                id: f.id,
-                nome: u?.name?.trim() || (u?.email ?? 'Sem nome'),
-                comoChegou: como[f.metodo] ?? f.metodo,
-                atribuidaEm: f.atribuidaEm,
-                atribuidaEmTxt: dataDubai(f.atribuidaEm),
-                plano: f.plano,
-                pagaHoje: f.pagaHoje,
-                comissaoMes: comissaoMes(f.id),
-                motivoSemValor: comissaoMes(f.id)
-                  ? null
-                  : !f.gera
-                    ? 'não gera comissão (atribuição)'
-                    : f.situacao === 'ativa'
-                      ? 'parcelas já pagas ou fora do mês'
-                      : situacaoTxt(f.situacao, f.situacaoDesde),
-                status: u ? accountStatus(u) : '—',
-                email: u?.email ?? '',
-              };
-            })}
-          />
-        </div>
-      </div>
-
-      <div id="g-conta" className={secao}>
-        <p className={tituloSecao}>Conta e Pix</p>
-        <dl className="grid grid-cols-[128px_1fr] gap-x-3 gap-y-2.5 text-[13px]">
-          <dt className={dt}>Conta do app</dt>
-          <dd>
-            {c.profile_id ? (
-              <span className={dd}>ligada</span>
-            ) : (
-              <form action={ligarConta} className="flex flex-wrap gap-2">
-                <input type="hidden" name="id" value={c.id} />
-                <input name="conta" placeholder="e-mail da conta (ex.: …@privaterelay.appleid.com) ou id" className={`${campo} h-8 max-w-[300px] text-xs`} />
-                <button className={botao.suave}>Ligar a uma conta existente</button>
-              </form>
-            )}
-          </dd>
-          <dt className={dt}>Liberada em</dt>
-          <dd className={dd}>
-            {dataDubai(c.liberada_em ?? c.criado_em)}
-            {c.ativada_em ? ` · ativa desde ${dataDubai(c.ativada_em)}` : ''}
-          </dd>
-          <dt className={dt}>Termo aceito</dt>
-          <dd className={dd}>{c.termo_aceito_em ? `em ${dataDubai(c.termo_aceito_em)} (${c.termo_versao})` : 'ainda não'}</dd>
-          <dt className={dt}>Pix e CPF</dt>
-          <dd className={dd}>
-            {c.pix_chave && c.cpf ? 'cadastrados' : <Selo cor="ambar">{!c.pix_chave && !c.cpf ? 'faltam Pix e CPF' : !c.pix_chave ? 'falta Pix' : 'falta CPF'}</Selo>}
-          </dd>
-        </dl>
-        <div className="mt-5 flex flex-wrap gap-2 border-t border-[#F0ECF6] pt-4">
-          {c.estado === 'pausada' ? (
-            <form action={reativarConsultora}>
-              <input type="hidden" name="id" value={c.id} />
-              <button className={botao.verde}>Reativar</button>
-            </form>
-          ) : (
-            <form action={pausarConsultora}>
-              <input type="hidden" name="id" value={c.id} />
-              <button className={botao.vermelho}>Pausar</button>
-            </form>
-          )}
-          <span className="ml-auto">
-            <ExcluirConsultora id={c.id} nome={c.nome ?? 'consultora'} />
-          </span>
-        </div>
-      </div>
-    </>
-  );
-}
