@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { requireRole, requireSessionAtiva } from '@/lib/auth/guard';
 import { senhaAleatoria, verifyPassword } from '@/lib/auth/password';
+import { erroSenhaFraca } from '@/lib/auth/senha-forte';
 import { appDb } from '@/lib/supabase/server';
 import { atualizarFimTrial, APP_USERS_TAG } from '@/lib/app-users';
 import {
@@ -66,7 +67,10 @@ export async function criarPerfil(_prev: ActionState, fd: FormData): Promise<Act
   const role = String(fd.get('role') || 'conversor') as Role;
 
   if (!username || !display_name) return { error: 'Usuário e nome são obrigatórios.' };
-  if (digitada && digitada.length < 8) return { error: 'A senha precisa ter ao menos 8 caracteres (ou deixe em branco para gerar).' };
+  if (digitada) {
+    const fraca = erroSenhaFraca(digitada, [username, display_name, String(fd.get('email') || '')]);
+    if (fraca) return { error: `${fraca} Ou deixe em branco para o painel gerar uma senha forte.` };
+  }
   // Em branco = senha aleatória. Parceiro e conversor sempre trocam no 1º acesso (09/11/2026).
   const password = digitada || senhaAleatoria();
   const provisoria = role !== 'admin' || !digitada;
@@ -140,9 +144,12 @@ export async function resetarSenha(_prev: ActionState, fd: FormData): Promise<Ac
   requireRole('admin');
   const id = String(fd.get('id') || '');
   const digitada = String(fd.get('nova') || '');
-  if (digitada && digitada.length < 8) return { error: 'A senha precisa ter ao menos 8 caracteres (ou deixe em branco para gerar).' };
   const alvo = await getPerfil(id);
   if (!alvo) return { error: 'Perfil não encontrado.' };
+  if (digitada) {
+    const fraca = erroSenhaFraca(digitada, [alvo.username, alvo.display_name, alvo.email]);
+    if (fraca) return { error: `${fraca} Ou deixe em branco para o painel gerar uma senha forte.` };
+  }
   const nova = digitada || senhaAleatoria();
   // Senha dada pelo dono é provisória para parceiro e conversor: trocam no próximo acesso.
   const res = await setPassword(id, nova, alvo.role !== 'admin' || !digitada);

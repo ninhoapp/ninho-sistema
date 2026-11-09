@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { findPerfilByLogin, getPerfil, setPassword, updatePerfil } from '@/lib/painel/store';
 import { verifyPassword } from '@/lib/auth/password';
+import { erroSenhaFraca } from '@/lib/auth/senha-forte';
 import {
   setSessionCookie,
   clearSessionCookie,
@@ -55,10 +56,11 @@ export async function trocarSenhaProvisoria(_prev: ActionState, formData: FormDa
   if (!session) return { error: 'Sessão expirada. Entre de novo.' };
   const nova = String(formData.get('nova') || '');
   const confirma = String(formData.get('confirma') || '');
-  if (nova.length < 8) return { error: 'A nova senha precisa ter ao menos 8 caracteres.' };
   if (nova !== confirma) return { error: 'A confirmação não confere.' };
   const perfil = await getPerfil(session.sub);
   if (!perfil || !perfil.active) return { error: 'Sessão expirada. Entre de novo.' };
+  const fraca = erroSenhaFraca(nova, [perfil.username, perfil.display_name, perfil.email]);
+  if (fraca) return { error: fraca };
   if (verifyPassword(nova, perfil.password_hash)) return { error: 'Escolha uma senha diferente da provisória.' };
   const res = await setPassword(perfil.id, nova, false);
   if (!res.ok) return { error: res.error || 'Falha ao salvar.' };
@@ -104,13 +106,15 @@ export async function changeOwnPassword(
   const nova = String(formData.get('nova') || '');
   const confirma = String(formData.get('confirma') || '');
 
-  if (nova.length < 8) return { error: 'A nova senha precisa ter ao menos 8 caracteres.' };
   if (nova !== confirma) return { error: 'A confirmação não confere.' };
 
   const perfil = await getPerfil(session.sub);
   if (!perfil || !verifyPassword(atual, perfil.password_hash)) {
     return { error: 'Senha atual incorreta.' };
   }
+  const fraca = erroSenhaFraca(nova, [perfil.username, perfil.display_name, perfil.email]);
+  if (fraca) return { error: fraca };
+  if (nova === atual) return { error: 'A nova senha tem que ser diferente da atual.' };
 
   const res = await setPassword(perfil.id, nova);
   if (!res.ok) return { error: res.error || 'Falha ao salvar.' };

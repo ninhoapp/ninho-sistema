@@ -3,6 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom';
 import { changeOwnPassword, type ActionState } from '@/app/admin/actions';
 import { PasswordInput } from '@/components/admin/PasswordInput';
+import { SenhaForteInput } from '@/components/admin/SenhaForteInput';
 
 function SubmitBtn() {
   const { pending } = useFormStatus();
@@ -30,11 +31,7 @@ export function ChangePasswordForm() {
         </div>
       )}
       <PasswordInput name="atual" placeholder="Senha atual" autoComplete="current-password" />
-      <PasswordInput
-        name="nova"
-        placeholder="Nova senha (mín. 8 caracteres)"
-        autoComplete="new-password"
-      />
+      <SenhaForteInput name="nova" placeholder="Nova senha" />
       <PasswordInput name="confirma" placeholder="Confirmar nova senha" autoComplete="new-password" />
       <div>
         <SubmitBtn />

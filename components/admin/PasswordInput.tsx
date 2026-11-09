@@ -7,10 +7,12 @@ export function PasswordInput({
   name,
   placeholder,
   autoComplete,
+  onChange,
 }: {
   name: string;
   placeholder: string;
   autoComplete?: string;
+  onChange?: (valor: string) => void;
 }) {
   const [show, setShow] = useState(false);
   return (
@@ -20,6 +22,7 @@ export function PasswordInput({
         type={show ? 'text' : 'password'}
         placeholder={placeholder}
         autoComplete={autoComplete}
+        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
         className="w-full rounded-pill border border-ninho-borda bg-white px-5 py-3 pr-12 text-sm text-ninho-grafite outline-none focus:border-ninho-roxo"
       />
       <button

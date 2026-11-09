@@ -11,6 +11,7 @@ import {
 } from '@/app/admin/(painel)/admin-actions';
 import type { PerfilView as Perfil } from '@/lib/painel/store';
 import type { Role } from '@/lib/auth/session';
+import { SenhaForteInput } from '@/components/admin/SenhaForteInput';
 import { PasswordInput } from '@/components/admin/PasswordInput';
 
 const inputCls =
@@ -199,7 +200,7 @@ function FormNovo() {
       <label className="text-xs text-ninho-cinza">
         Senha inicial (deixe em branco para gerar uma aleatória)
         <div className="mt-1">
-          <PasswordInput name="password" placeholder="Gerada automaticamente" autoComplete="new-password" />
+          <SenhaForteInput name="password" placeholder="Gerada automaticamente" opcional />
         </div>
         <span className="mt-1 block text-[11px]">Parceiro e conversor trocam a senha no 1º acesso.</span>
       </label>
@@ -285,7 +286,7 @@ function FormEditar({ p, ehVoce }: { p: Perfil; ehVoce: boolean }) {
             <h4 className="text-sm font-semibold text-ninho-grafite">Redefinir senha</h4>
             <Msg state={senhaState} />
             <div className="max-w-sm">
-              <PasswordInput name="nova" placeholder="Em branco = gerar uma aleatória" autoComplete="new-password" />
+              <SenhaForteInput name="nova" placeholder="Em branco = gerar uma senha forte" pessoais={[p.username, p.display_name, p.email]} opcional />
             </div>
             <div>
               <Submit label="Redefinir" />

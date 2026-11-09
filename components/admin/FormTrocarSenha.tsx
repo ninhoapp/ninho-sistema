@@ -3,6 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom';
 import { trocarSenhaProvisoria, type ActionState } from '@/app/admin/actions';
 import { PasswordInput } from '@/components/admin/PasswordInput';
+import { SenhaForteInput } from '@/components/admin/SenhaForteInput';
 
 function Salvar() {
   const { pending } = useFormStatus();
@@ -23,9 +24,9 @@ export function FormTrocarSenha() {
     <form action={action} className="mt-6 flex flex-col gap-3">
       {state.error && <div className="rounded-xl bg-red-50 p-2.5 text-sm text-red-600">{state.error}</div>}
       <label className="text-xs font-bold text-[#9A95AD]">
-        Nova senha (mín. 8 caracteres)
+        Nova senha
         <div className="mt-1">
-          <PasswordInput name="nova" placeholder="Nova senha" autoComplete="new-password" />
+          <SenhaForteInput name="nova" placeholder="Nova senha" />
         </div>
       </label>
       <label className="text-xs font-bold text-[#9A95AD]">
