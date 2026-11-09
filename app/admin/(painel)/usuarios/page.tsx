@@ -9,6 +9,8 @@ import { buildUsuariosCharts } from '@/lib/dashboard-charts';
 import { fetchGrupoTestePorUsuario } from '@/lib/teste-paywall';
 import { taxaConversaoNascidos, taxaConversaoHint } from '@/lib/metrics';
 import { paisDoFuso } from '@/lib/pais';
+import { listPerfis } from '@/lib/painel/store';
+import { listConsultoras } from '@/lib/consultoras';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { Notice } from '@/components/admin/Notice';
 import { UsuariosTable, type UsuarioRow } from '@/components/admin/UsuariosTable';
@@ -18,7 +20,25 @@ export const dynamic = 'force-dynamic';
 export default async function UsuariosPage() {
   requireRole('admin');
 
-  const [users, uso, testePaywall] = await Promise.all([fetchAppUsers(), fetchUsoPorUsuario(), fetchGrupoTestePorUsuario()]);
+  const [users, uso, testePaywall, perfis, consultoras] = await Promise.all([
+    fetchAppUsers(),
+    fetchUsoPorUsuario(),
+    fetchGrupoTestePorUsuario(),
+    listPerfis().catch(() => []),
+    listConsultoras().catch(() => []),
+  ]);
+  // Quem trouxe a conta (link ou código): nome do parceiro pelo código e da
+  // consultora pelo id. Se tiver os dois, vale o registro mais antigo.
+  const parceiroPorCodigo = new Map(
+    perfis.filter((p) => p.promo_code).map((p) => [p.promo_code!.toUpperCase(), p.display_name || p.promo_code!.toUpperCase()]),
+  );
+  const consultoraPorId = new Map(consultoras.map((c) => [c.id, c.nome || 'Consultora']));
+  const indicadoPor = (u: (typeof users)[number]): UsuarioRow['indicadoPor'] => {
+    const cons = u.consultoraId ? { nome: consultoraPorId.get(u.consultoraId) ?? 'Consultora', tipo: 'consultora' as const } : null;
+    const parc = u.parceiroCodigo ? { nome: parceiroPorCodigo.get(u.parceiroCodigo) ?? u.parceiroCodigo, tipo: 'parceiro' as const } : null;
+    if (cons && parc) return u.atribuicaoDupla === 'vale_consultora' ? cons : parc;
+    return cons ?? parc;
+  };
   const charts = buildUsuariosCharts(users);
   const conversao = taxaConversaoNascidos(users);
 
@@ -33,6 +53,7 @@ export default async function UsuariosPage() {
       birthDate: u.birthDate,
       status: accountStatus(u),
       herdadoDe: u.herdadoDe,
+      indicadoPor: indicadoPor(u),
       // Duas colunas no banco, uma pergunta só na tela: quem paga (ou
       // cancelou no meio do ciclo) conta pelo fim do período pago; o resto
       // conta pelo fim do trial. Usa os campos EFETIVOS: pra quem herda de

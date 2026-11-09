@@ -80,6 +80,8 @@ export interface AppUser {
   /** Quando a conta foi atribuída a uma consultora com método que gera comissão
    *  (consultora_indicacoes: link, codigo_cadastro ou manual). */
   consultoraAtribuidaEm: string | null;
+  /** Consultora dessa atribuição (consultoras.id). Null = não veio de consultora. */
+  consultoraId: string | null;
   /**
    * Atribuição dupla (parceiro E consultora para a mesma conta): vale só o
    * registro mais antigo (Henrique, 08/11/2026). Null = não é dupla.
@@ -276,13 +278,13 @@ interface IndicacaoRow {
   created_at: string | null;
 }
 
-/** Atribuição a consultora que gera comissão, por conta (data). Falha não derruba o painel. */
-async function fetchAtribuicaoConsultora(): Promise<Map<string, string>> {
-  const out = new Map<string, string>();
-  const { data, error } = await lerTudo<{ profile_id: string; criado_em: string }>('consultora_indicacoes', (de, ate) =>
+/** Atribuição a consultora que gera comissão, por conta (data e consultora). Falha não derruba o painel. */
+async function fetchAtribuicaoConsultora(): Promise<Map<string, { em: string; consultoraId: string }>> {
+  const out = new Map<string, { em: string; consultoraId: string }>();
+  const { data, error } = await lerTudo<{ profile_id: string; criado_em: string; consultora_id: string }>('consultora_indicacoes', (de, ate) =>
     appDb()
       .from('consultora_indicacoes')
-      .select('profile_id,criado_em')
+      .select('profile_id,criado_em,consultora_id')
       .in('metodo', ['link', 'codigo_cadastro', 'manual'])
       .order('profile_id')
       .range(de, ate),
@@ -291,7 +293,7 @@ async function fetchAtribuicaoConsultora(): Promise<Map<string, string>> {
     console.error('[painel] consultora_indicacoes falhou:', error.message);
     return out;
   }
-  for (const r of data) out.set(r.profile_id, r.criado_em);
+  for (const r of data) out.set(r.profile_id, { em: r.criado_em, consultoraId: r.consultora_id });
   return out;
 }
 
@@ -412,8 +414,9 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
       parceiroCodigo: ind ? ind.promo_code.toUpperCase() : null,
       parceiroMetodo: ind?.metodo ?? null,
       parceiroAtribuidoEm: ind?.created_at ?? null,
-      consultoraAtribuidaEm: consultoraEm.get(p.id) ?? null,
-      atribuicaoDupla: quemVale(ind?.created_at ?? (ind ? '' : null), consultoraEm.get(p.id) ?? null),
+      consultoraAtribuidaEm: consultoraEm.get(p.id)?.em ?? null,
+      consultoraId: consultoraEm.get(p.id)?.consultoraId ?? null,
+      atribuicaoDupla: quemVale(ind?.created_at ?? (ind ? '' : null), consultoraEm.get(p.id)?.em ?? null),
     };
   });
 }

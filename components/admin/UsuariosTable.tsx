@@ -39,6 +39,10 @@ export interface UsuarioRow {
    *  cuida do mesmo bebê (dono ou cuidador — quem paga cobre os demais).
    *  Null = acesso próprio. Mostrado como legenda sob o badge de Status. */
   herdadoDe: string | null;
+  /** Quem trouxe a conta pelo link ou código: parceiro ou consultora (a que
+   *  vale, se houver os dois). Null = veio sozinha. Mostrado como legenda sob
+   *  o badge de Status, sem coluna nova (pedido do dono, 10/11/2026). */
+  indicadoPor: { nome: string; tipo: 'parceiro' | 'consultora' } | null;
   /** Data em que o acesso vigente acaba — trial ou ciclo pago, já resolvida.
    *  Alimenta a coluna Dias. */
   expiraEm: string | null;
@@ -527,7 +531,8 @@ export function UsuariosTable({
         (u) =>
           u.name?.toLowerCase().includes(q) ||
           u.email?.toLowerCase().includes(q) ||
-          u.phone?.includes(q)
+          u.phone?.includes(q) ||
+          u.indicadoPor?.nome.toLowerCase().includes(q)
       );
     }
 
@@ -610,6 +615,7 @@ export function UsuariosTable({
         'Teste de paywall': r.teste ? testeTooltip(r.teste) : '',
         Status: r.status,
         'Herdado de': r.herdadoDe || '',
+        'Veio por': r.indicadoPor ? `${r.indicadoPor.nome} (${r.indicadoPor.tipo})` : '',
         Dias: diasLabel(dias(r)),
         Origem: ORIGEM_LABEL[r.origem],
         País: r.pais ?? '',
@@ -1073,6 +1079,14 @@ export function UsuariosTable({
                     {r.herdadoDe && (
                       <div className="mt-1 truncate text-[10px] text-ninho-cinza" title={`Herdado de ${r.herdadoDe}`}>
                         ↳ herdado de {r.herdadoDe}
+                      </div>
+                    )}
+                    {r.indicadoPor && (
+                      <div
+                        className="mt-1 truncate text-[10px] font-semibold text-ninho-roxo-escuro"
+                        title={`Veio pelo link ou código ${r.indicadoPor.tipo === 'consultora' ? 'da consultora' : 'do parceiro'} ${r.indicadoPor.nome}`}
+                      >
+                        ↳ via {r.indicadoPor.nome} · {r.indicadoPor.tipo}
                       </div>
                     )}
                   </td>
