@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireRole } from '@/lib/auth/guard';
 import { listPerfis, clickStatsPorCodigo, installsPorCodigo, statsDe } from '@/lib/painel/store';
-import { fetchAppUsers, accountStatus } from '@/lib/app-users';
+import { fetchAppUsersTodos as fetchAppUsers, accountStatus } from '@/lib/app-users';
 import { commissionLabel, formatBRL, formatDate } from '@/lib/metrics';
 import { ORIGEM_LABEL } from '@/lib/origem';
 import {

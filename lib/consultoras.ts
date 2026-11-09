@@ -15,7 +15,7 @@ import { unstable_cache } from 'next/cache';
 import { appDb, painelDb } from '@/lib/supabase/server';
 import { mesNoPainel } from '@/lib/dashboard-charts';
 import { lerTudo } from '@/lib/supabase/paginar';
-import { fetchAppUsers, type AppUser } from '@/lib/app-users';
+import { fetchAppUsersTodos as fetchAppUsers, type AppUser } from '@/lib/app-users';
 import { mesesComCobranca, priceForUser, planoLabel, cicloDoUsuario, isPagante } from '@/lib/metrics';
 import {
   calcularLinhas,

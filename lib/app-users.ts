@@ -58,6 +58,9 @@ export interface AppUser {
   /** Pôs o cartão nos dias grátis da loja (grupo B) e cancelou antes da 1ª
    *  cobrança: NÃO é churn (dono, 09/11/2026). Churn = pagou e cancelou. */
   cancelouTesteLoja: boolean;
+  /** Conta de teste do dono/consultora de teste: fora das métricas, mas conta
+   *  nos funis de link (é com elas que o dono testa o rastreio). */
+  contaDoDono: boolean;
   /** De onde a conta veio: Apple Ads (confirmado pela Apple) > resposta do
    *  onboarding > sem informação. Ver lib/origem.ts. */
   origem: Origem;
@@ -356,8 +359,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
   const estados = (estadosRes.data as EstadoRow[] | null) ?? [];
   const estadoByProfile = new Map(estados.map((e) => [e.profile_id, e]));
 
-  // Contas do dono e da consultora de teste não contam em nada (dono, 09/11/2026).
-  return profiles.filter((p) => !CONTAS_DO_DONO.has((emails.get(p.id) || '').toLowerCase())).map((p) => {
+  return profiles.map((p) => {
     const e = estadoByProfile.get(p.id);
     const ef = efetivos.get(p.id);
     const teste = ajustarTesteLoja(e, corrigirChurnPorData(e), assinouEm.get(p.id) ?? null);
@@ -397,6 +399,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
       assinouEm: teste.assinouEm,
       emTesteLoja: teste.emTesteLoja,
       cancelouTesteLoja: teste.cancelouTesteLoja === true && !ef?.coberto_por,
+      contaDoDono: CONTAS_DO_DONO.has((emails.get(p.id) || '').toLowerCase()),
       origem: resolverOrigem(apple?.atribuido === true, p.como_conheceu, apple?.campaign_id ?? null),
       // Só expõe a campanha quando ela é real — o id de TestFlight não é campanha.
       appleAdsCampaignId: appleAdsValido(apple?.atribuido === true, apple?.campaign_id ?? null)
@@ -422,8 +425,15 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
  *    em até 1 minuto.
  *  - `cache` do React: dentro de uma mesma requisição não vai ao banco 2x.
  */
-export const fetchAppUsers = cache(
-  unstable_cache(fetchAppUsersRaw, ['app-users-v6'], { revalidate: 60, tags: [APP_USERS_TAG] })
+/** Todos, inclusive as contas de teste do dono. Só para os funis de link
+ *  (parceiros e consultoras), onde o dono testa o rastreio. */
+export const fetchAppUsersTodos = cache(
+  unstable_cache(fetchAppUsersRaw, ['app-users-v7'], { revalidate: 60, tags: [APP_USERS_TAG] })
+);
+
+/** Usuários reais: sem as contas de teste do dono (dono, 09/11/2026). */
+export const fetchAppUsers = cache(async (): Promise<AppUser[]> =>
+  (await fetchAppUsersTodos()).filter((u) => !u.contaDoDono),
 );
 
 /**

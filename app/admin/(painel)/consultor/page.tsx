@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requireRole } from '@/lib/auth/guard';
-import { fetchAppUsers, accountStatus } from '@/lib/app-users';
+import { fetchAppUsersTodos as fetchAppUsers, accountStatus } from '@/lib/app-users';
 import { liquido } from '@/lib/precos';
 import { mesNoPainel } from '@/lib/dashboard-charts';
 import { SITE_URL } from '@/lib/config';
