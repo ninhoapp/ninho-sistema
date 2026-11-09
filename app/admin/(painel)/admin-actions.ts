@@ -2,7 +2,7 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { requireRole, requireSessionAtiva } from '@/lib/auth/guard';
-import { verifyPassword } from '@/lib/auth/password';
+import { senhaAleatoria, verifyPassword } from '@/lib/auth/password';
 import { appDb } from '@/lib/supabase/server';
 import { atualizarFimTrial, APP_USERS_TAG } from '@/lib/app-users';
 import {
@@ -33,6 +33,9 @@ import type { Role } from '@/lib/auth/session';
 export interface ActionState {
   error?: string;
   ok?: boolean;
+  /** Senha provisória gerada pelo painel: aparece uma vez na tela do dono. */
+  senha?: string;
+  login?: string;
 }
 
 /**
@@ -59,11 +62,14 @@ export async function criarPerfil(_prev: ActionState, fd: FormData): Promise<Act
 
   const username = String(fd.get('username') || '').trim();
   const display_name = String(fd.get('display_name') || '').trim();
-  const password = String(fd.get('password') || '');
+  const digitada = String(fd.get('password') || '');
   const role = String(fd.get('role') || 'conversor') as Role;
 
   if (!username || !display_name) return { error: 'Usuário e nome são obrigatórios.' };
-  if (password.length < 8) return { error: 'A senha precisa ter ao menos 8 caracteres.' };
+  if (digitada && digitada.length < 8) return { error: 'A senha precisa ter ao menos 8 caracteres (ou deixe em branco para gerar).' };
+  // Em branco = senha aleatória. Parceiro e conversor sempre trocam no 1º acesso (09/11/2026).
+  const password = digitada || senhaAleatoria();
+  const provisoria = role !== 'admin' || !digitada;
   if (role !== 'admin' && role !== 'conversor' && role !== 'influencer') return { error: 'Papel inválido.' };
   const promo_code = role === 'influencer' ? normalizarCodigo(String(fd.get('promo_code') || '')) : null;
   if (role === 'influencer') {
@@ -85,13 +91,14 @@ export async function criarPerfil(_prev: ActionState, fd: FormData): Promise<Act
     commission_duration_months: fd.get('commission_duration_months')
       ? num(fd.get('commission_duration_months'))
       : null,
+    trocar_senha: provisoria,
   });
   if (!res.ok) return { error: res.error || 'Falha ao criar.' };
 
   revalidatePath('/admin/perfis');
   revalidatePath('/admin/conversores');
   revalidatePath('/admin/parceiros');
-  return { ok: true };
+  return { ok: true, login: username.toLowerCase(), senha: digitada ? undefined : password };
 }
 
 export async function salvarPerfil(_prev: ActionState, fd: FormData): Promise<ActionState> {
@@ -132,11 +139,15 @@ export async function salvarPerfil(_prev: ActionState, fd: FormData): Promise<Ac
 export async function resetarSenha(_prev: ActionState, fd: FormData): Promise<ActionState> {
   requireRole('admin');
   const id = String(fd.get('id') || '');
-  const nova = String(fd.get('nova') || '');
-  if (nova.length < 8) return { error: 'A senha precisa ter ao menos 8 caracteres.' };
-  const res = await setPassword(id, nova);
+  const digitada = String(fd.get('nova') || '');
+  if (digitada && digitada.length < 8) return { error: 'A senha precisa ter ao menos 8 caracteres (ou deixe em branco para gerar).' };
+  const alvo = await getPerfil(id);
+  if (!alvo) return { error: 'Perfil não encontrado.' };
+  const nova = digitada || senhaAleatoria();
+  // Senha dada pelo dono é provisória para parceiro e conversor: trocam no próximo acesso.
+  const res = await setPassword(id, nova, alvo.role !== 'admin' || !digitada);
   if (!res.ok) return { error: res.error || 'Falha ao redefinir.' };
-  return { ok: true };
+  return { ok: true, login: alvo.username, senha: digitada ? undefined : nova };
 }
 
 export async function removerPerfil(fd: FormData) {

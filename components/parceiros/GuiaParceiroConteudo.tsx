@@ -296,20 +296,30 @@ export function GuiaParceiroConteudo({ publico = false }: { publico?: boolean })
 
         <Sub>Como a comissão é calculada</Sub>
         <Lista
-          itens={[
-            'A comissão padrão é de 25% do preço cheio da assinatura (o preço da loja, sem descontar a taxa da Apple ou do Google) de cada pessoa que veio por você.',
-            'Plano mensal: 25% da primeira mensalidade cobrada (1 mês).',
-            'Plano anual: 25% da anuidade, uma única vez.',
-            `Exemplos com os preços de hoje: Premium anual (${brl(PRECOS.premium.anual)}) rende ${brl(PRECOS.premium.anual * 0.25)}; Premium mensal (${brl(PRECOS.premium.mensal)}) rende ${brl(PRECOS.premium.mensal * 0.25)}; Básico anual (${brl(PRECOS.basico.anual)}) rende ${brl(PRECOS.basico.anual * 0.25)}.`,
-            'Só conta quando a Apple ou o Google cobram de verdade. Quem cancela durante os 7 dias grátis não gera comissão.',
-            'Se o seu acordo for diferente do padrão, vale o que está na sua tela de resultados.',
-          ]}
+          itens={
+            publico
+              ? [
+                  // Página pública: "até 25%", nunca valor fixo (regra do dono, 09/11/2026).
+                  'A comissão é de até 25% do preço cheio da assinatura (o preço da loja, sem descontar a taxa da Apple ou do Google) de cada pessoa que veio por você.',
+                  'Plano mensal: sobre a primeira mensalidade cobrada. Plano anual: sobre a anuidade, uma única vez.',
+                  'O percentual combinado com você aparece no seu painel antes de você começar a divulgar.',
+                  'Só conta quando a Apple ou o Google cobram de verdade. Quem cancela durante os 7 dias grátis não gera comissão.',
+                ]
+              : [
+                  'A comissão padrão é de 25% do preço cheio da assinatura (o preço da loja, sem descontar a taxa da Apple ou do Google) de cada pessoa que veio por você.',
+                  'Plano mensal: 25% da primeira mensalidade cobrada (1 mês).',
+                  'Plano anual: 25% da anuidade, uma única vez.',
+                  `Exemplos com os preços de hoje: Premium anual (${brl(PRECOS.premium.anual)}) rende ${brl(PRECOS.premium.anual * 0.25)}; Premium mensal (${brl(PRECOS.premium.mensal)}) rende ${brl(PRECOS.premium.mensal * 0.25)}; Básico anual (${brl(PRECOS.basico.anual)}) rende ${brl(PRECOS.basico.anual * 0.25)}.`,
+                  'Só conta quando a Apple ou o Google cobram de verdade. Quem cancela durante os 7 dias grátis não gera comissão.',
+                  'Se o seu acordo for diferente do padrão, vale o que está na sua tela de resultados.',
+                ]
+          }
         />
 
         <Sub>Quando e como você recebe</Sub>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Mini label="Fechamento" value="Mensal" hint="O que a loja cobrou no mês" />
-          <Mini label="Pagamento" value="Dia 30" hint="Do mês seguinte" />
+          <Mini label="Pagamento" value="5º dia útil" hint="Do mês seguinte" />
           <Mini label="Forma" value="Pix" hint={publico ? "Chave informada no painel" : "Chave em Minha conta"} />
           <Mini label="Mínimo" value="Nenhum" hint="Qualquer valor é pago" />
         </div>

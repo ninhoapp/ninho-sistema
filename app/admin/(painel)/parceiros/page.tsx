@@ -22,6 +22,8 @@ import { BarChart } from '@/components/admin/BarChart';
 import { Notice } from '@/components/admin/Notice';
 import { CopyLink } from '@/components/admin/CopyLink';
 import { LimparLink } from '@/components/admin/LimparLink';
+import { PedidosParceiros } from '@/components/admin/PedidosParceiros';
+import { listarPedidosParceiro, codigoDoNomeParceiro } from '@/lib/parceiros/pedidos';
 import { AtribuicaoManual, type ContaAtribuivel, type OpcaoParceiro } from '@/components/admin/AtribuicaoManual';
 
 export const dynamic = 'force-dynamic';
@@ -33,11 +35,12 @@ export const dynamic = 'force-dynamic';
  */
 export default async function ParceirosPage() {
   requireRole('admin');
-  const [perfis, users, cliques, installs] = await Promise.all([
+  const [perfis, users, cliques, installs, pedidos] = await Promise.all([
     listPerfis(),
     fetchAppUsers(),
     clickStatsPorCodigo(),
     installsPorCodigo(),
+    listarPedidosParceiro(),
   ]);
   const parceiros = perfis.filter((p) => p.role === 'influencer');
   const sched = repasseSchedule();
@@ -59,6 +62,18 @@ export default async function ParceirosPage() {
       total: confirmado.total,
     };
   });
+
+  // Código sugerido para cada pedido: 1º nome, com número se já estiver em uso.
+  const usados = new Set(perfis.map((p) => (p.promo_code ?? '').toUpperCase()).filter(Boolean));
+  const sugestoes: Record<string, string> = {};
+  for (const ped of pedidos) {
+    if (ped.status !== 'pendente') continue;
+    const base = codigoDoNomeParceiro(ped.nome);
+    let c = base;
+    for (let i = 2; usados.has(c); i++) c = `${base}${i}`;
+    usados.add(c);
+    sugestoes[ped.id] = c;
+  }
 
   const totalAPagar = linhas.reduce((s, l) => s + l.aPagar, 0);
   const totalAssinantes = linhas.reduce((s, l) => s + l.rep.pagantes, 0);
@@ -91,7 +106,7 @@ export default async function ParceirosPage() {
     <>
       <PageHeader
         title="Parceiros"
-        subtitle="Influenciadores com link rastreável: o que cada um trouxe e quanto recebe. Para criar um parceiro, use Gerenciar perfis com o papel Parceiro."
+        subtitle="Influenciadores com link rastreável: o que cada um trouxe e quanto recebe. Aprove os pedidos do site aqui embaixo ou crie um parceiro em Gerenciar perfis."
         right={
           <Link
             href="/admin/perfis"
@@ -101,6 +116,8 @@ export default async function ParceirosPage() {
           </Link>
         }
       />
+
+      <PedidosParceiros pedidos={pedidos} sugestoes={sugestoes} />
 
       {contasComAtribuicaoDupla(users).length > 0 && (
         <Notice tone="warn">

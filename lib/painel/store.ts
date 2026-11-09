@@ -30,6 +30,8 @@ export interface Perfil {
   pix_key: string | null;
   /** Código do parceiro (só papel influencer). Link: /r/<código>. */
   promo_code: string | null;
+  /** Senha provisória: o painel obriga a trocar no próximo acesso (migration 00122). */
+  trocar_senha?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -122,9 +124,12 @@ export async function createPerfil(input: {
   commission_percent?: number;
   commission_duration_months?: number | null;
   promo_code?: string | null;
-}): Promise<{ ok: boolean; error?: string }> {
+  /** Senha provisória (gerada pelo painel): troca obrigatória no 1º acesso. */
+  trocar_senha?: boolean;
+}): Promise<{ ok: boolean; error?: string; id?: string }> {
   const sb = painelDb();
-  const { error } = await sb.from('perfis').insert({
+  const { data: criado, error } = await sb.from('perfis').insert({
+    ...(input.trocar_senha ? { trocar_senha: true } : {}),
     promo_code: normalizarCodigo(input.promo_code),
     username: input.username.trim().toLowerCase(),
     email: input.email?.trim().toLowerCase() || null,
@@ -135,13 +140,13 @@ export async function createPerfil(input: {
     commission_amount: input.commission_amount ?? 0,
     commission_percent: input.commission_percent ?? 0,
     commission_duration_months: input.commission_duration_months ?? null,
-  });
+  }).select('id').single();
   if (error) {
     if (error.code === '23505') return { ok: false, error: 'Esse usuário, e-mail ou código já está em uso.' };
     if (error.code === '23514') return { ok: false, error: 'Código inválido: use de 2 a 40 letras, números, ponto, hífen ou _.' };
     return { ok: false, error: error.message };
   }
-  return { ok: true };
+  return { ok: true, id: (criado as { id: string } | null)?.id };
 }
 
 export async function updatePerfil(
@@ -182,14 +187,20 @@ export async function deletePerfil(id: string): Promise<{ ok: boolean; error?: s
   return { ok: true };
 }
 
+/**
+ * Grava a senha. `provisoria` = senha gerada pelo painel (criar/redefinir):
+ * a pessoa troca no próximo acesso. A pessoa trocando a própria senha grava
+ * provisoria = false e libera o painel.
+ */
 export async function setPassword(
   id: string,
-  newPassword: string
+  newPassword: string,
+  provisoria = false,
 ): Promise<{ ok: boolean; error?: string }> {
   const sb = painelDb();
   const { error } = await sb
     .from('perfis')
-    .update({ password_hash: hashPassword(newPassword), updated_at: new Date().toISOString() })
+    .update({ password_hash: hashPassword(newPassword), trocar_senha: provisoria, updated_at: new Date().toISOString() })
     .eq('id', id);
   if (error) return { ok: false, error: error.message };
   return { ok: true };

@@ -4,7 +4,7 @@ import { GuiaParceiroConteudo } from '@/components/parceiros/GuiaParceiroConteud
 
 // Página só de leitura: qualquer papel logado (admin, parceiro...) pode abrir.
 // A permissão de menu é ligada em outro lugar. A versão pública, para quem
-// ainda está conhecendo a parceria, é /parceiros (mesmo conteúdo).
+// ainda está conhecendo a parceria, é /sejaparceiro/guia (mesmo conteúdo).
 
 export default function GuiaParceiroPage() {
   requireSession();

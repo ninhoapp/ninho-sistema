@@ -165,7 +165,7 @@ export const FAQ: Item[] = [
   {
     titulo: 'Quando recebo?',
     texto:
-      'O mês fecha no último dia. O que a loja cobrou naquele mês é pago por Pix no dia 30 do mês seguinte, com a chave cadastrada em Minha conta.',
+      'O mês fecha no último dia. O que a loja cobrou naquele mês é pago por Pix até o 5º dia útil do mês seguinte, com a chave cadastrada em Minha conta.',
   },
   {
     titulo: 'O que conta como assinante?',
@@ -185,7 +185,7 @@ export const FAQ: Item[] = [
   {
     titulo: 'Quanto eu ganho por assinante?',
     texto:
-      'No padrão, 25% do preço cheio da assinatura, sem descontar a taxa da loja: no plano mensal, sobre a primeira mensalidade; no plano anual, sobre a anuidade, uma única vez. Os valores de cada mês aparecem na sua tela de resultados.',
+      'Até 25% do preço cheio da assinatura, sem descontar a taxa da loja: no plano mensal, sobre a primeira mensalidade; no plano anual, sobre a anuidade, uma única vez. O seu percentual e os valores de cada mês aparecem na sua tela de resultados.',
   },
   {
     titulo: 'Tem valor mínimo para receber?',

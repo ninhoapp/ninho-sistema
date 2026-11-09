@@ -32,6 +32,16 @@ function Submit({ label }: { label: string }) {
 function Msg({ state }: { state: ActionState }) {
   if (state.error)
     return <div className="rounded-xl bg-red-50 p-2.5 text-sm text-red-600">{state.error}</div>;
+  if (state.ok && state.senha)
+    return (
+      <div className="rounded-xl bg-[#EEF8F1] p-3 text-sm text-[#256B43]">
+        Pronto. Usuário <b className="font-mono">{state.login}</b> · senha provisória{' '}
+        <b className="font-mono">{state.senha}</b>
+        <span className="mt-1 block text-xs">
+          A senha aparece só agora: mande para a pessoa. No 1º acesso o painel pede para ela criar a própria senha.
+        </span>
+      </div>
+    );
   if (state.ok)
     return (
       <div className="rounded-xl bg-ninho-roxo-suave p-2.5 text-sm text-ninho-roxo-escuro">
@@ -187,10 +197,11 @@ function FormNovo() {
         </label>
       </div>
       <label className="text-xs text-ninho-cinza">
-        Senha inicial (mín. 8 caracteres)
+        Senha inicial (deixe em branco para gerar uma aleatória)
         <div className="mt-1">
-          <PasswordInput name="password" placeholder="Senha inicial" autoComplete="new-password" />
+          <PasswordInput name="password" placeholder="Gerada automaticamente" autoComplete="new-password" />
         </div>
+        <span className="mt-1 block text-[11px]">Parceiro e conversor trocam a senha no 1º acesso.</span>
       </label>
       {role === 'influencer' && <CampoCodigo />}
       {role !== 'admin' && <CamposComissao key={role} parceiroNovo={role === 'influencer'} />}
@@ -274,7 +285,7 @@ function FormEditar({ p, ehVoce }: { p: Perfil; ehVoce: boolean }) {
             <h4 className="text-sm font-semibold text-ninho-grafite">Redefinir senha</h4>
             <Msg state={senhaState} />
             <div className="max-w-sm">
-              <PasswordInput name="nova" placeholder="Nova senha (mín. 8)" autoComplete="new-password" />
+              <PasswordInput name="nova" placeholder="Em branco = gerar uma aleatória" autoComplete="new-password" />
             </div>
             <div>
               <Submit label="Redefinir" />

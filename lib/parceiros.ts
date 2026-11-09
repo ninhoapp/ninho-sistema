@@ -12,7 +12,7 @@
  *    do Faturamento, então repasse e receita batem.
  *  - Duração: mensal paga nos primeiros N meses pagos; anual consome 12 meses
  *    de duração numa cobrança só (com N ≤ 12, paga uma vez).
- *  - Pagamento: o que a loja cobra no mês M é pago no dia 30 de M+1
+ *  - Pagamento: o que a loja cobra no mês M é pago até o 5º dia útil de M+1
  *    (lib/repasse-schedule.ts).
  *  - Estorno: ainda não chega ao banco (não há webhook de reembolso). Quem
  *    pede reembolso vira churn e para de gerar cobranças novas.
@@ -126,7 +126,7 @@ export function confirmadoDaCompetencia(c: RepasseConfirmado, mes: string): numb
   return c.porCompetencia[mes] ?? 0;
 }
 
-/** Competência do mês passado (fechado, paga dia 30 deste mês) e a atual. */
+/** Competência do mês passado (fechado, paga no 5º dia útil deste mês) e a atual. */
 export function competencias(hoje: Date = new Date()): { fechada: string; aberta: string } {
   return {
     fechada: chaveMes(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)),
@@ -204,7 +204,7 @@ export interface BarraReceita {
 }
 
 /**
- * Uma barra por MÊS DE PAGAMENTO (dia 30), do mês atual até `mesesFrente`.
+ * Uma barra por MÊS DE PAGAMENTO (5º dia útil), do mês atual até `mesesFrente`.
  * O valor de cada barra é a competência do mês anterior a ela. Competência
  * fechada = confirmado; atual e futuras = projeção dos assinantes de hoje
  * (próximas cobranças pelo `current_period_end`, enquanto couberem na duração).

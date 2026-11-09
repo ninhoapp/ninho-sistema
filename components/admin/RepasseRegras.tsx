@@ -25,8 +25,8 @@ export function RepasseRegras({ duracaoMeses }: { duracaoMeses: number | null })
         </li>
         <li>
           • O fechamento é por mês: tudo que a loja cobrar entre o dia 1 e o último dia do mês é
-          pago no <strong>dia 30 do mês seguinte</strong> (ex.: cobranças de julho → pagas em
-          30/08). Isso porque Apple e Google repassam com cerca de <strong>45 dias</strong>.
+          pago até o <strong>5º dia útil do mês seguinte</strong> (ex.: cobranças de julho → pagas
+          até o 5º dia útil de agosto). Isso porque Apple e Google repassam com cerca de <strong>45 dias</strong>.
         </li>
         <li>
           • Pagamento via <strong>Pix</strong>, qualquer valor, <strong>sem nota fiscal</strong>.

@@ -1,0 +1,43 @@
+/*
+ * Extras da página "Seja parceiro" (/sejaparceiro). A base é a mesma da página
+ * Seja consultora (consultora.css, prefixo nc-); aqui só o que ela não tem.
+ * Desenho aprovado: Ninho-expo/docs/design/site/seja-parceiro.html (09/11/2026).
+ */
+.np-fone { width: 170px; border-radius: 34px; overflow: hidden; background: #fff; flex: none;
+  box-shadow: 0 0 0 8px #17161c, 0 0 0 10px #3a3842, 0 30px 60px -20px rgba(40,20,90,.45); }
+.np-fone img { display: block; width: 100%; height: auto; }
+.np-hero-fone { position: absolute; right: -34px; bottom: -110px; }
+.np-hero-fone .np-fone { width: 150px; }
+.np-galeria { display: flex; gap: 34px; justify-content: center; flex-wrap: wrap; margin-top: 22px; align-items: flex-end; }
+.np-galeria figure { margin: 0; }
+.np-galeria figcaption { font-size: 12.5px; color: #6B6F80; text-align: center; margin-top: 18px; }
+.np-galeria figcaption b { color: #24164F; }
+.np-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.np-chips span { background: #F3EEFC; color: #4B3A8C; border-radius: 999px; padding: 8px 12px; font-size: 13px; font-weight: 700; }
+.np-pix { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.np-pix div { background: #F7F4FD; border-radius: 18px; padding: 14px 10px; text-align: center; }
+.np-pix small { display: block; font-size: 11px; font-weight: 800; color: #9A95AD; text-transform: uppercase; letter-spacing: .06em; }
+.np-pix b { display: block; font-size: 19px; font-weight: 900; color: #24164F; margin-top: 4px; }
+.np-pix i { display: block; font-style: normal; font-size: 11.5px; color: #6B6F80; margin-top: 2px; }
+.np-pn ul { margin: 10px 0 0; padding: 0; }
+.np-pn li { list-style: none; display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; font-size: 14px; line-height: 1.45; border-top: 1px solid #F5F2FA; }
+.np-pn li:first-child { border-top: 0; }
+.np-pn h3 { display: flex; align-items: center; gap: 10px; }
+.np-pn h3 span { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 15px; }
+.np-pn .m { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 900; }
+.np-pn .ok .m { background: #E7F5EC; color: #2F8A55; }
+.np-pn .no .m { background: #FCE9E9; color: #E85D5D; }
+/* funil compacto dentro do painel ilustrativo */
+.np-fn { display: grid; grid-template-columns: 62px 1fr 30px; gap: 6px; align-items: center; height: 20px; font-size: 10px; }
+.np-fn b { font-weight: 800; }
+.np-fn b:last-child { text-align: right; }
+.np-fn span { height: 9px; border-radius: 4px; background: #F1ECFB; }
+.np-fn span i { display: block; height: 100%; border-radius: 4px; background: #9F86E0; }
+.np-link { margin-top: 6px; background: #F3EEFC; border-radius: 9px; padding: 7px 9px; font-weight: 800; color: #7C5CD6; font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; }
+.np-pg { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+.np-pg + .np-pg { border-top: 1px solid #F3F0F8; }
+.np-bd-v { background: #E7F5EC; color: #2F8A55; }
+.np-bd-l { background: #EFE8FC; color: #7C5CD6; }
+@media (max-width: 900px) {
+  .np-hero-fone { display: none; }
+}

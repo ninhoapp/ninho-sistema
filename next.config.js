@@ -10,6 +10,14 @@ const nextConfig = {
   // Termos de Uso e Política de Privacidade: HTML gerado no repo do app
   // (Ninho-expo, scripts/gerar-termos-html.mjs) a partir da mesma fonte que
   // a tela do app mostra, e copiado pra public/legal/. Não edite à mão.
+  // "Seja parceiro" mudou de /parceiros para /sejaparceiro (09/11/2026, pedido
+  // do dono). Links antigos já enviados continuam funcionando.
+  async redirects() {
+    return [
+      { source: '/parceiros', destination: '/sejaparceiro', permanent: true },
+      { source: '/parceiros/guia', destination: '/sejaparceiro/guia', permanent: true },
+    ];
+  },
   async rewrites() {
     return [
       { source: '/terms', destination: '/legal/terms.html' },

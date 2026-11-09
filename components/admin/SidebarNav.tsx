@@ -24,8 +24,11 @@ const CONVERSOR: NavItem[] = [
   { href: '/admin/conta', label: 'Minha conta' },
 ];
 
+// Área do parceiro (09/11/2026): mesmo desenho da área da consultora, com abas.
 const PARCEIRO: NavItem[] = [
-  { href: '/admin/parceiro', label: 'Meus resultados' },
+  { href: '/admin/parceiro', label: 'Resultados' },
+  { href: '/admin/parceiro?aba=ganhos', label: 'Ganhos' },
+  { href: '/admin/parceiro?aba=indicados', label: 'Quem veio por você' },
   { href: '/admin/parceiro/guia', label: 'Guia do parceiro' },
   { href: '/admin/conta', label: 'Minha conta' },
 ];
@@ -80,10 +83,16 @@ export function SidebarNav({ role }: { role: Role }) {
   }
 
   if (role !== 'admin') {
+    const aba = busca.get('aba') || '';
+    const ativo = (href: string) => {
+      const [caminho, q] = href.split('?');
+      const alvo = q?.split('aba=')[1] ?? '';
+      return pathname === caminho && (alvo === aba || (alvo === '' && aba === 'resultados'));
+    };
     return (
       <nav className="flex flex-col gap-1">
         {(role === 'influencer' ? PARCEIRO : CONVERSOR).map((i) => (
-          <Link key={i.href} href={i.href} className={item(pathname === i.href)}>{i.label}</Link>
+          <Link key={i.href} href={i.href} className={item(ativo(i.href))}>{i.label}</Link>
         ))}
       </nav>
     );

@@ -44,6 +44,24 @@ export async function signIn(_prev: ActionState, formData: FormData): Promise<Ac
     role: perfil.role,
     name: perfil.display_name,
   });
+  // Senha provisória: troca antes de entrar (09/11/2026).
+  if (perfil.trocar_senha) redirect('/admin/trocar-senha');
+  redirect(homeForRole(perfil.role));
+}
+
+/** 1º acesso com senha provisória: a pessoa cria a própria senha. */
+export async function trocarSenhaProvisoria(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const session = getSession();
+  if (!session) return { error: 'Sessão expirada. Entre de novo.' };
+  const nova = String(formData.get('nova') || '');
+  const confirma = String(formData.get('confirma') || '');
+  if (nova.length < 8) return { error: 'A nova senha precisa ter ao menos 8 caracteres.' };
+  if (nova !== confirma) return { error: 'A confirmação não confere.' };
+  const perfil = await getPerfil(session.sub);
+  if (!perfil || !perfil.active) return { error: 'Sessão expirada. Entre de novo.' };
+  if (verifyPassword(nova, perfil.password_hash)) return { error: 'Escolha uma senha diferente da provisória.' };
+  const res = await setPassword(perfil.id, nova, false);
+  if (!res.ok) return { error: res.error || 'Falha ao salvar.' };
   redirect(homeForRole(perfil.role));
 }
 

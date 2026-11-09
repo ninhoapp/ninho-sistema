@@ -52,6 +52,8 @@ export async function requireSessionAtiva(roles?: Role | Role[]): Promise<Sessio
   const { getPerfil } = await import('@/lib/painel/store');
   const perfil = await getPerfil(s.sub);
   if (!perfil || !perfil.active) redirect('/admin/login?erro=sessao');
+  // Senha provisória (criada pelo dono): troca obrigatória antes de qualquer tela.
+  if (perfil.trocar_senha) redirect('/admin/trocar-senha');
   const atual: SessionData = { ...s, role: perfil.role, username: perfil.username, name: perfil.display_name };
   if (roles) {
     const allowed = Array.isArray(roles) ? roles : [roles];

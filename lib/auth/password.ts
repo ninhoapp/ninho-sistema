@@ -26,3 +26,16 @@ export function verifyPassword(password: string, stored: string): boolean {
     return false;
   }
 }
+
+/**
+ * Senha provisória que o painel gera ao criar um perfil (09/11/2026): 12
+ * caracteres sem os que confundem (0/O, 1/l/I). O perfil nasce com
+ * trocar_senha = true e troca no 1º acesso (/admin/trocar-senha).
+ */
+export function senhaAleatoria(tamanho = 12): string {
+  const alfabeto = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = randomBytes(tamanho);
+  let s = '';
+  for (let i = 0; i < tamanho; i++) s += alfabeto[bytes[i] % alfabeto.length];
+  return s;
+}
