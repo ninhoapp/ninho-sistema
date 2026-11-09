@@ -71,7 +71,9 @@ export async function aprovarPedidoParceiro(_prev: AprovarState, fd: FormData): 
   if (!res.ok) return { error: res.error || 'Não consegui criar o parceiro.' };
 
   await decidirPedidoParceiro(id, 'aprovado', res.id ?? null);
-  revalidatePath('/admin/parceiros');
+  // NÃO revalida /admin/parceiros aqui: recarregar a lista tiraria o pedido dos
+  // pendentes e o quadro com a senha provisória sumiria antes de o dono ver
+  // (visto no teste de 09/11/2026). A lista atualiza ao recarregar a página.
   revalidatePath('/admin/perfis');
   return { ok: true, login, senha, codigo, link: `${SITE_URL}/r/${codigo.toLowerCase()}` };
 }
