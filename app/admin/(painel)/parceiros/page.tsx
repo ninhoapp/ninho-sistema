@@ -16,6 +16,7 @@ import {
 import { repasseSchedule, fmtData } from '@/lib/repasse-schedule';
 import { SITE_URL } from '@/lib/config';
 import { PageHeader } from '@/components/admin/PageHeader';
+import { LimparRastreio } from '@/components/admin/LimparRastreio';
 import { StatCard } from '@/components/admin/StatCard';
 import { BarChart } from '@/components/admin/BarChart';
 import { Notice } from '@/components/admin/Notice';
@@ -165,6 +166,9 @@ export default async function ParceirosPage() {
               </div>
             </div>
             {l.link && <CopyLink url={l.link} />}
+            {l.p.promo_code ? (
+              <div className="mt-2"><LimparRastreio tipo="parceiro" id={l.p.id} codigo={l.p.promo_code.toUpperCase()} /></div>
+            ) : null}
             <div className="mt-4 grid grid-cols-3 gap-2 text-center sm:grid-cols-5 lg:grid-cols-9">
               {[
                 ['Cliques únicos', l.funil.cliquesUnicos],

@@ -6,6 +6,7 @@ import { mesNoPainel } from '@/lib/dashboard-charts';
 import { SITE_URL } from '@/lib/config';
 import { telefoneLegivel } from '@/lib/telefone';
 import { ExcluirConsultora } from '@/components/consultoras/ExcluirConsultora';
+import { LimparRastreio } from '@/components/admin/LimparRastreio';
 import { FunilTabela } from '@/components/consultoras/Funil';
 import { iaStatus, type IaStatus } from '@/lib/consultoras-ia';
 import {
@@ -727,6 +728,7 @@ function Detalhe({
         ) : (
           <form action={pausarConsultora}><input type="hidden" name="id" value={c.id} /><button className={botao.vermelho}>Pausar</button></form>
         )}
+        {c.codigo ? <LimparRastreio tipo="consultora" id={c.id} codigo={c.codigo} /> : null}
         <ExcluirConsultora id={c.id} nome={c.nome ?? 'consultora'} />
       </div>
 
