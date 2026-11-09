@@ -1,24 +1,35 @@
+'use client';
+
 /**
  * Ninho · Meta Pixel
  *
- * Server Component — usa next/script pra injetar o código base do Pixel
- * no <head> com estratégia "afterInteractive" (não bloqueia o first paint).
+ * Só nas páginas públicas do site. Nunca no /admin (painel do dono e da
+ * consultora, com dados de famílias e bebês) nem em /api.
  *
- * PageView é disparado automaticamente pelo init.
- * Eventos de conversão (Lead, Purchase…) ficam nos Client Components.
+ * - PageView sai no init (só na 1ª página aberta).
+ * - disablePushState: a navegação interna do Next não gera PageView sozinha,
+ *   então ir de uma página pública para o /admin não manda nada à Meta.
+ * - autoConfig desligado: o Pixel não lê botões nem metadados da página por
+ *   conta própria; só vai o que o código manda (PageView e o Lead do
+ *   formulário "Seja consultora").
  *
- * Configurar: NEXT_PUBLIC_META_PIXEL_ID no .env.local e no Vercel.
+ * ID em lib/config.ts (META_PIXEL_ID; a env NEXT_PUBLIC_META_PIXEL_ID só troca).
+ * Está na Política de Privacidade, item 7.8.
  */
 import Script from 'next/script';
+import { usePathname } from 'next/navigation';
+import { META_PIXEL_ID } from '@/lib/config';
 
-const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID;
+const PRIVADO = /^\/(admin|api)(\/|$)/;
 
 export function MetaPixelScript() {
-  if (!PIXEL_ID) return null; // sem var → sem pixel (dev sem .env.local)
+  const pathname = usePathname() ?? '';
+  if (!META_PIXEL_ID || PRIVADO.test(pathname)) return null;
 
+  // Sem o <noscript><img> de reserva: o Next pré-carrega essa imagem e ela
+  // contava um PageView a mais em toda visita.
   return (
-    <>
-      <Script
+    <Script
         id="meta-pixel"
         strategy="afterInteractive"
         dangerouslySetInnerHTML={{
@@ -31,22 +42,12 @@ export function MetaPixelScript() {
             t.src=v;s=b.getElementsByTagName(e)[0];
             s.parentNode.insertBefore(t,s)}(window,document,'script',
             'https://connect.facebook.net/en_US/fbevents.js');
-            fbq('init','${PIXEL_ID}');
-            fbq('track','PageView');
+            fbq.disablePushState = true;
+            fbq('set', 'autoConfig', false, '${META_PIXEL_ID}');
+            fbq('init', '${META_PIXEL_ID}');
+            fbq('track', 'PageView');
           `,
         }}
       />
-      {/* Fallback pra usuários com JavaScript desabilitado */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <noscript>
-        <img
-          height="1"
-          width="1"
-          style={{ display: 'none' }}
-          src={`https://www.facebook.com/tr?id=${PIXEL_ID}&ev=PageView&noscript=1`}
-          alt=""
-        />
-      </noscript>
-    </>
   );
 }

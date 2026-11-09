@@ -11,11 +11,13 @@
  * atribuição, mas é dado pessoal novo indo para a Meta: só com o OK do Darck
  * e a Política de Privacidade atualizada.
  *
- * Configurar: NEXT_PUBLIC_META_PIXEL_ID e META_CAPI_TOKEN (Gerenciador de
- * Eventos › pixel › Configurações › API de Conversões › Gerar token).
- * Sem as duas, não faz nada.
+ * Configurar: META_CAPI_TOKEN na Vercel (Gerenciador de Eventos › conjunto
+ * "Ninho - Diário do Bebê" › Configurações › API de Conversões › Gerar token).
+ * Sem o token, não faz nada (o Pixel do navegador continua funcionando).
  */
-const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID;
+import { META_PIXEL_ID } from '@/lib/config';
+
+const PIXEL_ID = META_PIXEL_ID;
 const TOKEN = process.env.META_CAPI_TOKEN;
 const VERSAO = 'v21.0';
 

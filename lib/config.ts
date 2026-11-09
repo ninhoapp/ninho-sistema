@@ -14,6 +14,13 @@ export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL || 'https://www.useninho.com.br'
 ).replace(/\/$/, '');
 
+/**
+ * Pixel da Meta do site. É o conjunto de dados "Ninho - Diário do Bebê"
+ * (o mesmo do SDK do app), com o site conectado em 09/11/2026. O ID não é
+ * segredo: aparece no HTML de qualquer site com Pixel. A env só serve para trocar.
+ */
+export const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID || '2939632986378769';
+
 // Para onde o desktop é direcionado (não tem loja).
 export const LANDING_URL = process.env.NEXT_PUBLIC_LANDING_URL || SITE_URL;
 
