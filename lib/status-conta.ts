@@ -24,6 +24,7 @@ export type StatusConta =
   | 'Premium anual'
   | 'Básico mensal'
   | 'Básico anual'
+  | 'Cancelou o teste'
   | 'Churn'
   | 'Cadastrado';
 

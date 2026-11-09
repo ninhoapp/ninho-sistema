@@ -68,6 +68,7 @@ export interface UsuarioRow {
 const STATUS_STYLE: Record<StatusConta, string> = {
   'Free trial ativo': 'bg-ninho-roxo-suave text-ninho-roxo-escuro',
   'Free trial expirado': 'bg-[#FDF0E4] text-[#9A5B1E]',
+  'Cancelou o teste': 'bg-[#FDF0E4] text-[#9A5B1E]',
   'Premium mensal': 'bg-[#E4F5EC] text-[#2E7D51]',
   'Premium anual': 'bg-[#E4F5EC] text-[#2E7D51]',
   'Básico mensal': 'bg-[#E4F5EC] text-[#2E7D51]',

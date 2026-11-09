@@ -55,6 +55,9 @@ export interface AppUser {
   /** Nos 7 dias grátis da loja (pôs o cartão, ainda não pagou). Não é
    *  assinante: `estado` vem como `trial_ativo` (ver ajustarTesteLoja). */
   emTesteLoja: boolean;
+  /** Pôs o cartão nos dias grátis da loja (grupo B) e cancelou antes da 1ª
+   *  cobrança: NÃO é churn (dono, 09/11/2026). Churn = pagou e cancelou. */
+  cancelouTesteLoja: boolean;
   /** De onde a conta veio: Apple Ads (confirmado pela Apple) > resposta do
    *  onboarding > sem informação. Ver lib/origem.ts. */
   origem: Origem;
@@ -353,7 +356,8 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
   const estados = (estadosRes.data as EstadoRow[] | null) ?? [];
   const estadoByProfile = new Map(estados.map((e) => [e.profile_id, e]));
 
-  return profiles.map((p) => {
+  // Contas do dono e da consultora de teste não contam em nada (dono, 09/11/2026).
+  return profiles.filter((p) => !CONTAS_DO_DONO.has((emails.get(p.id) || '').toLowerCase())).map((p) => {
     const e = estadoByProfile.get(p.id);
     const ef = efetivos.get(p.id);
     const teste = ajustarTesteLoja(e, corrigirChurnPorData(e), assinouEm.get(p.id) ?? null);
@@ -378,7 +382,9 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
       // fetchPlanoEfetivo) cai pro próprio estado: nunca esconde uma conta
       // que paga só porque a query de herança falhou.
       // Teste da loja (sem herança): a view diz `pagante`; aqui vale o ajuste.
-      estadoEfetivo: teste.emTesteLoja && !ef?.coberto_por ? estadoProprio : (ef?.estado_efetivo ?? estadoProprio),
+      // Com teste da loja (grupo B) e sem herança, vale o cálculo corrigido acima:
+      // a view chama de churn quem cancelou o cartão antes da 1ª cobrança.
+      estadoEfetivo: e?.teste_loja_ate && !ef?.coberto_por ? estadoProprio : (ef?.estado_efetivo ?? estadoProprio),
       planoEfetivo: ef?.plano_efetivo ?? (e?.plan === 'basico' ? 'basico' : e?.plan === 'premium' ? 'premium' : 'free'),
       planIntervalEfetivo: ef?.plan_interval_efetivo ?? e?.plan_interval ?? null,
       trialEndsAtEfetivo:
@@ -390,6 +396,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
       birthDate: nascimentos.get(p.id) ?? null,
       assinouEm: teste.assinouEm,
       emTesteLoja: teste.emTesteLoja,
+      cancelouTesteLoja: teste.cancelouTesteLoja === true && !ef?.coberto_por,
       origem: resolverOrigem(apple?.atribuido === true, p.como_conheceu, apple?.campaign_id ?? null),
       // Só expõe a campanha quando ela é real — o id de TestFlight não é campanha.
       appleAdsCampaignId: appleAdsValido(apple?.atribuido === true, apple?.campaign_id ?? null)
@@ -416,7 +423,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
  *  - `cache` do React: dentro de uma mesma requisição não vai ao banco 2x.
  */
 export const fetchAppUsers = cache(
-  unstable_cache(fetchAppUsersRaw, ['app-users-v5'], { revalidate: 60, tags: [APP_USERS_TAG] })
+  unstable_cache(fetchAppUsersRaw, ['app-users-v6'], { revalidate: 60, tags: [APP_USERS_TAG] })
 );
 
 /**
@@ -452,7 +459,7 @@ function ajustarTesteLoja(
   e: EstadoRow | undefined,
   estado: Estado,
   verificadoEm: string | null,
-): { estado: Estado; assinouEm: string | null; emTesteLoja: boolean } {
+): { estado: Estado; assinouEm: string | null; emTesteLoja: boolean; cancelouTesteLoja?: boolean } {
   const fim = e?.teste_loja_ate ? new Date(e.teste_loja_ate).getTime() : null;
   if (fim === null) return { estado, assinouEm: verificadoEm, emTesteLoja: false };
 
@@ -468,7 +475,7 @@ function ajustarTesteLoja(
     estado === 'pagante' ||
     (e?.current_period_end != null && new Date(e.current_period_end).getTime() > fim + 86_400_000);
   if (!pagouAlgo) {
-    return { estado: estado === 'churn' ? 'trial_expirado' : estado, assinouEm: null, emTesteLoja: false };
+    return { estado: estado === 'churn' ? 'trial_expirado' : estado, assinouEm: null, emTesteLoja: false, cancelouTesteLoja: true };
   }
   return { estado, assinouEm: new Date(fim).toISOString(), emTesteLoja: false };
 }
@@ -482,6 +489,15 @@ function ajustarTesteLoja(
  * `u.estado`/`u.plan` direto, nunca esta função — ver `isPagante` em
  * lib/metrics.ts.
  */
+/** Contas de teste do dono: ficam fora de usuários, métricas e funis. */
+export const CONTAS_DO_DONO = new Set([
+  'mailsonoliveira41@gmail.com',
+  'ninhoap00@gmail.com',
+  'somiapp00@gmail.com',
+  'joana.oliveira85@gmail.com',
+  'joana.oliveira85@yahoo.com.br',
+]);
+
 export function accountStatus(u: AppUser): StatusConta {
   if (u.estadoEfetivo === 'pagante') {
     const anual = u.planIntervalEfetivo === 'anual';
@@ -489,7 +505,7 @@ export function accountStatus(u: AppUser): StatusConta {
     return anual ? 'Premium anual' : 'Premium mensal';
   }
   if (u.estadoEfetivo === 'trial_ativo') return 'Free trial ativo';
-  if (u.estadoEfetivo === 'trial_expirado') return 'Free trial expirado';
+  if (u.estadoEfetivo === 'trial_expirado') return u.cancelouTesteLoja ? 'Cancelou o teste' : 'Free trial expirado';
   if (u.estadoEfetivo === 'churn') return 'Churn';
   return 'Cadastrado';
 }
