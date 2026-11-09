@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { enviarPedidoSite, type PedidoState } from '@/app/landing/sejaconsultor/actions';
 import { TelefonePais } from '@/components/TelefonePais';
@@ -20,6 +20,16 @@ export function FormSejaConsultora({ abertoEm }: { abertoEm: number }) {
   const [state, action] = useFormState<PedidoState, FormData>(enviarPedidoSite, {});
   const [ok1, setOk1] = useState(false);
   const [ok2, setOk2] = useState(false);
+  const avisado = useRef<string | null>(null);
+
+  // Pedido novo gravado → Lead no Pixel (mesmo eventId do servidor, a Meta conta uma vez).
+  useEffect(() => {
+    const id = state.eventId;
+    if (!id || avisado.current === id) return;
+    avisado.current = id;
+    const fbq = (window as unknown as { fbq?: (...a: unknown[]) => void }).fbq;
+    fbq?.('track', 'Lead', { content_name: 'consultora' }, { eventID: id });
+  }, [state.eventId]);
 
   if (state.ok) {
     return (

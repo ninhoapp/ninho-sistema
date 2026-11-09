@@ -13,8 +13,11 @@
  * E-mail que já é consultora ou já tem pedido recebe a MESMA resposta de
  * sucesso (não revela quem já está no programa) e nada é gravado.
  */
-import { headers } from 'next/headers';
+import { randomUUID } from 'crypto';
+import { cookies, headers } from 'next/headers';
 import { appDb } from '@/lib/supabase/server';
+import { SITE_URL } from '@/lib/config';
+import { enviarEventoMeta } from '@/lib/meta-capi';
 import { consultoraAtivaPorCodigo, inserirPedido } from '@/lib/consultoras';
 import { juntarTelefone } from '@/lib/telefone';
 import {
@@ -28,6 +31,24 @@ import {
 export interface PedidoState {
   ok?: boolean;
   error?: string;
+  /** Só vem quando um pedido NOVO foi gravado: o formulário dispara o Lead do Pixel com este id. */
+  eventId?: string;
+}
+
+/** Conta o cadastro para a Meta pelo servidor (o navegador manda o mesmo eventId). */
+async function avisarMeta(eventId: string) {
+  const h = headers();
+  const c = cookies();
+  await enviarEventoMeta({
+    nome: 'Lead',
+    eventId,
+    url: `${SITE_URL}/landing/sejaconsultor`,
+    ip: ipDoPedido(),
+    userAgent: h.get('user-agent'),
+    fbp: c.get('_fbp')?.value ?? null,
+    fbc: c.get('_fbc')?.value ?? null,
+    contentName: 'consultora',
+  });
 }
 
 const TETO_DIA = 200;
@@ -100,7 +121,9 @@ export async function enviarPedidoSite(_prev: PedidoState, fd: FormData): Promis
       console.error('[sejaconsultor] insert falhou:', error.message);
       return { error: 'Não consegui enviar agora. Tente de novo em instantes.' };
     }
-    return { ok: true };
+    const eventId = randomUUID();
+    await avisarMeta(eventId);
+    return { ok: true, eventId };
   } catch (e) {
     console.error('[sejaconsultor] falhou:', e instanceof Error ? e.message : e);
     return { error: 'Não consegui enviar agora. Tente de novo em instantes.' };
