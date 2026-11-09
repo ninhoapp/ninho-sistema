@@ -195,7 +195,7 @@ function Navegador({ url, ativo, children }: { url: string; ativo: string; child
           <div className="brand"><img src={LOGO} alt="" />Ninho · consultora</div>
           {MENU_WEB.map((m) => <div key={m} className={`it${m === ativo ? ' on' : ''}`}>{m}</div>)}
         </div>
-        <div className="nc-web-main">{children}</div>
+        <div className="nc-web-main"><span className="nc-web-menu">☰ Menu</span>{children}</div>
       </div>
     </div>
   );

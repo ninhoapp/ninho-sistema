@@ -267,3 +267,7 @@
   .nc-kps { grid-template-columns: 1fr 1fr; }
   .nc-g2w { grid-template-columns: 1fr; }
 }
+
+/* Botão ☰ Menu do painel (09/11/2026) */
+.nc-web-main { position: relative; }
+.nc-web-menu { position: absolute; top: 8px; right: 10px; font-size: 8px; font-weight: 700; color: #6B4FC8; background: #fff; border: 1px solid #B9A6EC; border-radius: 999px; padding: 2px 7px; }
