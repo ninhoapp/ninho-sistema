@@ -15,6 +15,8 @@ import {
   apagarFoto,
   responderPedidoVinculo,
   convidarFamiliaPorEmail,
+  cancelarConvite,
+  encerrarFamilia,
   inserirPedido,
   salvarFichaDe,
   CONSULTORAS_TAG,
@@ -247,4 +249,23 @@ export async function pedirRelatorio(fd: FormData) {
     volta('relatorio', { ok: 'Relatório pedido. Ele aparece na lista em instantes.' }, { bebe: baby, dias: String(dias) });
   }
   volta('relatorio', { erro: r.mensagem }, { bebe: baby, dias: String(dias) });
+}
+
+// ── Convites e acompanhamento (00118) ─────────────────────
+export async function cancelarConviteFamilia(fd: FormData) {
+  const c = await eu();
+  const email = normalizarEmail(txt(fd, 'email'));
+  if (!EMAIL_RE.test(email)) volta('familias', { erro: 'Convite não encontrado.' });
+  const r = await cancelarConvite(c.id, email);
+  if (r === 'ok') volta('familias', { ok: 'Convite cancelado.' });
+  volta('familias', { erro: r === 'nao_encontrado' ? 'Esse convite já tinha sido respondido ou cancelado.' : 'Não consegui cancelar agora. Tente de novo.' });
+}
+
+export async function encerrarAcompanhamento(fd: FormData) {
+  const c = await eu();
+  const baby = txt(fd, 'baby');
+  if (!/^[0-9a-f-]{36}$/i.test(baby)) volta('familias', { erro: 'Família não encontrada.' });
+  const r = await encerrarFamilia(c.id, baby);
+  if (r === 'ok') volta('familias', { ok: 'Acompanhamento encerrado. A família foi avisada.' });
+  volta('familias', { erro: r === 'nao_encontrado' ? 'Essa família já não compartilhava a rotina com você.' : 'Não consegui encerrar agora. Tente de novo.' });
 }

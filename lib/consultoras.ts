@@ -332,6 +332,33 @@ export interface FamiliaAtribuida extends FamiliaComissao {
   gera: boolean;
   /** Atribuição dupla (parceiro e consultora na mesma conta): quem vale. */
   dupla: 'vale_parceiro' | 'vale_consultora' | null;
+  /** Por que a família dá (ou não dá) comissão agora. */
+  situacao: SituacaoFamilia;
+  /** Desde quando (ISO): início da assinatura, fim do período pago, fim do teste. */
+  situacaoDesde: string | null;
+}
+
+export type SituacaoFamilia = 'ativa' | 'cancelada' | 'teste' | 'reembolsada' | 'sem_cobranca';
+
+/** "cancelou em 12/11", "em teste grátis até 14/11"... para explicar um R$ 0. */
+export function situacaoTxt(s: SituacaoFamilia, desde: string | null): string {
+  const d = desde ? new Date(desde).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' }) : null;
+  if (s === 'ativa') return d ? `assinatura ativa desde ${d}` : 'assinatura ativa';
+  if (s === 'cancelada') return d ? `cancelou em ${d}` : 'cancelou';
+  if (s === 'teste') return d ? `em teste grátis até ${d}` : 'em teste grátis';
+  if (s === 'reembolsada') return d ? `reembolsada em ${d}` : 'reembolsada';
+  return 'ainda não cobrada';
+}
+
+function situacaoDa(pagador: AppUser | null, atribuida: AppUser | undefined, cobrancas: Cobranca[]): { situacao: SituacaoFamilia; desde: string | null } {
+  const reemb = cobrancas.find((c) => c.reembolsada);
+  if (reemb) return { situacao: 'reembolsada', desde: reemb.data };
+  if (pagador && isPagante(pagador)) return { situacao: 'ativa', desde: pagador.assinouEm };
+  if (pagador && pagador.estado === 'churn') return { situacao: 'cancelada', desde: pagador.current_period_end };
+  // Ninguém pagou ainda: em teste (do app ou da loja) ou sem cobrança.
+  const conta = atribuida;
+  if (conta && conta.estadoEfetivo === 'trial_ativo') return { situacao: 'teste', desde: conta.trialEndsAtEfetivo };
+  return { situacao: 'sem_cobranca', desde: null };
 }
 
 /**
@@ -385,7 +412,11 @@ export async function baseComissoesAgora(): Promise<BaseComissoes> {
 
   const familias: FamiliaAtribuida[] = indicacoes.map((ind) => {
     const pagador = pagadorDa(ind, users, cuidadores);
+    const cobrancas = pagador ? cobrancasDe(pagador) : [];
+    const sit = situacaoDa(pagador, users.get(ind.profile_id), cobrancas);
     return {
+      situacao: sit.situacao,
+      situacaoDesde: sit.desde,
       id: ind.profile_id,
       babyId: ind.baby_id,
       bebe: (ind.baby_id && bebes.get(ind.baby_id)?.name) || 'Bebê',
@@ -394,7 +425,7 @@ export async function baseComissoesAgora(): Promise<BaseComissoes> {
       consultoraId: ind.consultora_id,
       indicadaPorId: ind.indicada_por_id,
       atribuidaEm: ind.criado_em,
-      cobrancas: pagador ? cobrancasDe(pagador) : [],
+      cobrancas,
       // Dupla em que vale o parceiro: a regra pura não conta (método vira 'dupla').
       metodo: users.get(ind.profile_id)?.atribuicaoDupla === 'vale_parceiro' ? 'dupla_parceiro' : ind.metodo,
       gera: METODOS_COM_COMISSAO.has(ind.metodo) && users.get(ind.profile_id)?.atribuicaoDupla !== 'vale_parceiro',
@@ -449,7 +480,15 @@ export interface Ganhos {
     valor: number;
     /** Na parte de 12,5% de quem indicou: o nome da consultora indicada. */
     via: string | null;
+    /** Situação da família agora: explica por que não há mais cobrança. */
+    situacao: SituacaoFamilia;
+    situacao_desde: string | null;
   }[];
+  /**
+   * Famílias dela (as que geram comissão), com a situação de cada uma: a tela
+   * explica um R$ 0 ("cancelou em dd/mm", "em teste grátis até dd/mm"...).
+   */
+  familias: { bebe: string; situacao: SituacaoFamilia; situacao_desde: string | null; texto: string }[];
 }
 
 export interface FunilGanhos {
@@ -498,9 +537,11 @@ export async function montarGanhos(c: Consultora): Promise<Ganhos> {
   const diretasPorData = base.familias
     .filter((f) => f.consultoraId === c.id)
     .sort((a, b) => a.atribuidaEm.localeCompare(b.atribuidaEm));
+  // Família e consultora (a da família, para achar a situação também na parte da rede).
+  const famPorId = new Map(base.familias.map((f) => [`${f.id}|${f.consultoraId}`, f]));
+  const rotuloFamilia = (familiaId: string) => rotulo({ familiaId, viaId: null } as LinhaComissao);
   for (const f of diretasPorData) {
-    const linha = minhas.find((l) => l.familiaId === f.id && !l.viaId);
-    if (linha) rotulo(linha);
+    rotuloFamilia(f.id);
   }
   const competencias = Array.from(new Set(minhas.map((l) => l.competencia))).sort().reverse();
   return {
@@ -554,7 +595,17 @@ export async function montarGanhos(c: Consultora): Promise<Ganhos> {
       base: l.base,
       valor: l.valor,
       via: l.viaId ? nomePorId.get(l.viaId) ?? null : null,
+      situacao: famPorId.get(`${l.familiaId}|${l.viaId ?? c.id}`)?.situacao ?? 'sem_cobranca',
+      situacao_desde: famPorId.get(`${l.familiaId}|${l.viaId ?? c.id}`)?.situacaoDesde ?? null,
     })),
+    familias: diretasPorData
+      .filter((f) => f.gera)
+      .map((f) => ({
+        bebe: rotuloFamilia(f.id),
+        situacao: f.situacao,
+        situacao_desde: f.situacaoDesde,
+        texto: situacaoTxt(f.situacao, f.situacaoDesde),
+      })),
   };
 }
 
@@ -792,6 +843,41 @@ export function funilDaConsultora(
       cancelamentos: dela.filter((f) => noMes(f.paradaEm ?? null, mes)).length,
     };
   });
+}
+
+// ── Convites enviados e encerrar acompanhamento (migration 00118) ──
+export interface ConviteEnviado {
+  email: string;
+  enviado_em: string;
+  status: 'aguardando' | 'aceito' | 'encerrado' | 'cancelado';
+}
+
+/** Convites por e-mail que a consultora mandou. `null` = a 00118 ainda não foi aplicada. */
+export async function convitesEnviados(consultoraId: string): Promise<ConviteEnviado[] | null> {
+  const { data, error } = await appDb().rpc('_consultora_convites_enviados', { p_consultora: consultoraId });
+  if (error) {
+    console.error('[consultoras] _consultora_convites_enviados:', error.message);
+    return null;
+  }
+  return (data as ConviteEnviado[] | null) ?? [];
+}
+
+export async function cancelarConvite(consultoraId: string, email: string): Promise<string> {
+  const { data, error } = await appDb().rpc('_consultora_cancelar_convite', { p_consultora: consultoraId, p_email: email });
+  if (error) {
+    console.error('[consultoras] _consultora_cancelar_convite:', error.message);
+    return 'erro';
+  }
+  return String(data);
+}
+
+export async function encerrarFamilia(consultoraId: string, babyId: string): Promise<string> {
+  const { data, error } = await appDb().rpc('_consultora_remover_familia', { p_consultora: consultoraId, p_baby: babyId });
+  if (error) {
+    console.error('[consultoras] _consultora_remover_familia:', error.message);
+    return 'erro';
+  }
+  return String(data);
 }
 
 // ── Contagem pública (site) ───────────────────────────────

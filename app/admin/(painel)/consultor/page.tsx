@@ -10,12 +10,14 @@ import { LimparRastreio } from '@/components/admin/LimparRastreio';
 import { CadastrosConsultora, type CadastroLinha } from '@/components/consultoras/CadastrosConsultora';
 import type { AppUser } from '@/lib/app-users';
 import { FunilTabela } from '@/components/consultoras/Funil';
+import { LimparLink } from '@/components/admin/LimparLink';
 import { iaStatus, type IaStatus } from '@/lib/consultoras-ia';
 import {
   baseComissoes,
   listPedidos,
   listVinculosAtivos,
   pedidosVinculoPendentes,
+  situacaoTxt,
   eventosDosLinks,
   funilDaConsultora,
   ultimosMesesFunil,
@@ -299,6 +301,7 @@ export default async function ConsultorPage({
               pedidosVinculo={pedVincPor(det.id)}
               funil={funilDe(det.id)}
               funilIndisponivel={!eventos}
+              linkTotais={eventos ? { cliques: eventos.cliques.filter((e) => e.consultora_id === det.id).length, downloads: eventos.downloads.filter((e) => e.consultora_id === det.id).length } : null}
               ia={ia.get(det.id) ?? null}
               usuarios={new Map(users.map((u) => [u.id, u]))}
               comissaoMes={(babyFam: string) => somar(linhas.filter((l) => l.consultoraId === det.id && l.familiaId === babyFam && l.competencia === mesAtual).map((l) => l.valor))}
@@ -602,6 +605,7 @@ function Detalhe({
   pedidosVinculo,
   funil,
   funilIndisponivel,
+  linkTotais,
   ia,
   comissaoMes,
   mesAtual,
@@ -615,6 +619,7 @@ function Detalhe({
   pedidosVinculo: { origem: 'familia' | 'consultora'; criado_em: string }[];
   funil: MesFunil[];
   funilIndisponivel: boolean;
+  linkTotais: { cliques: number; downloads: number } | null;
   ia: IaStatus | null;
   comissaoMes: (familiaId: string) => number;
   mesAtual: string;
@@ -750,8 +755,10 @@ function Detalhe({
         )}
       </div>
       <div className="mt-4">
-        <p className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.09em] text-[#9A95AD]">Funil do link {SITE_URL.replace(/^https?:\/\//, '')}/c/{(c.codigo ?? '').toLowerCase()}</p>
-        <FunilTabela meses={funil} indisponivel={funilIndisponivel} />
+        <FunilTabela meses={funil} indisponivel={funilIndisponivel} titulo={`Rastreio do link ${SITE_URL.replace(/^https?:\/\//, '')}/c/${(c.codigo ?? '').toLowerCase()}`} />
+        <div className="mt-2 flex justify-end">
+          <LimparLink tipo="consultora" id={c.id} nome={c.nome ?? 'consultora'} cliques={linkTotais?.cliques ?? null} downloads={linkTotais?.downloads ?? null} />
+        </div>
       </div>
       <div className="mt-4 overflow-x-auto">
         <p className="text-[12px] text-ninho-cinza">{vinculos} família{vinculos === 1 ? '' : 's'} ligada{vinculos === 1 ? '' : 's'} agora · abaixo, as famílias atribuídas a ela (as que geram comissão)</p>
@@ -770,6 +777,7 @@ function Detalhe({
                 plano: f.plano,
                 pagaHoje: f.pagaHoje,
                 comissaoMes: comissaoMes(f.id),
+                motivoSemValor: comissaoMes(f.id) ? null : !f.gera ? 'não gera comissão (atribuição)' : f.situacao === 'ativa' ? 'parcelas já pagas ou fora do mês' : situacaoTxt(f.situacao, f.situacaoDesde),
                 status: u ? accountStatus(u) : '—',
                 email: u?.email ?? '',
               };

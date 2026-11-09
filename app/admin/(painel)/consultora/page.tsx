@@ -13,6 +13,8 @@ import {
   funilDaConsultora,
   ultimosMesesFunil,
   pedidosVinculoDa,
+  convitesEnviados,
+  type ConviteEnviado,
   montarGanhos,
   rotinaDe,
   type Consultora,
@@ -59,7 +61,8 @@ import { CompartilharRelatorio } from '@/components/consultoras/CompartilharRela
 import { IA_LIMITE_MES, IA_PERIODOS, IA_PRECO_MENSAL, RODAPE_IA, iaStatus, lerRelatorio, listarRelatorios, secoes, type IaStatus } from '@/lib/consultoras-ia';
 import { Avatar, Aviso, Card, Kpi, Retorno, Selo, botao, brl, campo, rotuloCampo, td, th } from '@/components/consultoras/ui';
 import { CopyLink } from '@/components/admin/CopyLink';
-import { convidarFamilia, enviarFoto, indicarConsultora, pedirRelatorio, responderPedidoFamilia, salvarFicha, salvarPerfil } from './actions';
+import { ConfirmButton } from '@/components/admin/ConfirmButton';
+import { cancelarConviteFamilia, encerrarAcompanhamento, convidarFamilia, enviarFoto, indicarConsultora, pedirRelatorio, responderPedidoFamilia, salvarFicha, salvarPerfil } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,7 +84,7 @@ export default async function ConsultoraPage({ searchParams }: { searchParams: B
   const s = await requireSessionAtiva('consultora');
   const c = await consultoraDoPerfil(s.sub);
   if (!c) redirect('/admin/login?porta=consultora');
-  // 'familias' é o nome antigo do Início (ações e links antigos ainda usam).
+  // 'inicio' (padrão) e 'familias' (pedidos, convites, famílias e fichas) são abas diferentes.
   const aba = searchParams.aba || 'inicio';
   const pausada = c.estado === 'pausada';
 
@@ -94,6 +97,7 @@ export default async function ConsultoraPage({ searchParams }: { searchParams: B
   else if (aba === 'relatorio') corpo = await RelatorioIA({ c, sp: searchParams });
   else if (aba === 'assinatura') corpo = await AssinaturaIA({ c });
   else if (aba === 'ajuda') corpo = <Ajuda c={c} />;
+  else if (aba === 'familias') corpo = await PedidosEConvites({ c, sp: searchParams });
   else corpo = await Familias({ c, sp: searchParams });
 
   return (
@@ -354,7 +358,150 @@ async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
         </div>
         <Legenda itens={[['#9F86E0', 'noite calma (até 2 despertares)'], ['#F0B456', '3 ou mais'], ['#E4E1EA', 'sem registro']]} />
       </Card>
-      {fs.length > 0 && <Fichas c={c} familias={fs} aberta={sp.ficha} />}
+    </>
+  );
+}
+
+// ── Famílias: pedidos, convites e quem você acompanha (00109, 00118) ──
+const ROTULO_CONVITE: Record<ConviteEnviado['status'], { t: string; cor: 'ambar' | 'verde' | 'cinza' }> = {
+  // Nunca dizer se o e-mail tem conta no Ninho.
+  aguardando: { t: 'Aguardando a família', cor: 'ambar' },
+  aceito: { t: 'Aceito', cor: 'verde' },
+  encerrado: { t: 'Encerrado', cor: 'cinza' },
+  cancelado: { t: 'Cancelado', cor: 'cinza' },
+};
+
+async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
+  const ativa = c.estado === 'ativa';
+  const [fams, pv, convites] = await Promise.all([
+    ativa ? familiasDa(c.id) : Promise.resolve([] as FamiliaDaConsultora[]),
+    ativa ? pedidosVinculoDa(c.id) : Promise.resolve({ pedidos: [], indisponivel: false }),
+    convitesEnviados(c.id),
+  ]);
+  const filtroConv = sp.filtro && ['aguardando', 'aceito', 'encerrado', 'cancelado'].includes(sp.filtro) ? sp.filtro : 'todos';
+  const conv = (convites ?? []).filter((x) => filtroConv === 'todos' || x.status === filtroConv);
+  const q = (sp.q || '').trim().toLowerCase();
+  const acompanha = [...fams]
+    .filter((f) => !q || `${f.bebe_nome ?? ''} ${f.mae_nome ?? ''}`.toLowerCase().includes(q))
+    .sort((a, b) => (a.bebe_nome ?? '').localeCompare(b.bebe_nome ?? ''));
+  const chip = (k: string, t: string, n: number) => (
+    <Link key={k} href={`${BASE}?aba=familias&filtro=${k}`} className={`rounded-pill px-3 py-1.5 text-xs font-bold ${filtroConv === k ? 'bg-[#24164F] text-white' : 'bg-white text-ninho-cinza shadow-[inset_0_0_0_1.5px_#ECE6F5]'}`}>{t} · {n}</Link>
+  );
+  const conta = (st: string) => (convites ?? []).filter((x) => st === 'todos' || x.status === st).length;
+  return (
+    <>
+      <Titulo t="Famílias" sub="Pedidos para aprovar, convites que você mandou e as famílias que você acompanha." direita={<Link href={`${BASE}?aba=convidar`} className={botao.grad}>Convidar família</Link>} />
+
+      <Card titulo="1 · Pedidos para você aprovar" direita={pv.pedidos.length ? `${pv.pedidos.length} esperando você` : undefined}>
+        {pv.pedidos.length === 0 && <p className="py-4 text-center text-sm text-ninho-cinza">{pv.indisponivel ? 'Os pedidos aparecem aqui assim que o Ninho liberar.' : 'Nenhum pedido esperando você.'}</p>}
+        {pv.pedidos.length > 0 && (
+          <p className="text-[12.5px] text-ninho-cinza">A família digitou seu código e já aceitou compartilhar a rotina. A rotina só aparece para você depois que você aprovar.</p>
+        )}
+        {pv.pedidos.map((p) => (
+          <div key={p.id} className="mt-3 rounded-2xl bg-[#F3EEFC] px-4 py-3">
+            <p className="text-[13.5px]">
+              <b>{p.responsavel_nome ?? 'Uma família'}</b>
+              {p.bebe_nome ? <> quer compartilhar a rotina de <b>{p.bebe_nome}</b></> : ' quer compartilhar a rotina do bebê'}
+              <span className="text-ninho-cinza"> · {desdeTxt(p.criado_em)}</span>
+            </p>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-[13px] font-bold text-[#7C5CD6]">Aprovar</summary>
+              <form action={responderPedidoFamilia} className="mt-2 rounded-xl bg-white p-3">
+                <input type="hidden" name="pedido" value={p.id} />
+                <label className="flex items-start gap-2.5 text-[13px] leading-relaxed">
+                  <input type="checkbox" name="aceite" required className="mt-1 h-4 w-4 shrink-0 accent-[#4CAF74]" />
+                  <span>{ACEITE_VINCULO_CONSULTORA_TEXTO}</span>
+                </label>
+                <button name="decisao" value="aprovar" className={`${botao.verde} mt-3`}>Aprovar e ver a rotina</button>
+              </form>
+            </details>
+            <form action={responderPedidoFamilia} className="mt-2">
+              <input type="hidden" name="pedido" value={p.id} />
+              <button name="decisao" value="recusar" className={botao.cinza}>Recusar</button>
+            </form>
+          </div>
+        ))}
+      </Card>
+
+      <Card
+        className="mt-4"
+        titulo="2 · Convites que você enviou"
+        direita={convites && convites.length > 0 ? <div className="flex flex-wrap gap-1.5">{chip('todos', 'Todos', conta('todos'))}{chip('aguardando', 'Aguardando', conta('aguardando'))}{chip('aceito', 'Aceitos', conta('aceito'))}{chip('encerrado', 'Encerrados', conta('encerrado'))}{chip('cancelado', 'Cancelados', conta('cancelado'))}</div> : undefined}
+      >
+        {convites === null ? (
+          <p className="py-4 text-center text-sm text-ninho-cinza">A lista de convites aparece aqui assim que o Ninho liberar.</p>
+        ) : conv.length === 0 ? (
+          <p className="py-4 text-center text-sm text-ninho-cinza">{convites.length ? 'Nenhum convite com esse filtro.' : 'Nenhum convite enviado nos últimos 90 dias. Convide pelo e-mail em Convidar família.'}</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr><th className={th}>E-mail</th><th className={th}>Enviado em</th><th className={th}>Situação</th><th className={th} /></tr></thead>
+              <tbody>
+                {conv.map((x) => (
+                  <tr key={`${x.email}-${x.enviado_em}`}>
+                    <td className={`${td} break-all`}>{x.email}</td>
+                    <td className={`${td} tabular-nums`}>{new Date(x.enviado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+                    <td className={td}>
+                      <Selo cor={ROTULO_CONVITE[x.status]?.cor ?? 'cinza'}>{ROTULO_CONVITE[x.status]?.t ?? x.status}</Selo>
+                      {x.status === 'aguardando' && <small className="mt-0.5 block text-[11.5px] text-ninho-cinza">Se ainda não tem conta, chega quando ela criar.</small>}
+                    </td>
+                    <td className={td}>
+                      {x.status === 'aguardando' && (
+                        <ConfirmButton action={cancelarConviteFamilia} hidden={{ email: x.email }} label="Cancelar envio" message={`Cancelar o convite para ${x.email}? Ela não vai mais conseguir aceitar este convite.`} />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      <Card
+        className="mt-4"
+        titulo="3 · Famílias que você acompanha"
+        direita={
+          <form className="flex h-9 items-center gap-2 rounded-pill bg-white px-3 shadow-[inset_0_0_0_1.5px_#ECE6F5]">
+            <input type="hidden" name="aba" value="familias" />
+            <input name="q" defaultValue={sp.q} placeholder="Buscar bebê ou mãe" className="w-40 bg-transparent text-[13px] outline-none" />
+          </form>
+        }
+      >
+        {acompanha.length === 0 ? (
+          <p className="py-4 text-center text-sm text-ninho-cinza">{fams.length ? 'Nenhuma família com essa busca.' : ativa ? 'Nenhuma família ainda.' : 'Conta pausada: as famílias voltam quando o Ninho reativar.'}</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr><th className={th}>Bebê</th><th className={th}>Mãe</th><th className={th}>Com você desde</th><th className={th}>Agora</th><th className={th} /></tr></thead>
+              <tbody>
+                {acompanha.map((f) => (
+                  <tr key={f.baby_id} className="hover:bg-[#FAF8FE]">
+                    <td className={td}>
+                      <Link href={`${BASE}?aba=rotina&bebe=${f.baby_id}`} className="flex items-center gap-2.5">
+                        <Avatar id={f.baby_id} nome={f.bebe_nome} tamanho={32} />
+                        <span><b>{f.bebe_nome}</b><small className="block text-[11.5px] text-ninho-cinza">{idadeTxt(f.nascimento)}</small></span>
+                      </Link>
+                    </td>
+                    <td className={td}>{f.mae_nome ?? '—'}</td>
+                    <td className={`${td} tabular-nums`}>{desdeTxt(f.vinculado_em)}</td>
+                    <td className={td}><SeloAgora f={f} /></td>
+                    <td className={td}>
+                      <ConfirmButton
+                        action={encerrarAcompanhamento}
+                        hidden={{ baby: f.baby_id }}
+                        label="Encerrar acompanhamento"
+                        message={`Encerrar o acompanhamento de ${f.bebe_nome ?? 'este bebê'}? A família é avisada e você deixa de ver a rotina na hora. Para voltar, ela precisa aprovar de novo.`}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+      {acompanha.length > 0 && <Fichas c={c} familias={acompanha} aberta={sp.ficha} />}
     </>
   );
 }
@@ -1016,7 +1163,7 @@ async function Convidar({ c, ok, erro }: { c: Consultora; ok?: string; erro?: st
         {(ok || erro) && <div className="mt-3"><Retorno ok={ok} erro={erro} /></div>}
       </Card>
       <Card titulo="Funil do seu link" direita="últimos 6 meses" className="mt-4">
-        <FunilTabela meses={funil} indisponivel={!eventos} />
+        <FunilTabela meses={funil} indisponivel={!eventos} titulo="Últimos 6 meses" />
       </Card>
     </>
   );
@@ -1110,6 +1257,29 @@ async function Ganhos({ c, mes }: { c: Consultora; mes?: string }) {
           {m && <Aviso>Pix até o 5º dia útil do mês seguinte: a comissão de {nomeMes(m)} vence em {dataBr(prazoPix(m))}.</Aviso>}
         </Card>
       </div>
+      {g.familias.length > 0 && (
+        <Card className="mt-4" titulo="Suas famílias e por que algumas estão em R$ 0" direita="famílias que chegaram pelo seu link ou código">
+          <table className="w-full">
+            <tbody>
+              {g.familias.map((x, i) => {
+                const valorMes = m ? somar(ls.filter((l) => !l.via && l.bebe === x.bebe).map((l) => l.valor)) : 0;
+                return (
+                  <tr key={i}>
+                    <td className={td}><b>{x.bebe}</b></td>
+                    <td className={td}>
+                      <Selo cor={x.situacao === 'ativa' ? 'verde' : x.situacao === 'teste' ? 'lilas' : 'cinza'}>{x.texto}</Selo>
+                    </td>
+                    <td className={`${td} text-right tabular-nums`}>
+                      {valorMes ? brl(valorMes) : <span className="text-ninho-cinza">{brl(0)}{x.situacao === 'ativa' ? ' · parcelas já pagas ou fora deste mês' : ''}</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="mt-2 text-[11.5px] text-ninho-cinza">A comissão só existe quando a família paga: teste grátis não conta, e ela para quando a família cancela ou pede reembolso.</p>
+        </Card>
+      )}
     </>
   );
 }

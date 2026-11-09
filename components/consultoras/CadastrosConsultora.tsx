@@ -14,6 +14,8 @@ export interface CadastroLinha {
   plano: string;
   pagaHoje: boolean;
   comissaoMes: number;
+  /** Por que está sem valor no mês ("cancelou em 12/11", "em teste grátis até 14/11"...). */
+  motivoSemValor: string | null;
   status: string;
   email: string;
 }
@@ -89,7 +91,9 @@ export function CadastrosConsultora({ linhas, mes }: { linhas: CadastroLinha[]; 
               <td className="px-3 py-2.5">
                 <span className={`rounded-pill px-2 py-0.5 text-[12px] font-semibold ${l.pagaHoje ? 'bg-[#E4F5EC] text-[#2E7D51]' : 'bg-ninho-nuvem text-ninho-cinza'}`}>{l.plano}</span>
               </td>
-              <td className="px-3 py-2.5 text-right tabular-nums">{l.comissaoMes ? brl(l.comissaoMes) : '—'}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums">
+                {l.comissaoMes ? brl(l.comissaoMes) : (<>{brl(0)}{l.motivoSemValor && <small className="block text-[11px] text-ninho-cinza">{l.motivoSemValor}</small>}</>)}
+              </td>
               <td className="px-3 py-2.5">{l.status}</td>
               <td className="px-3 py-2.5 text-ninho-cinza">{l.email || '—'}</td>
             </tr>

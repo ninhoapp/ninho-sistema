@@ -21,6 +21,7 @@ import { StatCard } from '@/components/admin/StatCard';
 import { BarChart } from '@/components/admin/BarChart';
 import { Notice } from '@/components/admin/Notice';
 import { CopyLink } from '@/components/admin/CopyLink';
+import { LimparLink } from '@/components/admin/LimparLink';
 import { AtribuicaoManual, type ContaAtribuivel, type OpcaoParceiro } from '@/components/admin/AtribuicaoManual';
 
 export const dynamic = 'force-dynamic';
@@ -166,6 +167,9 @@ export default async function ParceirosPage() {
               </div>
             </div>
             {l.link && <CopyLink url={l.link} />}
+            <div className="mt-2 flex justify-end">
+              <LimparLink tipo="parceiro" id={l.p.id} nome={l.p.display_name} cliques={l.stats.total} downloads={l.funil.downloads} />
+            </div>
             {l.p.promo_code ? (
               <div className="mt-2"><LimparRastreio tipo="parceiro" id={l.p.id} codigo={l.p.promo_code.toUpperCase()} /></div>
             ) : null}
