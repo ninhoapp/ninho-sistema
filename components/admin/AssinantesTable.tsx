@@ -23,20 +23,20 @@ type Col = 'nome' | 'email' | 'plano' | 'origem' | 'cobrado' | 'entrou' | 'assin
 
 const CABECALHOS: [Col, string][] = [
   ['nome', 'Nome'],
-  ['email', 'E-mail'],
+  ['assinou', 'Assinou em'],
   ['plano', 'Plano'],
   ['origem', 'Origem'],
   ['cobrado', 'Valor cobrado'],
   ['entrou', 'Entrou (líquido)'],
-  ['assinou', 'Assinou em'],
   ['renova', 'Renova em'],
   ['cadastro', 'Cadastro'],
+  ['email', 'E-mail'],
 ];
 
 const COLUNAS: Col[] = CABECALHOS.map(([c]) => c);
 
 /** Largura inicial de cada coluna, na ordem de CABECALHOS (dá para arrastar). */
-const LARGURAS = [170, 210, 130, 185, 120, 140, 100, 100, 100];
+const LARGURAS = [170, 100, 130, 185, 120, 140, 100, 100, 210];
 
 /** Colunas cujo filtro ordena por número, não por texto — senão "R$ 9,90"
  *  viria depois de "R$ 129,90" na lista. */
@@ -135,7 +135,7 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
 
   const paraExcel = filtradas.map((u) => ({
     Nome: u.name || '',
-    'E-mail': u.email || '',
+    'Assinou em': u.assinouEm ? new Date(u.assinouEm).toLocaleDateString('pt-BR') : '',
     Plano: planoLabel(u),
     Ciclo: cicloDoUsuario(u),
     Origem: ORIGEM_LABEL[u.origem],
@@ -143,11 +143,11 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
     'Valor cobrado (bruto)': priceForUser(u),
     [`Entrou em ${mes} (bruto)`]: receitaNoMes(u, mes),
     [`Entrou em ${mes} (líquido)`]: entrouLiquido(u),
-    'Assinou em': u.assinouEm ? new Date(u.assinouEm).toLocaleDateString('pt-BR') : '',
     'Renova em': u.current_period_end
       ? new Date(u.current_period_end).toLocaleDateString('pt-BR')
       : '',
     Cadastro: new Date(u.created_at).toLocaleDateString('pt-BR'),
+    'E-mail': u.email || '',
   }));
 
   const emails = filtradas.map((u) => u.email).filter((e): e is string => Boolean(e));
@@ -227,7 +227,9 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
                 return (
                   <tr key={u.id} className="hover:bg-ninho-nuvem">
                     <td className="p-3 font-medium text-ninho-grafite">{u.name || '—'}</td>
-                    <td className="p-3 text-ninho-cinza">{u.email || '—'}</td>
+                    <td className="whitespace-nowrap p-3 text-ninho-cinza">
+                      {formatDate(u.assinouEm)}
+                    </td>
                     <td className="p-3">
                       <span
                         className={`whitespace-nowrap rounded-pill px-2.5 py-1 text-[11px] font-semibold ${
@@ -271,14 +273,12 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
                       {formatBRL(caixa)}
                     </td>
                     <td className="whitespace-nowrap p-3 text-ninho-cinza">
-                      {formatDate(u.assinouEm)}
-                    </td>
-                    <td className="whitespace-nowrap p-3 text-ninho-cinza">
                       {formatDate(u.current_period_end)}
                     </td>
                     <td className="whitespace-nowrap p-3 text-ninho-cinza">
                       {formatDate(u.created_at)}
                     </td>
+                    <td className="p-3 text-ninho-cinza">{u.email || '—'}</td>
                   </tr>
                 );
               })}
