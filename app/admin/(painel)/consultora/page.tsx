@@ -87,7 +87,7 @@ export default async function ConsultoraPage({ searchParams }: { searchParams: B
 
   let corpo: React.ReactNode;
   if (aba === 'rotina' || aba === 'semana') corpo = await Rotina({ c, sp: searchParams, semana: aba === 'semana' });
-  else if (aba === 'convidar') corpo = await Convidar({ c });
+  else if (aba === 'convidar') corpo = await Convidar({ c, ok: searchParams.ok, erro: searchParams.erro });
   else if (aba === 'ganhos') corpo = await Ganhos({ c, mes: searchParams.mes });
   else if (aba === 'indicar') corpo = await Indicar({ c });
   else if (aba === 'perfil') corpo = await Perfil({ c });
@@ -972,7 +972,7 @@ function Ajuda({ c }: { c: Consultora }) {
 }
 
 // ── Convidar ──────────────────────────────────────────────
-async function Convidar({ c }: { c: Consultora }) {
+async function Convidar({ c, ok, erro }: { c: Consultora; ok?: string; erro?: string }) {
   const [base, eventos] = await Promise.all([baseComissoes(), eventosDosLinks()]);
   const funil = funilDaConsultora(c.id, base.familias, eventos, ultimosMesesFunil(6));
   const link = `${SITE_URL}/c/${(c.codigo ?? '').toLowerCase()}`;
@@ -1013,6 +1013,7 @@ async function Convidar({ c }: { c: Consultora }) {
           </label>
           <button className={`${botao.grad} mt-4`} disabled={c.estado !== 'ativa'}>Enviar convite</button>
         </form>
+        {(ok || erro) && <div className="mt-3"><Retorno ok={ok} erro={erro} /></div>}
       </Card>
       <Card titulo="Funil do seu link" direita="últimos 6 meses" className="mt-4">
         <FunilTabela meses={funil} indisponivel={!eventos} />

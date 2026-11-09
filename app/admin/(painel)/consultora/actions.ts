@@ -181,7 +181,7 @@ export async function convidarFamilia(fd: FormData) {
   if (fd.get('aceite') !== 'on') volta('convidar', { erro: 'Para convidar, marque o aceite.' });
   const r = await convidarFamiliaPorEmail(c.id, email);
   const msg: Record<string, string> = {
-    ok: 'Se esse e-mail tiver conta no Ninho, a família vai receber o convite no sininho.',
+    ok: `Convite registrado para ${email}. Se essa pessoa já é responsável por um bebê no Ninho, recebe agora no sininho. Se é cuidadora, o pedido vai para o responsável principal. Se ainda não tem conta, o convite fica guardado e chega quando ela criar a conta. Confira se o e-mail está certo.`,
     email_invalido: 'E-mail inválido.',
     limite: 'Você chegou ao limite de convites de hoje. Tente amanhã.',
     aceite_invalido: 'Versão do aceite desatualizada. Recarregue a página.',
