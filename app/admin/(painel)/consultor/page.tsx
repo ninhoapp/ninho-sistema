@@ -7,6 +7,8 @@ import { SITE_URL } from '@/lib/config';
 import { telefoneLegivel } from '@/lib/telefone';
 import { ExcluirConsultora } from '@/components/consultoras/ExcluirConsultora';
 import { LimparRastreio } from '@/components/admin/LimparRastreio';
+import { CadastrosConsultora, type CadastroLinha } from '@/components/consultoras/CadastrosConsultora';
+import type { AppUser } from '@/lib/app-users';
 import { FunilTabela } from '@/components/consultoras/Funil';
 import { iaStatus, type IaStatus } from '@/lib/consultoras-ia';
 import {
@@ -298,6 +300,7 @@ export default async function ConsultorPage({
               funil={funilDe(det.id)}
               funilIndisponivel={!eventos}
               ia={ia.get(det.id) ?? null}
+              usuarios={new Map(users.map((u) => [u.id, u]))}
               comissaoMes={(babyFam: string) => somar(linhas.filter((l) => l.consultoraId === det.id && l.familiaId === babyFam && l.competencia === mesAtual).map((l) => l.valor))}
               mesAtual={mesAtual}
             />
@@ -602,6 +605,7 @@ function Detalhe({
   ia,
   comissaoMes,
   mesAtual,
+  usuarios,
 }: {
   c: Consultora;
   porId: Map<string, Consultora>;
@@ -614,6 +618,7 @@ function Detalhe({
   ia: IaStatus | null;
   comissaoMes: (familiaId: string) => number;
   mesAtual: string;
+  usuarios: Map<string, AppUser>;
 }) {
   const filhas = consultoras.filter((x) => x.indicada_por === c.id);
   const opcoes = consultoras.filter((x) => x.id !== c.id && x.estado === 'ativa' && x.indicada_por !== c.id);
@@ -750,23 +755,27 @@ function Detalhe({
       </div>
       <div className="mt-4 overflow-x-auto">
         <p className="text-[12px] text-ninho-cinza">{vinculos} família{vinculos === 1 ? '' : 's'} ligada{vinculos === 1 ? '' : 's'} agora · abaixo, as famílias atribuídas a ela (as que geram comissão)</p>
-        <table className="mt-2 w-full">
-          <thead><tr><th className={th}>Família</th><th className={th}>Plano</th><th className={th}>Atribuída em</th><th className={`${th} text-right`}>Comissão {nomeMes(mesAtual)} (R$)</th></tr></thead>
-          <tbody>
-            {familias.map((f) => {
-              const v = comissaoMes(f.id);
-              return (
-                <tr key={f.id}>
-                  <td className={td}><b>{f.bebe}</b></td>
-                  <td className={td}><Selo cor={f.pagaHoje ? 'verde' : 'cinza'}>{f.plano}</Selo></td>
-                  <td className={td}>{dataDubai(f.atribuidaEm)}</td>
-                  <td className={`${td} text-right tabular-nums`}>{v ? brl(v) : '—'}</td>
-                </tr>
-              );
+        <div className="mt-2">
+          <CadastrosConsultora
+            mes={nomeMes(mesAtual)}
+            linhas={familias.map((f): CadastroLinha => {
+              const u = usuarios.get(f.id);
+              const como: Record<string, string> = { link: 'Link', codigo_cadastro: 'Código no cadastro', manual: 'Manual (dono)', vinculo: 'Vínculo', dupla_parceiro: 'Também de parceiro' };
+              return {
+                id: f.id,
+                nome: u?.name?.trim() || (u?.email ?? 'Sem nome'),
+                comoChegou: como[f.metodo] ?? f.metodo,
+                atribuidaEm: f.atribuidaEm,
+                atribuidaEmTxt: dataDubai(f.atribuidaEm),
+                plano: f.plano,
+                pagaHoje: f.pagaHoje,
+                comissaoMes: comissaoMes(f.id),
+                status: u ? accountStatus(u) : '—',
+                email: u?.email ?? '',
+              };
             })}
-          </tbody>
-        </table>
-        {familias.length === 0 && <p className="py-4 text-center text-sm text-ninho-cinza">Nenhuma família atribuída ainda.</p>}
+          />
+        </div>
       </div>
     </Card>
   );
