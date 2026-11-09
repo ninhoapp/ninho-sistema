@@ -58,6 +58,9 @@ export interface AppUser {
   /** Pôs o cartão nos dias grátis da loja (grupo B) e cancelou antes da 1ª
    *  cobrança: NÃO é churn (dono, 09/11/2026). Churn = pagou e cancelou. */
   cancelouTesteLoja: boolean;
+  /** Fim dos 7 dias grátis da loja (grupo B/C com cartão), mesmo depois de
+   *  pagar ou cancelar. Null = nunca pôs o cartão. Usado na previsão. */
+  testeLojaAte: string | null;
   /** Conta de teste do dono/consultora de teste: fora das métricas, mas conta
    *  nos funis de link (é com elas que o dono testa o rastreio). */
   contaDoDono: boolean;
@@ -399,6 +402,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
       assinouEm: teste.assinouEm,
       emTesteLoja: teste.emTesteLoja,
       cancelouTesteLoja: teste.cancelouTesteLoja === true && !ef?.coberto_por,
+      testeLojaAte: e?.teste_loja_ate ?? null,
       contaDoDono: CONTAS_DO_DONO.has((emails.get(p.id) || '').toLowerCase()),
       origem: resolverOrigem(apple?.atribuido === true, p.como_conheceu, apple?.campaign_id ?? null),
       // Só expõe a campanha quando ela é real — o id de TestFlight não é campanha.
@@ -428,7 +432,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
 /** Todos, inclusive as contas de teste do dono. Só para os funis de link
  *  (parceiros e consultoras), onde o dono testa o rastreio. */
 export const fetchAppUsersTodos = cache(
-  unstable_cache(fetchAppUsersRaw, ['app-users-v7'], { revalidate: 60, tags: [APP_USERS_TAG] })
+  unstable_cache(fetchAppUsersRaw, ['app-users-v8'], { revalidate: 60, tags: [APP_USERS_TAG] })
 );
 
 /** Usuários reais: sem as contas de teste do dono (dono, 09/11/2026). */

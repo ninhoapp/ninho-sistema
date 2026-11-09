@@ -51,6 +51,7 @@ export const MENU_ADMIN: GrupoMenu[] = [
     abas: [
       { href: '/admin/visao-geral', label: 'Visão geral' },
       { href: '/admin/analise', label: 'Análise de dados' },
+      { href: '/admin/previsao', label: 'Previsão de assinantes' },
       { href: '/admin/teste-paywall', label: 'Teste de paywall' },
       { href: '/admin/usuarios', label: 'Usuários ativos' },
     ],
