@@ -426,16 +426,18 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
  *
  * Quase toda tela do painel chama isto, e são 4 consultas + junção em memória.
  * Sem cache, cada clique no menu refazia tudo do zero. Duas camadas:
- *  - `unstable_cache` (60s, entre requisições): navegar entre telas fica
+ *  - `unstable_cache` (10 min, entre requisições): navegar entre telas fica
  *    rápido. Ações que mudam usuário chamam revalidateTag(APP_USERS_TAG), então
  *    o que o próprio admin faz aparece na hora; cadastro novo no app aparece
- *    em até 1 minuto.
+ *    em até 10 minutos.
  *  - `cache` do React: dentro de uma mesma requisição não vai ao banco 2x.
  */
 /** Todos, inclusive as contas de teste do dono. Só para os funis de link
  *  (parceiros e consultoras), onde o dono testa o rastreio. */
 export const fetchAppUsersTodos = cache(
-  unstable_cache(fetchAppUsersRaw, ['app-users-v8'], { revalidate: 60, tags: [APP_USERS_TAG] })
+  // 10 min (era 60 s): a lista inteira de usuários é a leitura mais pesada do
+  // painel no Supabase. Ação do admin continua aparecendo na hora (revalidateTag).
+  unstable_cache(fetchAppUsersRaw, ['app-users-v8'], { revalidate: 600, tags: [APP_USERS_TAG] })
 );
 
 /** Usuários reais: sem as contas de teste do dono (dono, 09/11/2026). */
@@ -631,7 +633,7 @@ const lerUsoRows = unstable_cache(
     return data;
   },
   ['uso-por-usuario-v1'],
-  { revalidate: 60 },
+  { revalidate: 600 },
 );
 
 export async function fetchUsoPorUsuario(): Promise<Map<string, UsoUsuario>> {

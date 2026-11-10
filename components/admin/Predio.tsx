@@ -80,7 +80,12 @@ export function Predio({
   estadosRef.current = estados;
 
   useEffect(() => {
-    const t = setInterval(() => router.refresh(), 15_000);
+    // 60 s e só com a aba visível (era 15 s sempre): aba esquecida aberta
+    // refazia a leitura no servidor 240x por hora e pesava na cota do
+    // Supabase (11/2026).
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') router.refresh();
+    }, 60_000);
     return () => clearInterval(t);
   }, [router]);
 

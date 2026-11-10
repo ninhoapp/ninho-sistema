@@ -394,7 +394,7 @@ export const CONSULTORAS_TAG = 'consultoras';
  * use `baseComissoesAgora`.
  */
 export const baseComissoes = unstable_cache(async () => baseComissoesAgora(), ['consultoras-base-v1'], {
-  revalidate: 120,
+  revalidate: 600, // 10 min; ação de consultora invalida a tag na hora
   tags: [CONSULTORAS_TAG],
 });
 

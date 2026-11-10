@@ -628,8 +628,8 @@ async function montarAnaliseRaw(): Promise<Analise | null> {
   };
 }
 
-/** Cache curto (60s) igual ao resto do painel: navegar não refaz as ~10
- *  consultas, e um envio novo aparece em até 1 minuto. */
+/** Cache de 10 min, igual ao resto do painel: navegar não refaz as ~10
+ *  consultas, e um envio novo aparece em até 10 minutos. */
 export const montarAnalise = cache(
-  unstable_cache(montarAnaliseRaw, ['analise-acoes-v1'], { revalidate: 60 }),
+  unstable_cache(montarAnaliseRaw, ['analise-acoes-v1'], { revalidate: 600 }), // 10 min: poupa a cota do Supabase (11/2026)
 );
