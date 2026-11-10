@@ -114,7 +114,7 @@ export function destinoDoLink(
   code: string,
   device: Device,
   clickId: string,
-  origem: 'parceiro' | 'consultora' = 'parceiro',
+  origem: 'parceiro' | 'consultora' | 'amiga' = 'parceiro',
 ): { url: string; landed: Landed } {
   if (device === 'ios' && STORE_IOS_URL) {
     const pt = (process.env.STORE_IOS_PT || '').trim();
@@ -164,7 +164,7 @@ export const DOMINIO_LINKS = 'www.useninho.com.br';
  * https://www.useninho.com.br/r/<código>?c=<id do clique> (parceiro) ou
  * https://www.useninho.com.br/c/<código>?c=<id do clique> (consultora).
  */
-export function linkParaCopiar(codigo: string, clickId: string, tipo: 'r' | 'c' = 'r'): string {
+export function linkParaCopiar(codigo: string, clickId: string, tipo: 'r' | 'c' | 'i' = 'r'): string {
   const u = new URL(`https://${DOMINIO_LINKS}/${tipo}/${encodeURIComponent(codigo)}`);
   if (clickId) u.searchParams.set('c', clickId);
   return u.toString();

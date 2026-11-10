@@ -16,6 +16,8 @@
  *   { ref: '<CÓDIGO>', click_id: '<uuid>', tipo: 'parceiro' }   → registrar_indicacao_parceiro(ref, click_id)
  *   { ref: '<CÓDIGO>', click_id: '<uuid>', tipo: 'consultora' } → registrar_indicacao_consultora(ref, 'link', click_id)
  *     (tipo 'consultora' só sai com versao_atribuicao >= 2)
+ *   { ref: '<CÓDIGO>', click_id: '<uuid>', tipo: 'amiga' }      → registrar_indicacao_amiga(ref, click_id)
+ *     (tipo 'amiga' só sai com versao_atribuicao >= 3; migration 00130)
  *
  * Achou → grava a instalação em painel.install_events (uma por clique, então
  * repetir a chamada não infla "Downloads"). Público (o app ainda não tem
@@ -63,6 +65,7 @@ interface Clique {
   promo_code: string;
   perfil_id: string | null;
   consultora_id?: string | null;
+  amiga_profile_id?: string | null;
 }
 
 type Filtro = { tipo: 'id'; id: string } | { tipo: 'ip'; hashes: string[] };
@@ -87,6 +90,8 @@ export async function POST(req: NextRequest) {
     const sb = painelDb();
     const { clickId: clickCopiado, versao } = await lerCorpo(req);
     const aceitaConsultora = versao >= 2;
+    // 00130: versao_atribuicao >= 3 sabe tratar o link de amiga (/i/<código>).
+    const aceitaAmiga = versao >= 3;
 
     // Com consultora (v2): clique de parceiro OU de consultora. Sem a 00112
     // (coluna consultora_id), cai só em parceiro.
@@ -95,27 +100,36 @@ export async function POST(req: NextRequest) {
     // Uma consulta por tipo de link (parceiro: perfil_id; consultora:
     // consultora_id, 00112) e fica o clique mais recente. Sem a 00112, a de
     // consultora falha e só parceiro casa.
-    async function buscarTipo(f: Filtro, consultora: boolean): Promise<(Clique & { clicked_at: string }) | null> {
+    async function buscarTipo(f: Filtro, tipoLink: 'parceiro' | 'consultora' | 'amiga'): Promise<(Clique & { clicked_at: string }) | null> {
+      const consultora = tipoLink !== 'parceiro';
+      // Amiga casada só pelo IP usa a mesma janela curta da consultora (vale dias grátis).
       const desdeAqui = consultora && f.tipo === 'ip' ? desdeConsultoraIp : desde;
       const base = sb.from('link_clicks').select('*').gte('clicked_at', desdeAqui);
       // Parceiro: perfil_id preenchido. Consultora: consultora_id preenchido e perfil_id nulo.
-      const filtrado = consultora
-        ? base.filter('consultora_id', 'not.is', 'null').filter('perfil_id', 'is', 'null')
-        : base.filter('perfil_id', 'not.is', 'null');
+      const filtrado =
+        tipoLink === 'amiga'
+          ? base.filter('amiga_profile_id', 'not.is', 'null').filter('perfil_id', 'is', 'null')
+          : tipoLink === 'consultora'
+            ? base.filter('consultora_id', 'not.is', 'null').filter('perfil_id', 'is', 'null')
+            : base.filter('perfil_id', 'not.is', 'null');
       const r =
         f.tipo === 'id'
           ? await filtrado.eq('id', f.id).limit(1).maybeSingle()
           : await filtrado.in('ip_hash', f.hashes).order('clicked_at', { ascending: false }).limit(1).maybeSingle();
       if (r.error) {
-        if (consultora) console.warn('[track/match] busca de consultora falhou:', r.error.message);
+        if (consultora) console.warn('[track/match] busca de ' + tipoLink + ' falhou:', r.error.message);
         return null;
       }
       return (r.data as unknown as (Clique & { clicked_at: string }) | null) ?? null;
     }
     async function buscar(f: Filtro): Promise<Clique | null> {
-      const [par, con] = await Promise.all([buscarTipo(f, false), aceitaConsultora ? buscarTipo(f, true) : Promise.resolve(null)]);
-      if (par && con) return par.clicked_at >= con.clicked_at ? par : con;
-      return par ?? con;
+      const [par, con, ami] = await Promise.all([
+        buscarTipo(f, 'parceiro'),
+        aceitaConsultora ? buscarTipo(f, 'consultora') : Promise.resolve(null),
+        aceitaAmiga ? buscarTipo(f, 'amiga') : Promise.resolve(null),
+      ]);
+      // Fica o clique mais recente dos três tipos.
+      return [par, con, ami].filter((x): x is Clique & { clicked_at: string } => !!x).sort((a, b) => (a.clicked_at < b.clicked_at ? 1 : -1))[0] ?? null;
     }
 
     let data: Clique | null = null;
@@ -141,7 +155,7 @@ export async function POST(req: NextRequest) {
       );
       return NextResponse.json({ ref: null }, { headers: CORS });
     }
-    const tipo: 'parceiro' | 'consultora' = data.perfil_id ? 'parceiro' : 'consultora';
+    const tipo: 'parceiro' | 'consultora' | 'amiga' = data.perfil_id ? 'parceiro' : data.amiga_profile_id ? 'amiga' : 'consultora';
     console.log('[track/match] casou', JSON.stringify({ ...diag, via, tipo, versao, codigo: data.promo_code, click: data.id }));
 
     const platform = /android|okhttp/i.test(ua) ? 'android' : /iphone|ipad|ios|darwin|cfnetwork/i.test(ua) ? 'ios' : null;
