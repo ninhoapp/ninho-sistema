@@ -8,6 +8,8 @@ import {
   fetchResumoResgate,
   NOME_CATEGORIA,
   NOME_MOTIVO,
+  NOME_RESPOSTA_RAPIDA,
+  NOME_TIPO_RESGATE,
   type Pendencia,
   type Resgate,
 } from '@/lib/atendimento';
@@ -97,13 +99,24 @@ function LinhaResgate({ r }: { r: Resgate }) {
     <div className={`flex flex-wrap items-start gap-3 border-b border-ninho-borda p-4 text-sm last:border-b-0 ${novo ? 'bg-ninho-roxo-suave/40' : ''}`}>
       <div className="min-w-0 flex-1">
         <p className="font-semibold text-ninho-grafite">
+          <span
+            className={`mr-2 rounded-pill px-2 py-0.5 text-xs ${
+              r.tipo === 'cartao_recusado' ? 'bg-red-100 text-red-700' : 'bg-ninho-nuvem text-ninho-cinza'
+            }`}
+          >
+            {NOME_TIPO_RESGATE[r.tipo] ?? r.tipo}
+          </span>
           {situacao}
+          {r.converteu_em ? <span className="ml-2 rounded-pill bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800">assinou depois</span> : null}
           {r.codigo_oferecido ? <span className="ml-2 rounded-pill bg-ninho-lavanda px-2 py-0.5 text-xs text-ninho-roxo-escuro">recebeu o código</span> : null}
           {r.teste ? <span className="ml-2 rounded-pill bg-ninho-nuvem px-2 py-0.5 text-xs text-ninho-cinza">teste</span> : null}
         </p>
         {r.motivo_resumo && <p className="mt-1 whitespace-pre-wrap text-ninho-grafite">{r.motivo_resumo}</p>}
         <p className="mt-1 text-xs text-ninho-cinza">
           {r.nome ?? 'Sem nome'} · {r.email ?? 'sem e-mail'} · {r.registros} registros · app {r.app_version ?? '?'} · puxada em {quando(r.iniciado_em)}
+          {r.resposta_rapida ? ` · tocou em "${NOME_RESPOSTA_RAPIDA[r.resposta_rapida] ?? r.resposta_rapida}"` : ''}
+          {r.push_enviada_em ? ' · push enviada' : ''}
+          {r.lembrete_em ? ` · lembrete em ${quando(r.lembrete_em)}` : ''}
         </p>
       </div>
       {novo && (
@@ -192,24 +205,41 @@ export default async function AtendimentoPage() {
       {resumoResgate.ativo !== null && (
         <section id="resgates" className="mb-10">
           <div className="mb-1 flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-bold text-ninho-grafite">Por que não assinaram</h2>
+            <h2 className="text-lg font-bold text-ninho-grafite">Conversas que a Nina puxou</h2>
             <span
               className={`rounded-pill px-2.5 py-1 text-xs font-semibold ${
                 resumoResgate.ativo ? 'bg-emerald-100 text-emerald-800' : 'bg-ninho-nuvem text-ninho-cinza'
               }`}
             >
-              {resumoResgate.ativo ? 'Nina puxando conversa' : 'Desligado'}
+              Não assinou: {resumoResgate.ativo ? 'ligado' : 'desligado'}
             </span>
+            {resumoResgate.cartaoAtivo !== null && (
+              <span
+                className={`rounded-pill px-2.5 py-1 text-xs font-semibold ${
+                  resumoResgate.cartaoAtivo ? 'bg-emerald-100 text-emerald-800' : 'bg-ninho-nuvem text-ninho-cinza'
+                }`}
+              >
+                Cartão recusado: {resumoResgate.cartaoAtivo ? 'ligado' : 'desligado'}
+              </span>
+            )}
           </div>
           <p className="mb-3 text-sm text-ninho-cinza">
-            A Nina manda uma mensagem (uma vez só) para quem terminou o teste há mais de 1 dia, usou bastante e não assinou. O motivo que ela entendeu aparece aqui e no topo do painel até você marcar como visto.
+            A Nina manda uma mensagem para quem terminou o teste, usou bastante e não assinou (uma vez só, sem push) e para quem teve o cartão recusado pela loja (com push e um lembrete). O motivo que a pessoa contou, por botão ou por escrito, aparece aqui e no topo do painel até você marcar como visto.
           </p>
-          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Conversas puxadas" value={resumoResgate.iniciados} />
-            <StatCard label="Responderam" value={resumoResgate.responderam} />
-            <StatCard label="Contaram o motivo" value={resumoResgate.comMotivo} />
+          <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatCard label="Não assinou: conversas" value={resumoResgate.porTipo.nao_assinou.iniciados} />
+            <StatCard label="Responderam" value={resumoResgate.porTipo.nao_assinou.responderam} />
             <StatCard label="Receberam o código" value={resumoResgate.codigos} />
+            <StatCard label="Assinaram depois" value={resumoResgate.porTipo.nao_assinou.converteram} hint="Até 60 dias depois da mensagem" />
           </div>
+          {resumoResgate.cartaoAtivo !== null && (
+            <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+              <StatCard label="Cartão recusado: avisos" value={resumoResgate.porTipo.cartao_recusado.iniciados} />
+              <StatCard label="Push enviada" value={resumoResgate.porTipo.cartao_recusado.pushes} />
+              <StatCard label="Responderam" value={resumoResgate.porTipo.cartao_recusado.responderam} />
+              <StatCard label="Cobrança passou depois" value={resumoResgate.porTipo.cartao_recusado.converteram} hint="Até 60 dias depois do aviso" />
+            </div>
+          )}
           {Object.keys(resumoResgate.porMotivo).length > 0 && (
             <p className="mb-3 text-sm text-ninho-grafite">
               {Object.entries(resumoResgate.porMotivo)

@@ -289,12 +289,43 @@ export const NOME_MOTIVO: Record<string, string> = {
   sem_tempo: 'Sem tempo',
   outro_app: 'Usa outro app',
   nao_quer_contato: 'Não quer contato',
+  // Resgate v2 (ENG-008, migration 00125): conversa de cartão recusado.
+  pagamento: 'Vai resolver o pagamento',
+  so_testando: 'Só queria testar',
+  desistiu: 'Não quer continuar',
   outro: 'Outro',
+};
+
+/** Tipos de conversa que a Nina puxa (00125). Antes dela, tudo é "não assinou". */
+export type TipoResgate = 'nao_assinou' | 'cartao_recusado';
+
+export const NOME_TIPO_RESGATE: Record<TipoResgate, string> = {
+  nao_assinou: 'Não assinou',
+  cartao_recusado: 'Cartão recusado',
+};
+
+/** Botão de um toque que a pessoa tocou embaixo da mensagem da Nina. */
+export const NOME_RESPOSTA_RAPIDA: Record<string, string> = {
+  preco: 'Achei caro',
+  funcionalidade: 'Faltou uma função',
+  problema: 'Algo não funcionou',
+  nao_precisa: 'Não preciso mais',
+  outro: 'Outro motivo',
+  resolver: 'Quero resolver o pagamento',
+  so_testando: 'Só queria testar',
+  desistiu: 'Não quero continuar',
 };
 
 export interface Resgate {
   id: string;
   profile_id: string;
+  /** 00125. Sem a coluna, vem 'nao_assinou'. */
+  tipo: TipoResgate;
+  resposta_rapida: string | null;
+  push_enviada_em: string | null;
+  lembrete_em: string | null;
+  /** Assinou (ou a cobrança passou) depois da conversa. Não prova causa. */
+  converteu_em: string | null;
   registros: number;
   app_version: string | null;
   iniciado_em: string;
@@ -309,19 +340,51 @@ export interface Resgate {
   email: string | null;
 }
 
+export interface ResumoTipoResgate {
+  iniciados: number;
+  responderam: number;
+  comMotivo: number;
+  /** Assinaram (ou a cobrança passou) depois da conversa. */
+  converteram: number;
+  /** Receberam a push (só o cartão recusado manda push). */
+  pushes: number;
+}
+
 export interface ResumoResgate {
   iniciados: number;
   responderam: number;
   comMotivo: number;
   codigos: number;
   porMotivo: Record<string, number>;
+  /** Chave do "não assinou". null = a migration 00097 não foi aplicada. */
   ativo: boolean | null;
+  /** Chave do cartão recusado. null = a migration 00125 não foi aplicada. */
+  cartaoAtivo: boolean | null;
+  porTipo: Record<TipoResgate, ResumoTipoResgate>;
 }
 
-const COLUNAS_RESGATE =
+const COLUNAS_RESGATE_V1 =
   'id, profile_id, registros, app_version, iniciado_em, respondeu_em, motivo, motivo_resumo, motivo_em, codigo_oferecido, visto_pelo_dono_em, teste';
+const COLUNAS_RESGATE = `${COLUNAS_RESGATE_V1}, tipo, resposta_rapida, push_enviada_em, lembrete_em, converteu_em`;
 
-async function comNomes(linhas: Omit<Resgate, 'nome' | 'email'>[]): Promise<Resgate[]> {
+type LinhaResgate = Omit<Resgate, 'nome' | 'email'>;
+
+/** Antes da 00125 as colunas novas não existem: preenche com o padrão. */
+function normalizar(linhas: unknown[] | null): LinhaResgate[] {
+  return ((linhas ?? []) as Partial<LinhaResgate>[]).map(
+    (l) =>
+      ({
+        tipo: 'nao_assinou',
+        resposta_rapida: null,
+        push_enviada_em: null,
+        lembrete_em: null,
+        converteu_em: null,
+        ...l,
+      }) as LinhaResgate,
+  );
+}
+
+async function comNomes(linhas: LinhaResgate[]): Promise<Resgate[]> {
   if (linhas.length === 0) return [];
   const ids = [...new Set(linhas.map((l) => l.profile_id))];
   const [{ data: perfis }, emails] = await Promise.all([
@@ -334,44 +397,61 @@ async function comNomes(linhas: Omit<Resgate, 'nome' | 'email'>[]): Promise<Resg
 
 /** Motivos novos (ainda não vistos) para a faixa do topo do painel. */
 export async function fetchAlertaResgate(): Promise<{ novos: number; ultimos: Resgate[] }> {
-  const { data, error, count } = await appDb()
-    .from('atendimento_resgates')
-    .select(COLUNAS_RESGATE, { count: 'exact' })
-    .not('motivo', 'is', null)
-    .neq('motivo', 'nao_quer_contato')
-    .is('visto_pelo_dono_em', null)
-    .order('motivo_em', { ascending: false })
-    .limit(3);
-  if (error) return { novos: 0, ultimos: [] };
-  return { novos: count ?? 0, ultimos: await comNomes((data ?? []) as Omit<Resgate, 'nome' | 'email'>[]) };
+  const consultar = (colunas: string) =>
+    appDb()
+      .from('atendimento_resgates')
+      .select(colunas, { count: 'exact' })
+      .not('motivo', 'is', null)
+      .neq('motivo', 'nao_quer_contato')
+      .is('visto_pelo_dono_em', null)
+      .order('motivo_em', { ascending: false })
+      .limit(3);
+  let r = await consultar(COLUNAS_RESGATE);
+  if (r.error) r = await consultar(COLUNAS_RESGATE_V1);
+  if (r.error) return { novos: 0, ultimos: [] };
+  return { novos: r.count ?? 0, ultimos: await comNomes(normalizar(r.data)) };
 }
 
 export async function fetchResgates(limite = 60): Promise<Resgate[]> {
-  const { data, error } = await appDb()
-    .from('atendimento_resgates')
-    .select(COLUNAS_RESGATE)
-    .order('iniciado_em', { ascending: false })
-    .limit(limite);
-  if (error) return [];
-  return comNomes((data ?? []) as Omit<Resgate, 'nome' | 'email'>[]);
+  const consultar = (colunas: string) =>
+    appDb().from('atendimento_resgates').select(colunas).order('iniciado_em', { ascending: false }).limit(limite);
+  let r = await consultar(COLUNAS_RESGATE);
+  if (r.error) r = await consultar(COLUNAS_RESGATE_V1);
+  if (r.error) return [];
+  return comNomes(normalizar(r.data));
 }
 
 export async function fetchResumoResgate(): Promise<ResumoResgate> {
   const db = appDb();
-  const [{ data }, { data: cfg }] = await Promise.all([
-    db.from('atendimento_resgates').select('respondeu_em, motivo, codigo_oferecido').eq('teste', false),
-    db.from('nina_resgate_config').select('ativo').eq('id', true).maybeSingle(),
+  const ler = (colunas: string) => db.from('atendimento_resgates').select(colunas).eq('teste', false);
+  const [v2, { data: cfg }] = await Promise.all([
+    ler('respondeu_em, motivo, codigo_oferecido, tipo, converteu_em, push_enviada_em'),
+    db.from('nina_resgate_config').select('*').eq('id', true).maybeSingle(),
   ]);
-  const linhas = (data ?? []) as { respondeu_em: string | null; motivo: string | null; codigo_oferecido: string | null }[];
+  const lido = v2.error ? await ler('respondeu_em, motivo, codigo_oferecido') : v2;
+  const linhas = normalizar(lido.data);
   const porMotivo: Record<string, number> = {};
   for (const l of linhas) if (l.motivo) porMotivo[l.motivo] = (porMotivo[l.motivo] ?? 0) + 1;
+  const doTipo = (tipo: TipoResgate): ResumoTipoResgate => {
+    const t = linhas.filter((l) => l.tipo === tipo);
+    return {
+      iniciados: t.length,
+      responderam: t.filter((l) => l.respondeu_em).length,
+      comMotivo: t.filter((l) => l.motivo && l.motivo !== 'nao_quer_contato').length,
+      converteram: t.filter((l) => l.converteu_em).length,
+      pushes: t.filter((l) => l.push_enviada_em).length,
+    };
+  };
+  const c = cfg as { ativo?: boolean; cartao_ativo?: boolean } | null;
   return {
     iniciados: linhas.length,
     responderam: linhas.filter((l) => l.respondeu_em).length,
     comMotivo: linhas.filter((l) => l.motivo).length,
     codigos: linhas.filter((l) => l.codigo_oferecido).length,
     porMotivo,
-    ativo: (cfg as { ativo: boolean } | null)?.ativo ?? null,
+    ativo: c?.ativo ?? null,
+    cartaoAtivo: c?.cartao_ativo ?? null,
+    porTipo: { nao_assinou: doTipo('nao_assinou'), cartao_recusado: doTipo('cartao_recusado') },
   };
 }
 

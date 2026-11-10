@@ -71,8 +71,8 @@ async function FaixaResgate() {
       <span className="flex items-center justify-between gap-3">
         <span className="font-semibold text-ninho-roxo-escuro">
           {alerta.novos === 1
-            ? '1 pessoa contou à Nina por que não assinou'
-            : `${alerta.novos} pessoas contaram à Nina por que não assinaram`}
+            ? '1 pessoa contou o motivo à Nina (não assinou ou cartão recusado)'
+            : `${alerta.novos} pessoas contaram o motivo à Nina (não assinou ou cartão recusado)`}
         </span>
         <span className="shrink-0 rounded-pill bg-white px-3 py-1 text-xs font-semibold text-ninho-roxo-escuro">Ver</span>
       </span>
