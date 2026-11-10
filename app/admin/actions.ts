@@ -1,6 +1,14 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
+import { ipDe } from '@/lib/atribuicao';
+import {
+  ERRO_MUITAS_TENTATIVAS,
+  limparFalhasDeLogin,
+  loginBloqueado,
+  registrarFalhaDeLogin,
+} from '@/lib/auth/login-limite';
 import { findPerfilByLogin, getPerfil, setPassword, updatePerfil } from '@/lib/painel/store';
 import { verifyPassword } from '@/lib/auth/password';
 import { erroSenhaFraca } from '@/lib/auth/senha-forte';
@@ -21,6 +29,10 @@ export async function signIn(_prev: ActionState, formData: FormData): Promise<Ac
   const password = String(formData.get('password') || '');
   if (!login || !password) return { error: 'Preencha usuário e senha.' };
 
+  // Trava contra adivinhação de senha (lib/auth/login-limite.ts): conta só os erros.
+  const ip = ipDe(headers());
+  if (loginBloqueado(login, ip)) return { error: ERRO_MUITAS_TENTATIVAS };
+
   // Falha de infraestrutura (env faltando, schema não exposto, permissão) não
   // pode se disfarçar de credencial errada — são diagnósticos completamente
   // diferentes, e confundir os dois custa horas.
@@ -36,8 +48,10 @@ export async function signIn(_prev: ActionState, formData: FormData): Promise<Ac
   }
 
   if (!perfil || !verifyPassword(password, perfil.password_hash)) {
+    registrarFalhaDeLogin(login, ip);
     return { error: 'Usuário ou senha incorretos.' };
   }
+  limparFalhasDeLogin(login, ip);
 
   setSessionCookie({
     sub: perfil.id,

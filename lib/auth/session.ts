@@ -31,7 +31,15 @@ export interface SessionData {
 }
 
 function secret(): string {
-  return process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'ninho-dev-secret';
+  const s = process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (s) return s;
+  // Em produção NUNCA cai no segredo fixo: ele está no código, e com ele
+  // qualquer pessoa montaria um cookie de admin (auditoria, 10/11/2026).
+  // Sem segredo configurado, o painel recusa a sessão em vez de aceitar.
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('SESSION_SECRET (ou SUPABASE_SERVICE_ROLE_KEY) não está definida: o painel não assina sessão sem ela.');
+  }
+  return 'ninho-dev-secret';
 }
 
 function b64url(input: Buffer | string): string {

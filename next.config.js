@@ -12,6 +12,27 @@ const nextConfig = {
   // a tela do app mostra, e copiado pra public/legal/. Não edite à mão.
   // "Seja parceiro" mudou de /parceiros para /sejaparceiro (09/11/2026, pedido
   // do dono). Links antigos já enviados continuam funcionando.
+  // Cabeçalhos de segurança (auditoria, 10/11/2026). Nada muda na tela.
+  //  - nosniff: o navegador não "adivinha" o tipo de um arquivo.
+  //  - /admin: não abre dentro de outra página (golpe do clique escondido),
+  //    não manda o endereço do painel para outros sites e não entra em buscador.
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [{ key: 'X-Content-Type-Options', value: 'nosniff' }],
+      },
+      {
+        source: '/admin/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          { key: 'Referrer-Policy', value: 'same-origin' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+        ],
+      },
+    ];
+  },
   async redirects() {
     return [
       { source: '/parceiros', destination: '/sejaparceiro', permanent: true },
