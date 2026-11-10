@@ -15,11 +15,12 @@ export const SITE_URL = (
 ).replace(/\/$/, '');
 
 /**
- * Pixel da Meta do site. É o conjunto de dados "Ninho - Diário do Bebê"
- * (o mesmo do SDK do app), com o site conectado em 09/11/2026. O ID não é
- * segredo: aparece no HTML de qualquer site com Pixel. A env só serve para trocar.
+ * Pixel da Meta do site: conjunto de dados "Ninho - Site" (2366017454190349),
+ * criado pelo dono em 10/11/2026. NÃO é o do app: o SDK do iPhone continua no
+ * "Ninho - Diário do Bebê" (2939632986378769), que o site usou só de 09 a 10/11.
+ * O ID não é segredo (aparece no HTML de qualquer site com Pixel). A env só troca.
  */
-export const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID || '2939632986378769';
+export const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID || '2366017454190349';
 
 // Para onde o desktop é direcionado (não tem loja).
 export const LANDING_URL = process.env.NEXT_PUBLIC_LANDING_URL || SITE_URL;

@@ -12,7 +12,8 @@
  * e a Política de Privacidade atualizada.
  *
  * Configurar: META_CAPI_TOKEN na Vercel (Gerenciador de Eventos › conjunto
- * "Ninho - Diário do Bebê" › Configurações › API de Conversões › Gerar token).
+ * "Ninho - Site" › Configurações › API de Conversões › Gerar token; o token do
+ * app não serve).
  * Sem o token, não faz nada (o Pixel do navegador continua funcionando).
  */
 import { META_PIXEL_ID } from '@/lib/config';
