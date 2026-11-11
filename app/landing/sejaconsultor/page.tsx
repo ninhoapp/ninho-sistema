@@ -58,13 +58,6 @@ async function pessoasArredondado(): Promise<number | null> {
 const pct = (p: number) => `${String(p).replace('.', ',')}%`;
 const brl = (v: number) => formatBRL(v);
 
-const PLANOS_TAB: [string, number, boolean][] = [
-  ['Premium mensal', PRECOS.premium.mensal, true],
-  ['Básico mensal', PRECOS.basico.mensal, true],
-  ['Premium anual', PRECOS.premium.anual, false],
-  ['Básico anual', PRECOS.basico.anual, false],
-];
-
 // ── Telas ilustrativas no visual v3 (app e painel), com dados de exemplo ──
 // Referência: Ninho-expo/docs/design/consultora/v3.html, BarraConsultora.tsx
 // e a tela do bebê do app; no web, app/admin/(painel)/consultora e RotinaV3.
