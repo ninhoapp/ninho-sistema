@@ -80,7 +80,10 @@ function CartaoPendencia({ p }: { p: Pendencia }) {
       )}
 
       <div className="mt-4">
-        <ResponderForm pendenciaId={p.id} resumo={p.resumo} />
+        {p.resposta && (
+          <p className="mb-2 text-xs font-semibold text-ninho-roxo-escuro">A equipe já escreveu a resposta: toque em &quot;Ver resposta da Nina&quot;, revise e envie.</p>
+        )}
+        <ResponderForm pendenciaId={p.id} resumo={p.resumo} rascunho={p.resposta} />
       </div>
       <form action={descartar} className="mt-2">
         <input type="hidden" name="id" value={p.id} />

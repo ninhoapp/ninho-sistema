@@ -234,26 +234,43 @@ export async function fetchCustoAtendimento(dias: number): Promise<CustoAtendime
   };
 }
 
-/** Chama a edge function, que entrega a resposta na conversa da pessoa. */
-export async function responderPendencia(input: {
-  pendencia_id: string;
-  resposta: string;
-  ensinar: boolean;
-  pergunta_geral?: string;
-  resposta_geral?: string;
-}): Promise<{ mensagem?: string; push?: { enviados: number; erro?: string } }> {
+async function chamarAtendimento<T>(corpo: Record<string, unknown>): Promise<T> {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY não definidas.');
   const res = await fetch(`${url}/functions/v1/atendimento`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ acao: 'responder_pendencia', ...input }),
+    body: JSON.stringify(corpo),
     cache: 'no-store',
   });
-  const json = (await res.json().catch(() => ({}))) as { error?: string; mensagem?: string; push?: { enviados: number; erro?: string } };
+  const json = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) throw new Error(json.error ?? `Função respondeu ${res.status}`);
   return json;
+}
+
+/** Chama a edge function, que entrega a resposta na conversa da pessoa.
+ *  `texto_pronto`: a resposta é o rascunho que o dono aprovou e vai como está. */
+export async function responderPendencia(input: {
+  pendencia_id: string;
+  resposta: string;
+  texto_pronto?: boolean;
+  ensinar: boolean;
+  pergunta_geral?: string;
+  resposta_geral?: string;
+}): Promise<{ mensagem?: string; push?: { enviados: number; erro?: string } }> {
+  return chamarAtendimento({ acao: 'responder_pendencia', ...input });
+}
+
+export interface RascunhoNina {
+  mensagem: string;
+  pergunta_geral: string;
+  resposta_geral: string;
+}
+
+/** A Nina entende a instrução do dono e devolve o rascunho. Não envia nada. */
+export async function rascunharPendencia(pendencia_id: string, instrucao: string): Promise<RascunhoNina> {
+  return chamarAtendimento<RascunhoNina>({ acao: 'rascunhar_pendencia', pendencia_id, instrucao });
 }
 
 export async function descartarPendencia(id: string): Promise<void> {
