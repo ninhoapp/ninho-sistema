@@ -10,6 +10,7 @@ import {
   NOME_MOTIVO,
   NOME_RESPOSTA_RAPIDA,
   NOME_TIPO_RESGATE,
+  NOME_VOLTARIA,
   type Pendencia,
   type Resgate,
 } from '@/lib/atendimento';
@@ -115,6 +116,17 @@ function LinhaResgate({ r }: { r: Resgate }) {
           {r.teste ? <span className="ml-2 rounded-pill bg-ninho-nuvem px-2 py-0.5 text-xs text-ninho-cinza">teste</span> : null}
         </p>
         {r.motivo_resumo && <p className="mt-1 whitespace-pre-wrap text-ninho-grafite">{r.motivo_resumo}</p>}
+        {r.voltaria && (
+          <p className="mt-1 text-ninho-grafite">
+            <span className="mr-1 rounded-pill bg-ninho-lavanda px-2 py-0.5 text-xs font-semibold text-ninho-roxo-escuro">
+              {NOME_VOLTARIA[r.voltaria] ?? r.voltaria}
+            </span>
+            {r.voltaria_resumo}
+          </p>
+        )}
+        {r.investigar && (
+          <p className="mt-1 text-xs font-semibold text-amber-700">Marcado para investigar{r.nota_dono ? `: ${r.nota_dono}` : ''}</p>
+        )}
         <p className="mt-1 text-xs text-ninho-cinza">
           {r.nome ?? 'Sem nome'} · {r.email ?? 'sem e-mail'} · {r.registros} registros · app {r.app_version ?? '?'} · puxada em {quando(r.iniciado_em)}
           {r.resposta_rapida ? ` · tocou em "${NOME_RESPOSTA_RAPIDA[r.resposta_rapida] ?? r.resposta_rapida}"` : ''}
@@ -227,8 +239,14 @@ export default async function AtendimentoPage() {
             )}
           </div>
           <p className="mb-3 text-sm text-ninho-cinza">
-            A Nina manda uma mensagem para quem terminou o teste, usou bastante e não assinou (uma vez só, sem push) e para quem teve o cartão recusado pela loja (com push e um lembrete). O motivo que a pessoa contou, por botão ou por escrito, aparece aqui e no topo do painel até você marcar como visto.
+            A Nina manda uma mensagem para quem terminou o teste, usou bastante e não assinou (uma vez só, com uma push no dia seguinte ao fim do teste) e para quem teve o cartão recusado pela loja (com push e um lembrete). O motivo que a pessoa contou, por botão ou por escrito, e se ela voltaria com o problema resolvido aparecem aqui e no topo do painel até você marcar como visto.
           </p>
+          <a
+            href="/admin/atendimento/resgates"
+            className="mb-4 inline-block rounded-pill border border-ninho-roxo px-4 py-2 text-sm font-semibold text-ninho-roxo-escuro hover:bg-ninho-roxo-suave"
+          >
+            Ver tudo o que a Nina coletou, com filtros →
+          </a>
           <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatCard label="Não assinou: conversas" value={resumoResgate.porTipo.nao_assinou.iniciados} />
             <StatCard label="Responderam" value={resumoResgate.porTipo.nao_assinou.responderam} />

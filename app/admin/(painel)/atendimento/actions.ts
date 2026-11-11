@@ -9,6 +9,7 @@ import {
   excluirAprendizado,
   marcarResgateVisto,
   rascunharPendencia,
+  salvarInvestigacao,
   responderPendencia,
   type RascunhoNina,
 } from '@/lib/atendimento';
@@ -95,4 +96,14 @@ export async function marcarVisto(fd: FormData): Promise<void> {
   await marcarResgateVisto(id || null);
   revalidatePath(CAMINHO);
   revalidatePath('/admin', 'layout');
+}
+
+/** Resgate: marca para investigar (ou tira) e guarda a nota do dono. */
+export async function investigar(fd: FormData): Promise<void> {
+  requireRole('admin');
+  const id = String(fd.get('id') ?? '');
+  if (!id) return;
+  await salvarInvestigacao(id, fd.get('investigar') === 'true', String(fd.get('nota') ?? ''));
+  revalidatePath(`${CAMINHO}/resgates`);
+  revalidatePath(CAMINHO);
 }

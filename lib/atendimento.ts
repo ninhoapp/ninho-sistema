@@ -353,9 +353,23 @@ export interface Resgate {
   codigo_oferecido: string | null;
   visto_pelo_dono_em: string | null;
   teste: boolean;
+  /** 00138: "se isso for corrigido, você voltaria?" (sim, talvez, nao). */
+  voltaria: Voltaria | null;
+  voltaria_resumo: string | null;
+  /** 00138: marcado pelo dono para investigar, com nota. */
+  investigar: boolean;
+  nota_dono: string | null;
   nome: string | null;
   email: string | null;
 }
+
+export type Voltaria = 'sim' | 'talvez' | 'nao';
+
+export const NOME_VOLTARIA: Record<Voltaria, string> = {
+  sim: 'Voltaria',
+  talvez: 'Talvez voltasse',
+  nao: 'Não voltaria',
+};
 
 export interface ResumoTipoResgate {
   iniciados: number;
@@ -382,7 +396,8 @@ export interface ResumoResgate {
 
 const COLUNAS_RESGATE_V1 =
   'id, profile_id, registros, app_version, iniciado_em, respondeu_em, motivo, motivo_resumo, motivo_em, codigo_oferecido, visto_pelo_dono_em, teste';
-const COLUNAS_RESGATE = `${COLUNAS_RESGATE_V1}, tipo, resposta_rapida, push_enviada_em, lembrete_em, converteu_em`;
+const COLUNAS_RESGATE_V2 = `${COLUNAS_RESGATE_V1}, tipo, resposta_rapida, push_enviada_em, lembrete_em, converteu_em`;
+const COLUNAS_RESGATE = `${COLUNAS_RESGATE_V2}, voltaria, voltaria_resumo, investigar, nota_dono`;
 
 type LinhaResgate = Omit<Resgate, 'nome' | 'email'>;
 
@@ -396,6 +411,10 @@ function normalizar(linhas: unknown[] | null): LinhaResgate[] {
         push_enviada_em: null,
         lembrete_em: null,
         converteu_em: null,
+        voltaria: null,
+        voltaria_resumo: null,
+        investigar: false,
+        nota_dono: null,
         ...l,
       }) as LinhaResgate,
   );
@@ -424,6 +443,7 @@ export async function fetchAlertaResgate(): Promise<{ novos: number; ultimos: Re
       .order('motivo_em', { ascending: false })
       .limit(3);
   let r = await consultar(COLUNAS_RESGATE);
+  if (r.error) r = await consultar(COLUNAS_RESGATE_V2);
   if (r.error) r = await consultar(COLUNAS_RESGATE_V1);
   if (r.error) return { novos: 0, ultimos: [] };
   return { novos: r.count ?? 0, ultimos: await comNomes(normalizar(r.data)) };
@@ -433,9 +453,90 @@ export async function fetchResgates(limite = 60): Promise<Resgate[]> {
   const consultar = (colunas: string) =>
     appDb().from('atendimento_resgates').select(colunas).order('iniciado_em', { ascending: false }).limit(limite);
   let r = await consultar(COLUNAS_RESGATE);
+  if (r.error) r = await consultar(COLUNAS_RESGATE_V2);
   if (r.error) r = await consultar(COLUNAS_RESGATE_V1);
   if (r.error) return [];
   return comNomes(normalizar(r.data));
+}
+
+/** Filtros da página /admin/atendimento/resgates (pedido do dono, 11/11/2026). */
+export interface FiltroResgates {
+  tipo?: TipoResgate;
+  /** Código do motivo, "sem_motivo" ou vazio (todos). */
+  motivo?: string;
+  /** sim, talvez, nao, "sem_resposta" ou vazio (todos). */
+  voltaria?: string;
+  /** respondeu, nao_respondeu ou vazio. */
+  situacao?: string;
+  investigar?: boolean;
+  /** Dias para trás (pela data da conversa). 0 = tudo. */
+  dias?: number;
+  /** Busca no resumo do motivo, na condição e na nota. */
+  busca?: string;
+  /** Inclui as conversas de teste da equipe. */
+  testes?: boolean;
+}
+
+/** Tudo o que a Nina já coletou, filtrado. Lê até 2.000 linhas (o público é
+ *  de dezenas por mês); o filtro de texto roda aqui, não no banco. */
+export async function fetchResgatesFiltrados(f: FiltroResgates): Promise<Resgate[]> {
+  const consultar = (colunas: string) => {
+    let q = appDb().from('atendimento_resgates').select(colunas).order('iniciado_em', { ascending: false }).limit(2000);
+    if (!f.testes) q = q.eq('teste', false);
+    if (f.dias && f.dias > 0) q = q.gte('iniciado_em', new Date(Date.now() - f.dias * 86_400_000).toISOString());
+    return q;
+  };
+  let r = await consultar(COLUNAS_RESGATE);
+  if (r.error) r = await consultar(COLUNAS_RESGATE_V2);
+  if (r.error) r = await consultar(COLUNAS_RESGATE_V1);
+  if (r.error) return [];
+  const busca = (f.busca ?? '').trim().toLowerCase();
+  const linhas = normalizar(r.data).filter((l) => {
+    if (f.tipo && l.tipo !== f.tipo) return false;
+    if (f.motivo === 'sem_motivo' ? Boolean(l.motivo) : f.motivo && l.motivo !== f.motivo) return false;
+    if (f.voltaria === 'sem_resposta' ? Boolean(l.voltaria) : f.voltaria && l.voltaria !== f.voltaria) return false;
+    if (f.situacao === 'respondeu' && !l.respondeu_em) return false;
+    if (f.situacao === 'nao_respondeu' && l.respondeu_em) return false;
+    if (f.investigar && !l.investigar) return false;
+    if (busca && ![l.motivo_resumo, l.voltaria_resumo, l.nota_dono].some((t) => (t ?? '').toLowerCase().includes(busca))) return false;
+    return true;
+  });
+  return comNomes(linhas);
+}
+
+/** A conversa de cada resgate (da mensagem da Nina em diante), por id do resgate. */
+export async function fetchConversasDosResgates(linhas: Resgate[]): Promise<Map<string, MensagemConversa[]>> {
+  const mapa = new Map<string, MensagemConversa[]>();
+  if (linhas.length === 0) return mapa;
+  const ids = [...new Set(linhas.map((l) => l.profile_id))];
+  const desde = linhas.reduce((min, l) => (l.iniciado_em < min ? l.iniciado_em : min), linhas[0].iniciado_em);
+  const { data } = await appDb()
+    .from('atendimento_mensagens')
+    .select('profile_id, role, content, created_at')
+    .in('profile_id', ids)
+    .gte('created_at', desde)
+    .order('created_at', { ascending: true })
+    .limit(5000);
+  const msgs = (data ?? []) as { profile_id: string; role: string; content: string; created_at: string }[];
+  for (const l of linhas) {
+    mapa.set(
+      l.id,
+      msgs
+        .filter((m) => m.profile_id === l.profile_id && m.created_at >= l.iniciado_em)
+        .slice(0, 40)
+        .map((m) => ({ role: m.role, content: m.content, created_at: m.created_at }) as MensagemConversa),
+    );
+  }
+  return mapa;
+}
+
+/** Marca (ou desmarca) para investigar e guarda a nota do dono. */
+export async function salvarInvestigacao(id: string, investigar: boolean, nota: string): Promise<void> {
+  const { error } = await appDb()
+    .from('atendimento_resgates')
+    .update({ investigar, investigar_em: investigar ? new Date().toISOString() : null, nota_dono: nota.trim().slice(0, 2000) || null })
+    .eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 export async function fetchResumoResgate(): Promise<ResumoResgate> {
