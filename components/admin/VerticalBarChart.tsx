@@ -3,12 +3,18 @@ export function VerticalBarChart({
   data,
   height = 180,
   formatValue,
+  onBarClick,
+  selecionada = null,
 }: {
   /** `highlight`: marca o bucket ainda em andamento (hoje, mês atual) com um
    *  contorno tracejado, pra não ler um número baixo ali como queda. */
   data: { label: string; value: number; color?: string; highlight?: boolean }[];
   height?: number;
   formatValue?: (v: number) => string;
+  /** Com isto, cada barra vira um botão (ex.: filtrar a tabela pelo dia). */
+  onBarClick?: (index: number) => void;
+  /** Barra escolhida: as outras ficam mais claras. */
+  selecionada?: number | null;
 }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   const fmt = formatValue ?? ((v: number) => String(v));
@@ -27,8 +33,24 @@ export function VerticalBarChart({
     // ("R$" em cima, "493,50" embaixo) em vez de empurrar a largura.
     <div className="rounded-2xl border border-ninho-borda bg-white p-3 sm:p-5">
       <div className="flex items-end gap-1 sm:gap-3" style={{ height }}>
-        {data.map((d) => (
-          <div key={d.label} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
+        {data.map((d, i) => {
+          const apagada = selecionada !== null && selecionada !== i;
+          const Coluna = onBarClick ? 'button' : 'div';
+          return (
+          <Coluna
+            key={d.label}
+            {...(onBarClick
+              ? {
+                  type: 'button' as const,
+                  onClick: () => onBarClick(i),
+                  title: selecionada === i ? 'Clique de novo para tirar o filtro' : `Ver só ${d.label}`,
+                  'aria-pressed': selecionada === i,
+                }
+              : {})}
+            className={`flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5 ${
+              onBarClick ? 'cursor-pointer rounded-lg transition hover:bg-ninho-nuvem' : ''
+            } ${apagada ? 'opacity-40' : ''}`}
+          >
             <span className="w-full text-center text-[10px] font-semibold leading-tight text-ninho-grafite sm:text-[11px]">
               {fmt(d.value)}
             </span>
@@ -41,9 +63,16 @@ export function VerticalBarChart({
                 background: d.color || '#9F86E0',
               }}
             />
-            <span className="w-full truncate text-center text-[10px] text-ninho-cinza sm:text-[11px]">{d.label}</span>
-          </div>
-        ))}
+            <span
+              className={`w-full truncate text-center text-[10px] sm:text-[11px] ${
+                selecionada === i ? 'font-bold text-ninho-roxo-escuro' : 'text-ninho-cinza'
+              }`}
+            >
+              {d.label}
+            </span>
+          </Coluna>
+          );
+        })}
       </div>
     </div>
   );

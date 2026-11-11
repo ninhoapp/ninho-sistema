@@ -440,6 +440,16 @@ export const fetchAppUsersTodos = cache(
   unstable_cache(fetchAppUsersRaw, ['app-users-v8'], { revalidate: 600, tags: [APP_USERS_TAG] })
 );
 
+/**
+ * Usuários reais lidos agora, sem o cache de 10 min. Só para Usuários ativos:
+ * o `unstable_cache` devolve a lista velha na 1ª visita depois de vencer (e
+ * só atualiza no fundo), e o dono via o número do dia errado até recarregar
+ * 2 ou 3 vezes (10/11/2026).
+ */
+export const fetchAppUsersAoVivo = cache(async (): Promise<AppUser[]> =>
+  (await fetchAppUsersRaw()).filter((u) => !u.contaDoDono),
+);
+
 /** Usuários reais: sem as contas de teste do dono (dono, 09/11/2026). */
 export const fetchAppUsers = cache(async (): Promise<AppUser[]> =>
   (await fetchAppUsersTodos()).filter((u) => !u.contaDoDono),
@@ -636,13 +646,22 @@ const lerUsoRows = unstable_cache(
   { revalidate: 600 },
 );
 
-export async function fetchUsoPorUsuario(): Promise<Map<string, UsoUsuario>> {
+/** Mesma leitura do RPC, sem cache (Usuários ativos: número de hoje sempre atual). */
+async function lerUsoRowsAgora(): Promise<UsoRow[]> {
+  const { data, error } = await lerTudo<UsoRow>('get_uso_por_usuario', (de, ate) =>
+    appDb().rpc('get_uso_por_usuario').order('profile_id').range(de, ate),
+  );
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function fetchUsoPorUsuario(opts: { aoVivo?: boolean } = {}): Promise<Map<string, UsoUsuario>> {
   const map = new Map<string, UsoUsuario>();
   if (!appDbConfigured()) return map;
 
   let data: UsoRow[];
   try {
-    data = await lerUsoRows();
+    data = opts.aoVivo ? await lerUsoRowsAgora() : await lerUsoRows();
   } catch (e) {
     // Falhar calado aqui viraria uma tabela inteira de zeros passando por
     // "ninguém usa o app" — o tipo de número que muda decisão de produto.

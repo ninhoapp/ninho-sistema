@@ -1,6 +1,6 @@
 import { requireRole } from '@/lib/auth/guard';
 import {
-  fetchAppUsers,
+  fetchAppUsersAoVivo,
   fetchUsoPorUsuario,
   appDbConfigured,
   accountStatus,
@@ -21,8 +21,9 @@ export default async function UsuariosPage() {
   requireRole('admin');
 
   const [users, uso, testePaywall, perfis, consultoras] = await Promise.all([
-    fetchAppUsers(),
-    fetchUsoPorUsuario(),
+    // Ao vivo (sem o cache de 10 min): entrou na tela, vê o número de agora.
+    fetchAppUsersAoVivo(),
+    fetchUsoPorUsuario({ aoVivo: true }),
     fetchGrupoTestePorUsuario(),
     listPerfis().catch(() => []),
     listConsultoras().catch(() => []),

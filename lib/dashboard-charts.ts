@@ -26,6 +26,9 @@ export interface SeriesPoint {
   /** Bucket ainda em andamento (hoje, mês atual) — a UI marca visualmente
    *  pra não ler um número baixo ali como queda. */
   highlight?: boolean;
+  /** Chave do balde: yyyy-mm-dd (dia) ou yyyy-mm (mês). Usada para filtrar
+   *  a tabela ao clicar na barra. */
+  key?: string;
 }
 
 /** Conta quantas datas (ISO) caem em cada um dos últimos N dias (hoje incluso), no fuso do painel. */
@@ -44,7 +47,7 @@ export function bucketByDay(dates: string[], days: number): SeriesPoint[] {
     const d = new Date(now.getTime() - i * 86400000);
     const key = tzDateString(d);
     const [, mm, dd] = key.split('-');
-    pontos.push({ label: `${dd}/${mm}`, value: counts.get(key) ?? 0, highlight: key === hojeStr });
+    pontos.push({ label: `${dd}/${mm}`, value: counts.get(key) ?? 0, highlight: key === hojeStr, key });
   }
   return pontos;
 }
@@ -64,7 +67,7 @@ export function bucketByMonth(dates: string[], months: number): SeriesPoint[] {
     const y = Math.floor(total / 12);
     const m0 = ((total % 12) + 12) % 12;
     const key = `${y}-${String(m0 + 1).padStart(2, '0')}`;
-    pontos.push({ label: `${MES_ABREV[m0]}/${String(y).slice(2)}`, value: counts.get(key) ?? 0, highlight: i === 0 });
+    pontos.push({ label: `${MES_ABREV[m0]}/${String(y).slice(2)}`, value: counts.get(key) ?? 0, highlight: i === 0, key });
   }
   return pontos;
 }
@@ -97,7 +100,9 @@ export interface UsuariosCharts {
 export function buildUsuariosCharts(users: { created_at: string }[]): UsuariosCharts {
   const userDates = users.map((u) => u.created_at);
   return {
-    usuariosPorDia: bucketByDay(userDates, 7),
+    // Hoje + os 7 dias anteriores (dono, 10/11/2026): o 8º dia é o de quem
+    // tem o teste vencendo hoje.
+    usuariosPorDia: bucketByDay(userDates, 8),
     usuariosPorMes: bucketByMonth(userDates, 7),
   };
 }

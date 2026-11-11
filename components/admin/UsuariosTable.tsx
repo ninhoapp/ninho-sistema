@@ -569,6 +569,39 @@ export function UsuariosTable({
   }, [rows, busca, dateFrom, dateTo, colFilters, sort, statFilter, hojeStr]);
 
   const hasColFilter = Object.values(colFilters).some((v) => v !== null);
+  // Barra escolhida nos gráficos = o filtro de datas bate exatamente com ela.
+  const fimDoMes = (ym: string) => {
+    const [y, m] = ym.split('-').map(Number);
+    return `${ym}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
+  };
+  const diaEscolhido = (() => {
+    if (!dateFrom || dateFrom !== dateTo) return null;
+    const i = (usuariosPorDia ?? []).findIndex((p) => p.key === dateFrom);
+    return i >= 0 ? i : null;
+  })();
+  const mesEscolhido = (() => {
+    if (!dateFrom || !dateTo) return null;
+    const i = (usuariosPorMes ?? []).findIndex((p) => p.key && dateFrom === `${p.key}-01` && dateTo === fimDoMes(p.key));
+    return i >= 0 ? i : null;
+  })();
+  function filtrarDatas(de: string, ate: string, jaEscolhida: boolean) {
+    if (jaEscolhida) {
+      setDateFrom('');
+      setDateTo('');
+    } else {
+      setDateFrom(de);
+      setDateTo(ate);
+    }
+  }
+  function clicarDia(i: number) {
+    const k = usuariosPorDia?.[i]?.key;
+    if (k) filtrarDatas(k, k, diaEscolhido === i);
+  }
+  function clicarMes(i: number) {
+    const k = usuariosPorMes?.[i]?.key;
+    if (k) filtrarDatas(`${k}-01`, fimDoMes(k), mesEscolhido === i);
+  }
+
   const hasFilter = busca || sort || hasColFilter || statFilter !== 'total' || dateFrom || dateTo;
 
   // A seleção só vale pra quem está VISÍVEL — filtrou, sai da conta (e da
@@ -691,19 +724,23 @@ export function UsuariosTable({
       </section>
 
       {/* ── Novos usuários (dia/mês) ─────────────────────────────────── */}
+      {/* Clicar numa barra filtra a tabela por aquele dia ou mês (usa o
+          mesmo "Criou entre" de baixo); clicar de novo tira o filtro. */}
       {(usuariosPorDia?.length || usuariosPorMes?.length) ? (
         <div className="mb-6 grid gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-ninho-borda bg-white p-6">
             <h2 className="mb-4 text-base font-bold text-ninho-grafite">
-              Usuários novos por dia (últimos 7 dias)
+              Usuários novos por dia (hoje e os 7 dias antes)
             </h2>
-            <VerticalBarChart data={usuariosPorDia ?? []} height={140} />
+            <VerticalBarChart data={usuariosPorDia ?? []} height={140} onBarClick={clicarDia} selecionada={diaEscolhido} />
+            <p className="mt-2 text-[11px] text-ninho-cinza">Clique num dia para ver só quem entrou nele. O 1º dia é o de quem tem o teste de 7 dias vencendo hoje.</p>
           </section>
           <section className="rounded-2xl border border-ninho-borda bg-white p-6">
             <h2 className="mb-4 text-base font-bold text-ninho-grafite">
               Usuários novos por mês (últimos 7 meses)
             </h2>
-            <VerticalBarChart data={usuariosPorMes ?? []} height={140} />
+            <VerticalBarChart data={usuariosPorMes ?? []} height={140} onBarClick={clicarMes} selecionada={mesEscolhido} />
+            <p className="mt-2 text-[11px] text-ninho-cinza">Clique num mês para ver só quem entrou nele.</p>
           </section>
         </div>
       ) : null}
