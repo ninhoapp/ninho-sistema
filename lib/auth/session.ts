@@ -28,6 +28,12 @@ export interface SessionData {
   role: Role;
   name: string;
   exp: number; // epoch seconds
+  /**
+   * "Versão" da senha no momento do login (auditoria, 10/11/2026). Trocou a
+   * senha, a versão muda e o cookie antigo deixa de valer (lib/auth/guard.ts).
+   * Cookies emitidos antes disso não têm o campo e seguem valendo até vencer.
+   */
+  pv?: string;
 }
 
 function secret(): string {
@@ -52,6 +58,20 @@ function b64url(input: Buffer | string): string {
 
 function sign(payload: string): string {
   return b64url(createHmac('sha256', secret()).update(payload).digest());
+}
+
+/**
+ * Marca curta e assinada da senha atual. Não revela nada da senha: é um HMAC
+ * (com o segredo do painel) do hash guardado no banco.
+ */
+export function versaoDaSenha(passwordHash: string | null | undefined): string {
+  if (!passwordHash) return '';
+  return sign(`pv:${passwordHash}`).slice(0, 16);
+}
+
+/** true = o cookie foi emitido com outra senha (trocaram depois do login). */
+export function senhaMudou(s: SessionData, passwordHash: string | null | undefined): boolean {
+  return !!s.pv && versaoDaSenha(passwordHash) !== s.pv;
 }
 
 export function serializeSession(data: Omit<SessionData, 'exp'>): string {

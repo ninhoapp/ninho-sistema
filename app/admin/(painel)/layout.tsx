@@ -1,4 +1,4 @@
-import { requireSession, requireSessionAtiva } from '@/lib/auth/guard';
+import { conferirSenhaDoAdmin, requireSession, requireSessionAtiva } from '@/lib/auth/guard';
 import { signOut } from '@/app/admin/actions';
 import { AdminLogo } from '@/components/admin/AdminLogo';
 import { SidebarNav } from '@/components/admin/SidebarNav';
@@ -22,6 +22,9 @@ export default async function PainelLayout({ children }: { children: React.React
   // fica só no cookie, para o painel não travar se o banco piscar.
   const cookie = requireSession();
   const session = cookie.role === 'admin' ? cookie : await requireSessionAtiva();
+  // Admin: se a senha mudou depois do login, o cookie antigo não entra mais.
+  // Banco fora do ar não derruba (auditoria, 10/11/2026).
+  if (cookie.role === 'admin') await conferirSenhaDoAdmin(cookie);
 
   return (
     <div className="min-h-screen bg-ninho-nuvem text-ninho-grafite">

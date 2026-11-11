@@ -47,7 +47,10 @@ function pedacosPessoais(pessoais: (string | null | undefined)[]): string[] {
   const out = new Set<string>();
   for (const p of pessoais) {
     if (!p) continue;
-    for (const parte of semAcento(p).split(/[^a-z0-9]+/)) if (parte.length >= 3) out.add(parte);
+    // E-mail: só o que vem antes do @. O domínio ("gmail", "com", "hotmail")
+    // não é dado pessoal e recusava qualquer senha com "com" (10/11/2026).
+    const base = p.includes('@') ? p.slice(0, p.lastIndexOf('@')) : p;
+    for (const parte of semAcento(base).split(/[^a-z0-9]+/)) if (parte.length >= 3) out.add(parte);
   }
   return Array.from(out);
 }

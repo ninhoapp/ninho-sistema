@@ -486,9 +486,9 @@ export default async function SejaConsultoraPage() {
             </div>
             <div className="nc-big">
               <div className="nc-ico">R$</div>
-              <div className="num">{pct(PCT_DIRETO)}</div>
-              <b>De comissão por {PARCELAS_MENSAL} meses</b>
-              <p>Em cada família que criar a conta pelo seu link ou código e assinar: {pct(PCT_DIRETO)} por {PARCELAS_MENSAL} meses no mensal, ou 1x no anual. Indicada por outra consultora: {pct(PCT_REDE)} + {pct(PCT_REDE)}.</p>
+              <div className="num">até {pct(PCT_DIRETO)}</div>
+              <b>De comissão por até {PARCELAS_MENSAL} meses</b>
+              <p>Em cada família que criar a conta pelo seu link ou código e assinar: até {pct(PCT_DIRETO)} por até {PARCELAS_MENSAL} meses no mensal, ou 1x no anual. Indicada por outra consultora, a comissão é dividida meio a meio.</p>
             </div>
             <div className="nc-big">
               <div className="nc-ico">★</div>
@@ -534,7 +534,7 @@ export default async function SejaConsultoraPage() {
           <div className="nc-g3" style={{ marginTop: 24 }}>
             {[
               ['1', 'A família cria a conta e assina', 'Pelo seu link ou código.'],
-              ['2', `Comissão por ${PARCELAS_MENSAL} meses`, `Mensal: ${pct(PCT_DIRETO)} todo mês, por ${PARCELAS_MENSAL} meses. Anual: ${pct(PCT_DIRETO)} uma vez só.`],
+              ['2', `Comissão por até ${PARCELAS_MENSAL} meses`, `Mensal: até ${pct(PCT_DIRETO)} todo mês, por até ${PARCELAS_MENSAL} meses. Anual: até ${pct(PCT_DIRETO)} uma vez só.`],
               ['3', 'Pix todo mês', 'Até o 5º dia útil do mês seguinte.'],
             ].map(([n, t, d]) => (
               <div key={n} className="nc-passo"><i>{n}</i><div><b>{t}</b><p>{d}</p></div></div>
@@ -547,7 +547,7 @@ export default async function SejaConsultoraPage() {
             <div className="nc-card">
               <h3>Quem ganha o quê</h3>
               <div className="nc-arv">
-                <div className="nc-no raiz"><b>Ana</b><small>veio direto ao Ninho</small><span className="nc-badge v">{pct(PCT_DIRETO)} das famílias dela</span></div>
+                <div className="nc-no raiz"><b>Ana</b><small>veio direto ao Ninho</small><span className="nc-badge v">até {pct(PCT_DIRETO)} das famílias dela</span></div>
                 <div className="nc-linha" />
                 <div className="nc-no"><b>Bia</b><small>indicada pela Ana</small><span className="nc-badge v">Bia {pct(PCT_REDE)}</span><span className="nc-badge l">Ana {pct(PCT_REDE)}</span></div>
                 <div className="nc-linha" />
@@ -555,22 +555,10 @@ export default async function SejaConsultoraPage() {
               </div>
             </div>
             <div className="nc-card">
-              <h3>Quanto você recebe por família <span style={{ fontSize: 12, color: '#9A95AD', fontWeight: 600 }}>· sobre o preço cheio</span></h3>
-              <table className="nc-tb">
-                <thead><tr><th>Plano da família</th><th className="r">{pct(PCT_DIRETO)}</th><th className="r">{pct(PCT_REDE)}</th></tr></thead>
-                <tbody>
-                  {PLANOS_TAB.map(([nome, preco, mensal]) => (
-                    <tr key={nome}>
-                      <td><b>{nome}</b> {brl(preco)}</td>
-                      <td className="r">{brl(valorComissao(preco, PCT_DIRETO))}{mensal ? `/mês · ${PARCELAS_MENSAL}x` : ' · 1x'}</td>
-                      <td className="r">{brl(valorComissao(preco, PCT_REDE))}{mensal ? `/mês · ${PARCELAS_MENSAL}x` : ' · 1x'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <h3>Quanto você recebe por família</h3>
+              <p>Até {pct(PCT_DIRETO)} do preço cheio da assinatura de cada família que veio pelo seu link ou código, por até {PARCELAS_MENSAL} meses no plano mensal, ou uma vez no anual.</p>
               <div className="nc-banner verde">
-                Exemplo: <b>10 famílias no Premium mensal</b> dão <b>{brl(somar(Array(10).fill(ex)))} por mês</b> durante {PARCELAS_MENSAL} meses, ou{' '}
-                <b>{brl(somar(Array(10 * PARCELAS_MENSAL).fill(ex)))}</b> no total. Se a família cancelar ou pedir reembolso, a comissão dela para.
+                O valor de cada família aparece no seu painel, em <b>Ganhos</b>, com a data do Pix. Se a família cancelar ou pedir reembolso, a comissão dela para.
               </div>
             </div>
           </div>
@@ -585,7 +573,7 @@ export default async function SejaConsultoraPage() {
               <li>Você é independente e responde sozinha pelas orientações que dá às famílias. Nunca indique remédio, dose ou posição de sono, nem prometa resultado. Saúde é com o pediatra.</li>
               <li>Use a rotina dos bebês só para atender aquela família. Não copie, não guarde e não divulgue esses dados.</li>
               <li>Ao divulgar seu link, avise que tem parceria com o Ninho (&ldquo;#publi&rdquo;).</li>
-              <li>Comissão: {pct(PCT_DIRETO)} (ou {pct(PCT_REDE)} + {pct(PCT_REDE)} quando você foi indicada) por {PARCELAS_MENSAL} meses no plano mensal, ou uma vez no anual. Pagamento por Pix até o 5º dia útil do mês seguinte. Vale só para famílias que criaram a conta pelo seu link ou código (o vínculo sozinho não gera, e quem achou você pela lista do app também não) e acaba quando a família cancela ou pede reembolso.</li>
+              <li>Comissão: até {pct(PCT_DIRETO)} (dividida meio a meio quando você foi indicada) por até {PARCELAS_MENSAL} meses no plano mensal, ou uma vez no anual. Pagamento por Pix até o 5º dia útil do mês seguinte. Vale só para famílias que criaram a conta pelo seu link ou código (o vínculo sozinho não gera, e quem achou você pela lista do app também não) e acaba quando a família cancela ou pede reembolso.</li>
               <li>Se o Ninho for cobrado por algo que você fez, você ressarce.</li>
             </ul>
             <p style={{ marginTop: 8 }}>O termo completo aparece no app, na primeira vez que você entra como consultora.</p>

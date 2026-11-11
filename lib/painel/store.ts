@@ -14,6 +14,7 @@ import { painelDb, appDb } from '@/lib/supabase/server';
 import { lerTudo } from '@/lib/supabase/paginar';
 import { hashPassword } from '@/lib/auth/password';
 import type { Role } from '@/lib/auth/session';
+import type { Cartao, CartaoCanal, Canal } from '@/lib/painel/cartoes';
 
 export interface Perfil {
   id: string;
@@ -55,6 +56,11 @@ export interface Cost {
   ref_month: string;
   series_id: string | null;
   created_at: string;
+  /** Linha automática ('auto:meta_ads', 'nota:apple_ads:<nº>'); null = lançada à mão. */
+  origem?: string | null;
+  /** Dia da cobrança no cartão. Com ela, o banco calcula o mês da fatura (00128). */
+  data_cobranca?: string | null;
+  cartao_id?: string | null;
 }
 
 export interface LeadOutcome {
@@ -213,16 +219,71 @@ export async function listCosts(): Promise<Cost[]> {
   return (data as Cost[]) ?? [];
 }
 
+/**
+ * Com `data_cobranca`, o mês sai do banco (gatilho da 00128: mês da fatura do
+ * cartão); o `ref_month` mandado aqui é só o valor que a tela já calculou.
+ */
 export async function addCost(input: {
   label: string;
   kind: 'fixo' | 'variavel';
   category: 'app' | 'marketing';
   amount: number;
   ref_month: string;
+  data_cobranca?: string | null;
+  cartao_id?: string | null;
 }) {
   const sb = painelDb();
   const { error } = await sb.from('custos').insert(input);
   return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+// ── Cartões (00128) ───────────────────────────────────────
+export async function listCartoes(): Promise<Cartao[]> {
+  const { data, error } = await painelDb().from('cartoes').select('*').order('created_at');
+  if (error) {
+    // Antes da 00128 a tabela não existe: a tela segue sem a parte de cartões.
+    console.error('[painel] cartoes:', error.message);
+    return [];
+  }
+  return (data as Cartao[]) ?? [];
+}
+
+export async function listCartaoPorCanal(): Promise<CartaoCanal[]> {
+  const { data, error } = await painelDb().from('cartao_por_canal').select('canal,desde,cartao_id').order('desde');
+  if (error) {
+    console.error('[painel] cartao_por_canal:', error.message);
+    return [];
+  }
+  return (data as CartaoCanal[]) ?? [];
+}
+
+export async function addCartao(input: {
+  id: string;
+  nome: string;
+  final4: string | null;
+  dia_fechamento: number;
+  dia_vencimento: number | null;
+}) {
+  const { error } = await painelDb().from('cartoes').insert(input);
+  if (error?.code === '23505') return { ok: false, error: 'Já existe um cartão com esse nome.' };
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/**
+ * "A partir de `desde`, o canal paga no cartão X." Para a Meta, refaz na hora
+ * as linhas automáticas de Despesas (cada dia vai para o mês da fatura do
+ * cartão daquele dia). Notas da Apple já lançadas não mudam de mês sozinhas.
+ */
+export async function trocarCartaoCanal(canal: Canal, desde: string, cartao_id: string) {
+  const { error } = await painelDb()
+    .from('cartao_por_canal')
+    .upsert({ canal, desde, cartao_id }, { onConflict: 'canal,desde' });
+  if (error) return { ok: false, error: error.message };
+  if (canal === 'meta_ads') {
+    const { error: e2 } = await appDb().rpc('registrar_gasto_diario', { p_canal: 'meta_ads', p_moeda: 'AED', p_dias: [] });
+    if (e2) return { ok: false, error: `Troca gravada, mas a Meta não foi refeita: ${e2.message}` };
+  }
+  return { ok: true };
 }
 
 /** Lança um custo fixo repetido em vários meses (de fromMonth até toMonth, inclusive). */
@@ -277,6 +338,9 @@ export async function updateCost(
     category: 'app' | 'marketing';
     amount: number;
     ref_month: string;
+    /** Mandar os dois (ou null nos dois): com data, o banco refaz o mês. */
+    data_cobranca?: string | null;
+    cartao_id?: string | null;
   }
 ) {
   const sb = painelDb();

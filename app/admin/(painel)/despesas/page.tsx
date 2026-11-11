@@ -1,10 +1,11 @@
 import { requireRole } from '@/lib/auth/guard';
-import { listCosts } from '@/lib/painel/store';
+import { listCosts, listCartoes, listCartaoPorCanal } from '@/lib/painel/store';
 import { custosDoMes } from '@/lib/metrics';
 import { formatAED } from '@/lib/cambio';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
 import { CostsManager } from '@/components/admin/CostsManager';
+import { CartoesManager } from '@/components/admin/CartoesManager';
 import { MonthFilter } from '@/components/admin/MonthFilter';
 import { ConfirmButton } from '@/components/admin/ConfirmButton';
 import { zerarCustosDoMes } from '@/app/admin/(painel)/admin-actions';
@@ -23,7 +24,7 @@ export default async function DespesasPage({
 }) {
   requireRole('admin');
   const mes = mesValido(searchParams.mes);
-  const custos = await listCosts();
+  const [custos, cartoes, historico] = await Promise.all([listCosts(), listCartoes(), listCartaoPorCanal()]);
 
   const doMes = custosDoMes(custos, mes);
   const tudo = custosDoMes(custos);
@@ -37,7 +38,7 @@ export default async function DespesasPage({
     <>
       <PageHeader
         title="Despesas"
-        subtitle="Custos de operar o Ninho, todos em AED (custo em US$ ou R$ entra convertido para AED). Marketing fica separado de App porque é ele que vira CAC."
+        subtitle="Custos de operar o Ninho, todos em AED (custo em US$ ou R$ entra convertido para AED). Cada despesa conta no mês em que a fatura do cartão fecha. Marketing fica separado de App porque é ele que vira CAC."
         right={<MonthFilter value={mes} />}
       />
 
@@ -62,7 +63,13 @@ export default async function DespesasPage({
         )}
       </div>
 
-      <CostsManager custos={custos} mesFiltro={mes} />
+      <CostsManager custos={custos} mesFiltro={mes} cartoes={cartoes} historico={historico} />
+
+      {cartoes.length > 0 && (
+        <div className="mt-6">
+          <CartoesManager cartoes={cartoes} historico={historico} />
+        </div>
+      )}
     </>
   );
 }

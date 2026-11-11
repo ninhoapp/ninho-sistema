@@ -17,6 +17,7 @@ import {
   clearSessionCookie,
   getSession,
   homeForRole,
+  versaoDaSenha,
 } from '@/lib/auth/session';
 
 export interface ActionState {
@@ -58,10 +59,35 @@ export async function signIn(_prev: ActionState, formData: FormData): Promise<Ac
     username: perfil.username,
     role: perfil.role,
     name: perfil.display_name,
+    pv: versaoDaSenha(perfil.password_hash),
   });
   // Senha provisória: troca antes de entrar (09/11/2026).
   if (perfil.trocar_senha) redirect('/admin/trocar-senha');
   redirect(homeForRole(perfil.role));
+}
+
+/**
+ * Quem acabou de trocar a PRÓPRIA senha continua logado neste aparelho: o
+ * cookie é reemitido com a versão nova da senha. Os outros cookies desta
+ * conta (outro aparelho, ou um cookie copiado) ficam com a versão velha e
+ * param de valer (lib/auth/guard.ts). Se a leitura falhar, a pessoa só
+ * precisa entrar de novo com a senha nova.
+ */
+async function renovarCookieDepoisDaTroca(session: { sub: string; pv?: string }): Promise<void> {
+  if (!session.pv) return; // cookie antigo, sem versão: segue como estava
+  try {
+    const p = await getPerfil(session.sub);
+    if (!p) return;
+    setSessionCookie({
+      sub: p.id,
+      username: p.username,
+      role: p.role,
+      name: p.display_name,
+      pv: versaoDaSenha(p.password_hash),
+    });
+  } catch {
+    /* sem cookie novo: entra de novo com a senha nova */
+  }
 }
 
 /** 1º acesso com senha provisória: a pessoa cria a própria senha. */
@@ -78,6 +104,7 @@ export async function trocarSenhaProvisoria(_prev: ActionState, formData: FormDa
   if (verifyPassword(nova, perfil.password_hash)) return { error: 'Escolha uma senha diferente da provisória.' };
   const res = await setPassword(perfil.id, nova, false);
   if (!res.ok) return { error: res.error || 'Falha ao salvar.' };
+  await renovarCookieDepoisDaTroca(session);
   redirect(homeForRole(perfil.role));
 }
 
@@ -132,6 +159,7 @@ export async function changeOwnPassword(
 
   const res = await setPassword(perfil.id, nova);
   if (!res.ok) return { error: res.error || 'Falha ao salvar.' };
+  await renovarCookieDepoisDaTroca(session);
   return { ok: true };
 }
 

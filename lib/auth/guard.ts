@@ -21,7 +21,7 @@
  * └─────────────────────────────────────────────────────────────────────────┘
  */
 import { redirect } from 'next/navigation';
-import { getSession, type Role, type SessionData } from '@/lib/auth/session';
+import { getSession, senhaMudou, type Role, type SessionData } from '@/lib/auth/session';
 
 export function requireSession(): SessionData {
   const s = getSession();
@@ -52,6 +52,8 @@ export async function requireSessionAtiva(roles?: Role | Role[]): Promise<Sessio
   const { getPerfil } = await import('@/lib/painel/store');
   const perfil = await getPerfil(s.sub);
   if (!perfil || !perfil.active) redirect('/admin/login?erro=sessao');
+  // Trocaram a senha depois deste login: o cookie antigo não vale mais.
+  if (senhaMudou(s, perfil.password_hash)) redirect('/admin/login?erro=sessao');
   // Senha provisória (criada pelo dono): troca obrigatória antes de qualquer tela.
   if (perfil.trocar_senha) redirect('/admin/trocar-senha');
   const atual: SessionData = { ...s, role: perfil.role, username: perfil.username, name: perfil.display_name };
@@ -60,4 +62,40 @@ export async function requireSessionAtiva(roles?: Role | Role[]): Promise<Sessio
     if (!allowed.includes(atual.role)) redirect('/admin');
   }
   return atual;
+}
+
+/**
+ * Admin: o cookie deixa de valer quando a senha muda (auditoria, 10/11/2026).
+ *
+ * Antes, um cookie de admin copiado continuava abrindo o painel por até 7 dias
+ * mesmo depois de trocar a senha. Agora o layout do painel confere, a cada
+ * tela, se a senha do login ainda é a mesma, se o perfil está ativo e se
+ * continua admin.
+ *
+ * Se o banco piscar, NÃO derruba ninguém (mesma decisão do layout: o painel
+ * não trava por causa do banco). Cookie sem `pv` (emitido antes desta
+ * mudança) segue valendo até vencer, em no máximo 7 dias.
+ *
+ * Limite conhecido: isto roda nas TELAS. As ações do admin continuam conferindo
+ * só o cookie (requireRole é síncrono em ~120 lugares). Para derrubar na hora
+ * TODAS as sessões de todo mundo, troque SESSION_SECRET na Vercel.
+ */
+export async function conferirSenhaDoAdmin(s: SessionData): Promise<void> {
+  if (!s.pv) return;
+  let linha: { password_hash: string; active: boolean; role: Role } | null = null;
+  try {
+    const { painelDb } = await import('@/lib/supabase/server');
+    const { data, error } = await painelDb()
+      .from('perfis')
+      .select('password_hash, active, role')
+      .eq('id', s.sub)
+      .maybeSingle();
+    if (error) return;
+    linha = data as typeof linha;
+  } catch {
+    return;
+  }
+  if (!linha || !linha.active || linha.role !== 'admin' || senhaMudou(s, linha.password_hash)) {
+    redirect('/admin/login?erro=sessao');
+  }
 }

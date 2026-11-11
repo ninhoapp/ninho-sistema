@@ -17,6 +17,9 @@ import {
   excluirUsuarioApp,
   addCost,
   addCostSeries,
+  listCartoes,
+  addCartao,
+  trocarCartaoCanal,
   updateCost,
   deleteCost,
   deleteCostSeries,
@@ -30,6 +33,7 @@ import {
 } from '@/lib/painel/store';
 import { resetCostsMonth, resetConversorStats, resetLeadsOcultos } from '@/lib/reset';
 import type { Role } from '@/lib/auth/session';
+import { CANAIS, mesDaFatura, type Canal } from '@/lib/painel/cartoes';
 
 export interface ActionState {
   error?: string;
@@ -167,6 +171,25 @@ export async function removerPerfil(fd: FormData) {
 }
 
 // ── Custos ────────────────────────────────────────────────
+/**
+ * Data da cobrança + cartão → mês da fatura (regra do dono, 10/11/2026; o
+ * banco confere com o gatilho da 00128). Sem data, vale o mês digitado.
+ */
+async function mesDoLancamento(fd: FormData): Promise<{ ref?: string; data?: string; cartao?: string; error?: string }> {
+  const data = String(fd.get('data_cobranca') || '').trim();
+  const cartao = String(fd.get('cartao_id') || '').trim();
+  if (data) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return { error: 'Data da cobrança inválida.' };
+    const cartoes = await listCartoes();
+    const c = cartoes.find((x) => x.id === cartao);
+    if (!c) return { error: 'Escolha o cartão em que caiu a cobrança.' };
+    return { ref: mesDaFatura(data, c.dia_fechamento), data, cartao };
+  }
+  const ref = String(fd.get('ref_month') || '').slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(ref)) return { error: 'Informe a data da cobrança (ou o mês).' };
+  return { ref };
+}
+
 export async function criarCusto(_prev: ActionState, fd: FormData): Promise<ActionState> {
   requireRole('admin');
 
@@ -174,18 +197,23 @@ export async function criarCusto(_prev: ActionState, fd: FormData): Promise<Acti
   const amount = num(fd.get('amount'));
   const kind = String(fd.get('kind') || 'fixo') as 'fixo' | 'variavel';
   const category = String(fd.get('category') || 'app') as 'app' | 'marketing';
-  const ref = String(fd.get('ref_month') || '');
   const ate = String(fd.get('ate_month') || '');
 
   if (!label) return { error: 'Descrição é obrigatória.' };
   if (amount <= 0) return { error: 'Valor precisa ser maior que zero.' };
-  if (!ref) return { error: 'Mês de referência é obrigatório.' };
+  const mes = await mesDoLancamento(fd);
+  if (mes.error || !mes.ref) return { error: mes.error || 'Mês inválido.' };
+  const ref = mes.ref;
 
-  // Custo fixo com "até" vira uma parcela por mês do intervalo.
+  // Custo fixo com "até" vira uma parcela por mês do intervalo, a partir do
+  // mês da fatura da 1ª cobrança.
   const res =
-    kind === 'fixo' && ate && ate !== ref
+    kind === 'fixo' && ate && ate > ref
       ? await addCostSeries({ label, category, amount, fromMonth: ref, toMonth: ate })
-      : await addCost({ label, kind, category, amount, ref_month: `${ref}-01` });
+      : await addCost({
+          label, kind, category, amount, ref_month: `${ref}-01`,
+          data_cobranca: mes.data ?? null, cartao_id: mes.cartao ?? null,
+        });
 
   if (!res.ok) return { error: res.error || 'Falha ao lançar.' };
   revalidatePath('/admin/despesas');
@@ -198,24 +226,66 @@ export async function salvarCusto(_prev: ActionState, fd: FormData): Promise<Act
   const id = String(fd.get('id') || '');
   const label = String(fd.get('label') || '').trim();
   const amount = num(fd.get('amount'));
-  const ref = String(fd.get('ref_month') || '');
   if (!id) return { error: 'Lançamento não encontrado.' };
   if (!label) return { error: 'Descrição é obrigatória.' };
   if (amount <= 0) return { error: 'Valor precisa ser maior que zero.' };
-  if (!/^\d{4}-\d{2}/.test(ref)) return { error: 'Mês de referência é obrigatório.' };
+  const mes = await mesDoLancamento(fd);
+  if (mes.error || !mes.ref) return { error: mes.error || 'Mês inválido.' };
   // Edita só esta linha. Numa série de custo fixo, as outras parcelas ficam como estão.
   const res = await updateCost(id, {
     label,
     kind: String(fd.get('kind') || 'fixo') as 'fixo' | 'variavel',
     category: String(fd.get('category') || 'app') as 'app' | 'marketing',
     amount,
-    ref_month: ref.slice(0, 7),
+    ref_month: mes.ref,
+    data_cobranca: mes.data ?? null,
+    cartao_id: mes.cartao ?? null,
   });
   if (!res.ok) return { error: res.error || 'Falha ao salvar.' };
   revalidatePath('/admin/despesas');
   revalidatePath('/admin/faturamento');
   revalidatePath('/admin/crescimento');
   revalidatePath('/admin/visao-geral');
+  return { ok: true };
+}
+
+// ── Cartões (00128) ───────────────────────────────────────
+/** "A partir de tal dia, o canal paga no cartão X." A Meta se refaz na hora. */
+export async function trocarCartao(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  requireRole('admin');
+  const canal = String(fd.get('canal') || '') as Canal;
+  const cartao = String(fd.get('cartao_id') || '');
+  const desde = String(fd.get('desde') || '');
+  if (!(canal in CANAIS)) return { error: 'Escolha o canal.' };
+  if (!cartao) return { error: 'Escolha o cartão.' };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde)) return { error: 'Informe a partir de que dia.' };
+  const res = await trocarCartaoCanal(canal, desde, cartao);
+  if (!res.ok) return { error: res.error || 'Falha ao trocar o cartão.' };
+  revalidatePath('/admin/despesas');
+  revalidatePath('/admin/faturamento');
+  return { ok: true };
+}
+
+export async function criarCartao(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  requireRole('admin');
+  const nome = String(fd.get('nome') || '').trim();
+  const final4 = String(fd.get('final4') || '').trim() || null;
+  const fecha = Math.round(num(fd.get('dia_fechamento')));
+  const vence = Math.round(num(fd.get('dia_vencimento'))) || null;
+  if (!nome) return { error: 'Dê um nome ao cartão.' };
+  if (final4 && !/^\d{4}$/.test(final4)) return { error: 'Final do cartão: 4 números.' };
+  if (fecha < 1 || fecha > 31) return { error: 'Dia de fechamento entre 1 e 31.' };
+  if (vence !== null && (vence < 1 || vence > 31)) return { error: 'Dia de vencimento entre 1 e 31.' };
+  const id = `${nome}${final4 ? `-${final4}` : ''}`
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
+    .slice(0, 40);
+  const res = await addCartao({ id, nome, final4, dia_fechamento: fecha, dia_vencimento: vence });
+  if (!res.ok) return { error: res.error || 'Falha ao cadastrar.' };
+  revalidatePath('/admin/despesas');
   return { ok: true };
 }
 
