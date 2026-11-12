@@ -39,7 +39,7 @@ const CONSULTORA: NavItem[] = [
   { href: '/admin/consultora', label: 'Início' },
   { href: '/admin/consultora?aba=familias', label: 'Famílias' },
   { href: '/admin/consultora?aba=rotina', label: 'Rotina' },
-  { href: '/admin/consultora?aba=semana', label: 'Semana' },
+  { href: '/admin/consultora?aba=semana', label: 'Evolução' },
   { href: '/admin/consultora?aba=relatorio', label: 'Relatório IA' },
   { href: '/admin/consultora?aba=convidar', label: 'Convidar família' },
   { href: '/admin/consultora?aba=ganhos', label: 'Ganhos' },

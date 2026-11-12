@@ -41,6 +41,7 @@ import {
 import {
   costumeAntes,
   descreverRegistro,
+  periodosDaRotina,
   diaLocalDe,
   diaV3,
   dur,
@@ -688,7 +689,7 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
   if (!f) {
     return (
       <>
-        <Titulo t={semana ? 'Semana' : 'Rotina do bebê'} />
+        <Titulo t={semana ? 'Evolução' : 'Rotina do bebê'} />
         <Card><p className="py-8 text-center text-sm text-ninho-cinza">{c.estado === 'pausada' ? 'Conta pausada: a rotina volta quando o Ninho reativar.' : 'Nenhuma família ainda.'}</p></Card>
       </>
     );
@@ -719,8 +720,8 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
   }
 
   if (!semana) {
-    // Padrão: ontem (o último dia que já tem a noite inteira); hoje também abre.
-    const dia = sp.dia && /^\d{4}-\d{2}-\d{2}$/.test(sp.dia) && sp.dia <= hoje && sp.dia >= somarDias(hoje, -30) ? sp.dia : somarDias(hoje, -1);
+    // Padrão: HOJE (dono, 13/11/2026; antes abria em ontem).
+    const dia = sp.dia && /^\d{4}-\d{2}-\d{2}$/.test(sp.dia) && sp.dia <= hoje && sp.dia >= somarDias(hoje, -30) ? sp.dia : hoje;
     const de = new Date(inicioDoDia(somarDias(dia, -8)) - 12 * H);
     const ate = new Date(Math.min(inicioDoDia(somarDias(dia, 1)) + 14 * H, agora + 60_000));
     const { registros, semAcesso } = await rotinaDe(c.id, f.baby_id, de, ate);
@@ -768,7 +769,7 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
             <div className="max-h-[460px] overflow-auto">
               {/* Na ordem do dia, igual à Sequência ao lado (dono, 12/11/2026). */}
               {[...d.resumo.registros].reverse().map((reg) => {
-                const x = descreverRegistro(reg, agora);
+                const x = descreverRegistro(reg, agora, periodosDaRotina(registros, agora).periodos.get(new Date(reg.inicio).getTime()));
                 return (
                   <div key={reg.id} className="flex items-center gap-3 border-b border-[#F3F0F8] py-2.5 last:border-0">
                     <span className="h-9 w-9 shrink-0 rounded-full" style={{ background: `${x.cor}33`, boxShadow: `inset 0 0 0 3px ${x.cor}` }} />
@@ -791,43 +792,51 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
     );
   }
 
-  // Semana: os 7 dias que já terminaram (o último é ontem), comparados aos 7 anteriores.
-  const ultimo = sp.dia && /^\d{4}-\d{2}-\d{2}$/.test(sp.dia) && sp.dia < hoje && sp.dia >= somarDias(hoje, -28) ? sp.dia : somarDias(hoje, -1);
-  const de = new Date(inicioDoDia(somarDias(ultimo, -14)) - 12 * H);
+  // Semana: os dias que já terminaram (o último é ontem), comparados ao período
+  // anterior. O período (7, 14 ou 30, padrão 7) é o da Evolução do sono e manda
+  // também nos números de cima (dono, 13/11/2026).
+  const evoDias = sp.evo === '14' ? 14 : sp.evo === '30' ? 30 : 7;
+  const evoQ = `&evo=${evoDias}`;
+  const ultimo = sp.dia && /^\d{4}-\d{2}-\d{2}$/.test(sp.dia) && sp.dia < hoje && sp.dia >= somarDias(hoje, -60) ? sp.dia : somarDias(hoje, -1);
+  const de = new Date(inicioDoDia(somarDias(ultimo, -Math.max(14, evoDias))) - 12 * H);
   const ate = new Date(Math.min(inicioDoDia(somarDias(ultimo, 1)) + 14 * H, agora + 60_000));
   const { registros, semAcesso } = await rotinaDe(c.id, f.baby_id, de, ate);
-  const ini = somarDias(ultimo, -6);
+  // 14 e 30: o período anterior num segundo pedido (o servidor entrega até 35 dias).
+  const regsAntes =
+    evoDias === 7 || semAcesso
+      ? registros
+      : (await rotinaDe(c.id, f.baby_id, new Date(inicioDoDia(somarDias(ultimo, -2 * evoDias)) - 12 * H), new Date(inicioDoDia(somarDias(ultimo, -evoDias + 1)) + 14 * H))).registros;
+  const ini = somarDias(ultimo, -(evoDias - 1));
   const nav = (
     <div className="flex items-center gap-2 rounded-pill bg-white p-1 shadow-[inset_0_0_0_1.5px_#ECE6F5]">
-      {ultimo > somarDias(hoje, -28) ? <Link href={`${BASE}?aba=semana&bebe=${f.baby_id}&dia=${somarDias(ultimo, -7)}`} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F3EEFC] text-[#7C5CD6]">‹</Link> : <span className="h-8 w-8" />}
+      {ultimo > somarDias(hoje, -60) ? <Link href={`${BASE}?aba=semana&bebe=${f.baby_id}&dia=${somarDias(ultimo, -evoDias)}${evoQ}`} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F3EEFC] text-[#7C5CD6]">‹</Link> : <span className="h-8 w-8" />}
       <b className="min-w-[140px] text-center text-[13.5px]">{dataBr(ini).slice(0, 5)} – {dataBr(ultimo).slice(0, 5)}</b>
-      {ultimo < somarDias(hoje, -1) ? <Link href={`${BASE}?aba=semana&bebe=${f.baby_id}&dia=${somarDias(ultimo, 7) < hoje ? somarDias(ultimo, 7) : somarDias(hoje, -1)}`} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F3EEFC] text-[#7C5CD6]">›</Link> : <span className="h-8 w-8" />}
+      {ultimo < somarDias(hoje, -1) ? <Link href={`${BASE}?aba=semana&bebe=${f.baby_id}&dia=${somarDias(ultimo, evoDias) < hoje ? somarDias(ultimo, evoDias) : somarDias(hoje, -1)}${evoQ}`} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F3EEFC] text-[#7C5CD6]">›</Link> : <span className="h-8 w-8" />}
     </div>
   );
   const head = (
     <Titulo
       t={`Semana de ${f.bebe_nome}`}
-      sub={`${dataBr(ini).slice(0, 5)} a ${dataBr(ultimo).slice(0, 5)} · comparado a ${dataBr(somarDias(ini, -7)).slice(0, 5)} a ${dataBr(somarDias(ultimo, -7)).slice(0, 5)}`}
+      sub={`${dataBr(ini).slice(0, 5)} a ${dataBr(ultimo).slice(0, 5)} · comparado a ${dataBr(somarDias(ini, -evoDias)).slice(0, 5)} a ${dataBr(somarDias(ultimo, -evoDias)).slice(0, 5)}`}
       direita={seletor(<>{nav}<Link href={`${BASE}?aba=relatorio&bebe=${f.baby_id}&dias=7`} className={botao.grad}>Relatório IA desta semana</Link></>)}
     />
   );
   if (semAcesso) return <>{head}{trava('Sem acesso à rotina deste bebê agora.')}</>;
+  // Os desenhos da semana continuam de 7 dias; os números de cima seguem o período.
   const s = semanaV3(registros, ultimo, agora);
-  const a = semanaV3(registros, somarDias(ultimo, -7), agora);
-  // Evolução do sono: até 30 dias que terminam hoje (pedido próprio, o servidor entrega até 35).
-  const evoDias = sp.evo === '7' ? 7 : sp.evo === '30' ? 30 : 14;
+  const sp_ = semanaV3(registros, ultimo, agora, evoDias);
+  const a = semanaV3(regsAntes, somarDias(ultimo, -evoDias), agora, evoDias);
   const evoLib = evolucaoLiberada(c.email_liberado);
-  const evoRot = evoLib ? await rotinaDe(c.id, f.baby_id, new Date(inicioDoDia(somarDias(hoje, -30)) - 6 * H), new Date(agora + 60_000)) : null;
-  const evo = !evoRot || evoRot.semAcesso ? [] : evolucaoSono(evoRot.registros, hoje, evoDias, agora);
+  const evo = evoLib ? evolucaoSono(registros, ultimo, evoDias, agora) : [];
   const vinculoDia = f.vinculado_em ? new Date(new Date(f.vinculado_em).getTime() + FUSO_MS).toISOString().slice(0, 10) : null;
   return (
     <>
       {head}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">
-        <KpiDelta grande rotulo="Noite, em média" valor={s.noiteMed !== null ? dur(s.noiteMed) : '—'} sub={<><Delta agora={s.noiteMed} antes={a.noiteMed} melhorQuando="maior" fmt={(x) => dur(x)} />{a.noiteMed !== null ? `antes ${dur(a.noiteMed)}` : ''} · {s.noitesCompletas} de 7 noites completas</>} />
-        <KpiDelta rotulo="Despertares por noite" valor={s.despertaresMed !== null ? um(s.despertaresMed) : '—'} sub={<><Delta agora={s.despertaresMed} antes={a.despertaresMed} melhorQuando="menor" fmt={um} />{a.despertaresMed !== null ? `antes ${um(a.despertaresMed)}` : ''}</>} />
-        <KpiDelta rotulo="1º bloco" valor={s.blocoMed !== null ? dur(s.blocoMed) : '—'} sub={<><Delta agora={s.blocoMed} antes={a.blocoMed} melhorQuando="maior" fmt={(x) => dur(x)} />{a.blocoMed !== null ? `antes ${dur(a.blocoMed)}` : ''}</>} />
-        <KpiDelta rotulo="Sonecas por dia" valor={s.sonecasPorDia !== null ? `${um(s.sonecasPorDia)} · ${dur(s.sonecasMinMed ?? 0)}` : '—'} sub={a.sonecasPorDia !== null ? `antes ${um(a.sonecasPorDia)} · ${dur(a.sonecasMinMed ?? 0)}` : undefined} />
+        <KpiDelta grande rotulo="Noite, em média" valor={sp_.noiteMed !== null ? dur(sp_.noiteMed) : '—'} sub={<><Delta agora={sp_.noiteMed} antes={a.noiteMed} melhorQuando="maior" fmt={(x) => dur(x)} />{a.noiteMed !== null ? `antes ${dur(a.noiteMed)}` : ''} · {sp_.noitesCompletas} de {evoDias} noites completas</>} />
+        <KpiDelta rotulo="Despertares por noite" valor={sp_.despertaresMed !== null ? um(sp_.despertaresMed) : '—'} sub={<><Delta agora={sp_.despertaresMed} antes={a.despertaresMed} melhorQuando="menor" fmt={um} />{a.despertaresMed !== null ? `antes ${um(a.despertaresMed)}` : ''}</>} />
+        <KpiDelta rotulo="1º bloco" valor={sp_.blocoMed !== null ? dur(sp_.blocoMed) : '—'} sub={<><Delta agora={sp_.blocoMed} antes={a.blocoMed} melhorQuando="maior" fmt={(x) => dur(x)} />{a.blocoMed !== null ? `antes ${dur(a.blocoMed)}` : ''}</>} />
+        <KpiDelta rotulo="Sonecas por dia" valor={sp_.sonecasPorDia !== null ? `${um(sp_.sonecasPorDia)} · ${dur(sp_.sonecasMinMed ?? 0)}` : '—'} sub={a.sonecasPorDia !== null ? `antes ${um(a.sonecasPorDia)} · ${dur(a.sonecasMinMed ?? 0)}` : undefined} />
       </div>
       {evoLib && <Card
         className="mt-4"
@@ -835,7 +844,7 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
         direita={
           <span className="flex gap-1.5">
             {[7, 14, 30].map((n) => (
-              <Link key={n} href={`${BASE}?aba=semana&bebe=${f.baby_id}${sp.dia ? `&dia=${sp.dia}` : ''}&evo=${n}`} className={`rounded-full px-3 py-1 text-[12px] font-bold ${n === evoDias ? 'bg-[#7C5CD6] text-white' : 'bg-[#F5F1FB] text-ninho-cinza'}`}>
+              <Link key={n} href={`${BASE}?aba=semana&bebe=${f.baby_id}&evo=${n}`} className={`rounded-full px-3 py-1 text-[12px] font-bold ${n === evoDias ? 'bg-[#7C5CD6] text-white' : 'bg-[#F5F1FB] text-ninho-cinza'}`}>
                 {n} dias
               </Link>
             ))}
@@ -1265,7 +1274,6 @@ async function Convidar({ c, ok, erro }: { c: Consultora; ok?: string; erro?: st
 async function Ganhos({ c, mes }: { c: Consultora; mes?: string }) {
   const [g, eventos, base] = await Promise.all([montarGanhos(c), eventosDosLinks(), baseComissoes()]);
   const funil = funilDaConsultora(c.id, base.familias, eventos, ultimosMesesFunil(6));
-  const { count: indicadas } = await appDb().from('consultoras').select('id', { count: 'exact', head: true }).eq('indicada_por', c.id);
   const meses = g.meses.map((m) => m.competencia);
   const m = mes && meses.includes(mes) ? mes : meses[0] ?? null;
   const ls = m ? g.linhas.filter((l) => l.competencia === m) : [];
@@ -1299,13 +1307,10 @@ async function Ganhos({ c, mes }: { c: Consultora; mes?: string }) {
         </div>
       )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi rotulo="Famílias" valor={g.resumo.familias} sub="compartilham a rotina" />
-        <Kpi rotulo="Assinantes" valor={g.resumo.assinantes} sub="famílias suas que pagam hoje" />
-        <Kpi
-          rotulo={`Cliques no seu link (${nomeMes(mesNoPainel(new Date()))})`}
-          valor={eventos ? eventos.cliques.filter((e) => e.consultora_id === c.id && mesNoPainel(e.quando) === mesNoPainel(new Date())).length : '—'}
-          sub={`${indicadas ?? g.resumo.indicadas} consultora${(indicadas ?? g.resumo.indicadas) === 1 ? '' : 's'} indicada${(indicadas ?? g.resumo.indicadas) === 1 ? '' : 's'} por você`}
-        />
+        {/* Dono, 13/11/2026: o que conta é quem criou conta pelo link dela. */}
+        <Kpi rotulo="Cadastros" valor={g.resumo.cadastros} sub="criaram conta pelo seu link" />
+        <Kpi rotulo="Assinaturas" valor={g.resumo.assinaturas} sub="assinaram depois do cadastro" />
+        <Kpi rotulo="Cancelamentos" valor={g.resumo.cancelamentos} sub="cancelaram a assinatura" />
         <Kpi
           verde
           rotulo={atual ? `Comissão de ${nomeMes(atual.competencia)} (R$)` : 'Comissão (R$)'}

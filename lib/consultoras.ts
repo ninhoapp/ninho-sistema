@@ -453,7 +453,9 @@ export function pagamentoDe(pagamentos: Pagamento[], consultoraId: string, compe
 // ── Ganhos (formato do contrato, o mesmo para o app e a web) ──
 export interface Ganhos {
   consultora: { nome: string; codigo: string | null; estado: EstadoConsultora; indicada_por_nome: string | null };
-  resumo: { familias: number; assinantes: number; indicadas: number };
+  /** familias/assinantes/indicadas ficam para versões antigas do app. Desde
+   *  13/11/2026 (dono) os cartões são Cadastros, Assinaturas e Cancelamentos. */
+  resumo: { familias: number; assinantes: number; indicadas: number; cadastros: number; assinaturas: number; cancelamentos: number };
   meses: {
     competencia: string;
     total: number;
@@ -555,6 +557,10 @@ export async function montarGanhos(c: Consultora): Promise<Ganhos> {
       familias: vinculos.filter((v) => v.consultora_id === c.id).length,
       assinantes: base.familias.filter((f) => f.consultoraId === c.id && f.gera && f.pagaHoje).length,
       indicadas: base.consultoras.filter((x) => x.indicada_por === c.id).length,
+      // Pelo link dela (comissão): quem criou conta, quem assinou e quem cancelou.
+      cadastros: base.familias.filter((f) => f.consultoraId === c.id && f.gera).length,
+      assinaturas: base.familias.filter((f) => f.consultoraId === c.id && f.gera && f.assinouEm !== null).length,
+      cancelamentos: base.familias.filter((f) => f.consultoraId === c.id && f.gera && f.paradaEm !== null).length,
     },
     meses: competencias.map((comp) => {
       const pg = pagamentoDe(base.pagamentos, c.id, comp);

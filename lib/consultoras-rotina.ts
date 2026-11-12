@@ -9,6 +9,10 @@
  *  - Noite do dia D = sonos que COMEÇAM entre 18:00 de D e 06:00 de D+1.
  *  - "Dormiu à noite" = início do 1º sono dessa janela com 90 min ou mais
  *    (soneca curta no fim da tarde não conta como hora de dormir).
+ *  - Sono noturno ou soneca (dono, 13/11/2026; lib/periodo-do-sono.ts, igual
+ *    ao app): o que a família marcou no lançamento vale; sem marca, a noite
+ *    continua depois das 06:00 quando o bebê acordou ANTES do horário de
+ *    acordar de costume DELE e voltou a dormir logo (até 20–60 min).
  *  - Despertares = intervalos entre os sonos da noite, a partir da hora de dormir.
  *  - Horas até o 1º despertar = duração do 1º sono da noite.
  *  - "Acordou de manhã" no dia D = fim do último sono da noite anterior
@@ -17,6 +21,7 @@
  *    e a hora de dormir (ou 18:00). Janelas = acordado entre eles.
  */
 import type { RegistroRotina } from '@/lib/consultoras';
+import { periodosDosSonos, type PerfilDoSono, type PeriodoSono } from '@/lib/periodo-do-sono';
 
 export const FUSO_MS = -3 * 3600 * 1000;
 const H = 3600 * 1000;
@@ -80,16 +85,51 @@ export interface Noite {
   segmentos: Sono[];
 }
 
+/** Sono noturno ou soneca de cada sono (chave: início em ms), pela regra única. */
+const cachePeriodos = new WeakMap<RegistroRotina[], { periodos: Map<number, PeriodoSono>; perfil: PerfilDoSono }>();
+export function periodosDaRotina(regs: RegistroRotina[], agora: number): { periodos: Map<number, PeriodoSono>; perfil: PerfilDoSono } {
+  const guardado = cachePeriodos.get(regs);
+  if (guardado) return guardado;
+  const lista = regs
+    .filter((r) => r.tipo === 'sleep')
+    .map((r) => {
+      const p = r.detalhe?.periodo;
+      return {
+        id: String(new Date(r.inicio).getTime()),
+        a: new Date(r.inicio).getTime(),
+        b: r.fim ? new Date(r.fim).getTime() : null,
+        periodo: p === 'noite' || p === 'soneca' ? (p as PeriodoSono) : null,
+      };
+    })
+    .filter((x) => Number.isFinite(x.a));
+  const r = periodosDosSonos(lista, agora, minutoDoDia);
+  const out = { periodos: new Map([...r.periodos].map(([k, v]) => [Number(k), v] as [number, PeriodoSono])), perfil: r.perfil };
+  cachePeriodos.set(regs, out);
+  return out;
+}
+
 export function noiteDe(regs: RegistroRotina[], dia: string, agora: number): Noite {
   const ini = inicioDoDia(dia);
   const janelaA = ini + 18 * H;
   const janelaB = ini + 30 * H; // 06:00 de D+1
-  const todos = sonos(regs, agora).filter((s) => s.a >= janelaA && s.a < janelaB);
+  const lista = sonos(regs, agora);
+  const { periodos } = periodosDaRotina(regs, agora);
+  // A família marcou "soneca": não entra na noite, mesmo na janela.
+  const todos = lista.filter((s) => s.a >= janelaA && s.a < janelaB && periodos.get(s.a) !== 'soneca');
   const iDormiu = todos.findIndex((s) => s.b - s.a >= 90 * 60 * 1000 || s.emAndamento);
   if (iDormiu < 0) {
     return { dia, dormiu: null, acordou: null, primeiroTrechoMin: null, despertares: null, totalMin: null, segmentos: [] };
   }
   const seg = todos.slice(iDormiu);
+  // Voltou a dormir depois das 06:00 e a regra diz sono noturno (acordou
+  // antes do horário de costume e voltou logo, ou a família marcou): ainda é
+  // a mesma noite.
+  for (const s of lista) {
+    const ult = seg[seg.length - 1];
+    if (s.a < janelaB || s.a <= ult.a) continue;
+    if (ult.emAndamento || s.a < ult.b || periodos.get(s.a) !== 'noite' || s.a - ult.b > 3 * H) break;
+    seg.push(s);
+  }
   const ultimo = seg[seg.length - 1];
   const acordou = !ultimo.emAndamento && ultimo.b < ini + 35 * H ? ultimo.b : null;
   return {
@@ -196,13 +236,15 @@ export function resumoDoDia(regs: RegistroRotina[], dia: string, agora: number):
 }
 
 /** Rótulo e detalhe de um registro, em português simples. */
-export function descreverRegistro(r: RegistroRotina, agora: number): { titulo: string; detalhe: string; cor: string } {
+export function descreverRegistro(r: RegistroRotina, agora: number, periodo?: PeriodoSono): { titulo: string; detalhe: string; cor: string } {
   const d = r.detalhe as Record<string, string | number | undefined>;
   const a = new Date(r.inicio).getTime();
   const b = r.fim ? new Date(r.fim).getTime() : null;
   if (r.tipo === 'sleep') {
     const min = ((b ?? agora) - a) / 60000;
-    return { titulo: b ? 'Sono' : 'Dormindo', detalhe: `${hora(a)}${b ? ` – ${hora(b)}` : ' · em andamento'} · ${dur(min)}`, cor: '#9F86E0' };
+    // Sono noturno ou soneca pela regra única (13/11/2026); sem o período, "Sono".
+    const nome = periodo === 'noite' ? 'Sono noturno' : periodo === 'soneca' ? 'Soneca' : 'Sono';
+    return { titulo: b ? nome : 'Dormindo', detalhe: `${hora(a)}${b ? ` – ${hora(b)}` : ' · em andamento'} · ${dur(min)}`, cor: '#9F86E0' };
   }
   if (r.tipo === 'feeding') {
     if (r.subtipo === 'bottle') {
@@ -423,6 +465,7 @@ export interface LinhaEvolucao {
 
 export function evolucaoSono(regs: RegistroRotina[], ultimoDia: string, dias: number, agora: number): LinhaEvolucao[] {
   const todos = sonos(regs, agora);
+  const { periodos } = periodosDaRotina(regs, agora);
   const mamadas = regs.filter((r) => r.tipo === 'feeding').map((r) => new Date(r.inicio).getTime());
   const out: LinhaEvolucao[] = [];
   for (let i = dias - 1; i >= 0; i--) {
@@ -437,8 +480,7 @@ export function evolucaoSono(regs: RegistroRotina[], ultimoDia: string, dias: nu
       const b = Math.min(s.b, fim);
       if (b <= a) continue;
       total += (b - a) / 60000;
-      const m = minutoDoDia(s.a);
-      linha.push({ tipo: m >= 19 * 60 || m < 6 * 60 ? 'noite' : 'soneca', de: pos(a), ate: pos(b) });
+      linha.push({ tipo: periodos.get(s.a) === 'noite' ? 'noite' : 'soneca', de: pos(a), ate: pos(b) });
     }
     const n = noiteDe(regs, somarDias(dia, -1), agora);
     out.push({
