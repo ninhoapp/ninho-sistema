@@ -4,9 +4,10 @@
  *
  * Quem convida manda este link pelo WhatsApp. A página:
  *  - mostra o código grande (para digitar no app, se precisar);
- *  - "Baixar o Ninho": copia o próprio link para a área de transferência e
- *    vai para a loja certa. Na 1ª abertura, o cadastro do app lê esse link e
- *    já abre o convite (só lê se for um link nosso, sem "Permitir colar" à toa);
+ *  - grava o toque (IP) em painel.link_clicks com landed='convite': no
+ *    cadastro, o app pergunta a /api/convite/match e o convite abre sozinho,
+ *    sem "Permitir colar" (dono, 12/11/2026: nada de colar);
+ *  - "Baixar o Ninho": vai para a loja certa;
  *  - "Já tenho o Ninho": abre ninho://convite/<código> direto no app.
  *
  * Não consulta o banco: a página não mostra nome de bebê nem de ninguém (o
@@ -14,8 +15,10 @@
  * A resposta varia por aparelho: nunca em cache.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { detectDevice, LANDING_URL, SITE_URL, STORE_ANDROID_URL, STORE_IOS_URL } from '@/lib/config';
-import { escaparHtml, scriptCopiar } from '@/lib/atribuicao-paginas';
+import { detectDevice, LANDING_URL, STORE_ANDROID_URL, STORE_IOS_URL } from '@/lib/config';
+import { escaparHtml } from '@/lib/atribuicao-paginas';
+import { ipDe, ipHash, visitorHash } from '@/lib/atribuicao';
+import { painelDb } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +33,6 @@ function loja(ua: string): string {
 }
 
 function pagina(codigo: string, destino: string): string {
-  const link = `${SITE_URL}/f/${codigo}`;
   const app = `ninho://convite/${codigo}`;
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -62,12 +64,11 @@ h1{font-size:23px;line-height:1.25;margin-bottom:10px;letter-spacing:-.3px}
 <p class="sub">Para cuidar do bebê junto: todo mundo registra, todo mundo vê.</p>
 <div class="card">
   <div class="step"><div class="num">1</div><div>Baixe o Ninho e crie sua conta, com qualquer e-mail.</div></div>
-  <div class="step"><div class="num">2</div><div>O convite abre sozinho. Se pedir, o código é:</div></div>
+  <div class="step"><div class="num">2</div><div>O convite abre sozinho no cadastro. Se não abrir, toque em "Recebeu um convite da família?" e use o código:</div></div>
   <div class="codigo">${escaparHtml(codigo)}</div>
   <a id="baixar" class="btn prim" href="${escaparHtml(destino)}">Baixar o Ninho</a>
   <a class="btn sec" href="${escaparHtml(app)}">Já tenho o Ninho</a>
 </div>
-${scriptCopiar(link, destino)}
 </body>
 </html>`;
 }
@@ -82,6 +83,27 @@ export async function GET(request: NextRequest, { params }: { params: { codigo: 
   }
   const destino = loja(ua);
 
+  if (CODIGO_RE.test(codigo)) {
+    // Só o hash do IP (nunca o IP). Falhar aqui não impede a página.
+    try {
+      const ip = ipDe(request.headers);
+      await painelDb()
+        .from('link_clicks')
+        .insert({
+          promo_code: codigo,
+          device: detectDevice(ua),
+          landed: 'convite',
+          visitor_hash: ip ? visitorHash(ip, ua) : null,
+          ip_hash: ipHash(ip),
+          referrer: null,
+          user_agent: ua.slice(0, 500),
+          perfil_id: null,
+          primeiro_do_visitante: true,
+        });
+    } catch (e) {
+      console.error('[f] toque não gravado:', e instanceof Error ? e.message : e);
+    }
+  }
   const res = CODIGO_RE.test(codigo)
     ? new NextResponse(pagina(codigo, destino), { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
     : NextResponse.redirect(destino, 302);
