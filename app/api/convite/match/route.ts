@@ -11,7 +11,7 @@
  * nunca entram nela.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { cliqueAproximado, ipDe, ipHashesParaLeitura } from '@/lib/atribuicao';
+import { ipDe, ipHashesParaLeitura, ultimoToqueAproximado } from '@/lib/atribuicao';
 import { painelDb } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -33,33 +33,31 @@ export async function POST(req: NextRequest) {
     const sb = painelDb();
     const hashes = ipHashesParaLeitura(ipDe(req.headers));
     const desde = new Date(Date.now() - JANELA_MIN * 60_000).toISOString();
-    let codigo: string | null = null;
+    // Vale só o ÚLTIMO toque (dono, 13/11/2026): se depois do convite a
+    // pessoa tocou no link de uma consultora, parceiro ou amiga, não é
+    // convite — o cadastro segue com a indicação, sem a caixa do convite.
+    let ultimo: { landed: string; promo_code: string } | null = null;
     let via = 'ip';
     if (hashes.length > 0) {
       const { data, error } = await sb
         .from('link_clicks')
-        .select('promo_code, clicked_at')
-        .eq('landed', 'convite')
+        .select('landed, promo_code, clicked_at')
         .in('ip_hash', hashes)
         .gte('clicked_at', desde)
         .order('clicked_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       if (error) console.warn('[convite/match]', error.message);
-      codigo = (data as { promo_code?: string } | null)?.promo_code ?? null;
+      ultimo = (data as { landed: string; promo_code: string } | null) ?? null;
     }
-    // 00145: IP mudou (Retransmissão Privada do Safari, Wi-Fi ↔ 4G): casa pelo
-    // aparelho, pela região e pela hora do toque. O app ainda pergunta antes
-    // de vincular ("Não é isso" desfaz).
-    if (!codigo) {
-      const aprox = await cliqueAproximado(sb, { headers: req.headers, ua: req.headers.get('user-agent') || '', convite: true });
-      if (aprox) {
-        const { data } = await sb.from('link_clicks').select('promo_code').eq('id', aprox).maybeSingle();
-        codigo = (data as { promo_code?: string } | null)?.promo_code ?? null;
-        via = 'aproximado';
-      }
+    // 00145: IP mudou (Retransmissão Privada do Safari, Wi-Fi ↔ 4G): o último
+    // toque do mesmo aparelho e região. O app ainda pergunta antes de vincular.
+    if (!ultimo) {
+      ultimo = await ultimoToqueAproximado(sb, req.headers, req.headers.get('user-agent') || '');
+      via = 'aproximado';
     }
-    console.log('[convite/match]', codigo ? `casou (${via})` : 'nada');
+    const codigo = ultimo?.landed === 'convite' ? ultimo.promo_code : null;
+    console.log('[convite/match]', codigo ? `casou (${via})` : ultimo ? `último toque não é convite (${ultimo.landed})` : 'nada');
     return NextResponse.json({ codigo }, { headers: CORS });
   } catch (e) {
     console.warn('[convite/match]', e);

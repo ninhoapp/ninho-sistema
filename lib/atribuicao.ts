@@ -122,6 +122,32 @@ export async function cliqueAproximado(
   return ids.find((id) => !ja.has(id)) ?? null;
 }
 
+/**
+ * O toque MAIS RECENTE do mesmo aparelho e região nas últimas 2 h, de
+ * qualquer tipo (convite ou indicação). O /api/convite/match só usa o convite
+ * se ele for o último toque: quem tocou num convite e depois no link de uma
+ * consultora não pode cair no convite antigo (dono, 13/11/2026).
+ */
+export async function ultimoToqueAproximado(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  headers: Headers,
+  ua: string,
+): Promise<{ id: string; landed: string; promo_code: string } | null> {
+  const plataforma = plataformaDoApp(ua);
+  const { geo_pais, geo_regiao } = geoDe(headers);
+  if (!plataforma || !geo_pais) return null;
+  const desde = new Date(Date.now() - JANELA_APROXIMADA_MIN * 60_000).toISOString();
+  let q = sb.from('link_clicks').select('id, landed, promo_code').eq('device', plataforma).eq('geo_pais', geo_pais).gte('clicked_at', desde);
+  if (geo_regiao) q = q.eq('geo_regiao', geo_regiao);
+  const { data, error } = await q.order('clicked_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) {
+    console.warn('[atribuicao] último toque falhou:', error.message);
+    return null;
+  }
+  return (data as { id: string; landed: string; promo_code: string } | null) ?? null;
+}
+
 /** IP do cliente (a Vercel põe o original em primeiro no x-forwarded-for). */
 export function ipDe(headers: Headers): string {
   return headers.get('x-forwarded-for')?.split(',')[0]?.trim() || headers.get('x-real-ip') || '';
