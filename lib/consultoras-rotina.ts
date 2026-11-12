@@ -400,3 +400,54 @@ export function faixaTxt(f: FaixaHorario | undefined): string | null {
   if (!f || f.min === null || f.max === null) return null;
   return f.min === f.max ? hhmm(f.min) : `${hhmm(f.min)}–${hhmm(f.max)}`;
 }
+
+// ── Evolução do sono (dono, 12/11/2026) ───────────────────
+// Liberada só para algumas contas enquanto o dono confere (igual ao app,
+// src/features/consultora/liberacao.ts). Para todas: EVOLUCAO_PARA_TODAS = true.
+const EVOLUCAO_PARA_TODAS = false;
+const EVOLUCAO_CONTAS = new Set(['joana.oliveira85@yahoo.com.br', 'ninhoap00@gmail.com', 'ninhoapp00@gmail.com', 'mailsonoliveira41@gmail.com']);
+export function evolucaoLiberada(email: string | null | undefined): boolean {
+  return EVOLUCAO_PARA_TODAS || EVOLUCAO_CONTAS.has((email ?? '').trim().toLowerCase());
+}
+
+// Um dia por linha, todas de 18h da véspera às 18h do dia (noite anterior +
+// sonecas do dia), para ver o sono se organizando. Igual ao app
+// (src/features/consultora/logic.ts, evolucaoDoSono).
+export interface LinhaEvolucao {
+  dia: string;
+  sonos: { tipo: 'noite' | 'soneca'; de: number; ate: number }[];
+  mamadas: number[];
+  totalMin: number | null;
+  despertares: number | null;
+}
+
+export function evolucaoSono(regs: RegistroRotina[], ultimoDia: string, dias: number, agora: number): LinhaEvolucao[] {
+  const todos = sonos(regs, agora);
+  const mamadas = regs.filter((r) => r.tipo === 'feeding').map((r) => new Date(r.inicio).getTime());
+  const out: LinhaEvolucao[] = [];
+  for (let i = dias - 1; i >= 0; i--) {
+    const dia = somarDias(ultimoDia, -i);
+    const ini = inicioDoDia(dia) - 6 * H;
+    const fim = ini + DIA;
+    const pos = (t: number) => Math.max(0, Math.min(1, (t - ini) / DIA));
+    let total = 0;
+    const linha: LinhaEvolucao['sonos'] = [];
+    for (const s of todos) {
+      const a = Math.max(s.a, ini);
+      const b = Math.min(s.b, fim);
+      if (b <= a) continue;
+      total += (b - a) / 60000;
+      const m = minutoDoDia(s.a);
+      linha.push({ tipo: m >= 19 * 60 || m < 6 * 60 ? 'noite' : 'soneca', de: pos(a), ate: pos(b) });
+    }
+    const n = noiteDe(regs, somarDias(dia, -1), agora);
+    out.push({
+      dia,
+      sonos: linha,
+      mamadas: mamadas.filter((t) => t >= ini && t < fim).map(pos),
+      totalMin: linha.length ? Math.round(total) : null,
+      despertares: n.dormiu !== null ? n.despertares : null,
+    });
+  }
+  return out;
+}

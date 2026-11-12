@@ -4,7 +4,7 @@
  * a semana em barras empilhadas, faixas das noites, horários e sonecas × noite.
  * Só mostram o que está nos registros; quem tira conclusão é a consultora.
  */
-import type { DiaV3, SemanaV3, FaixaHorario } from '@/lib/consultoras-rotina';
+import type { DiaV3, SemanaV3, FaixaHorario, LinhaEvolucao } from '@/lib/consultoras-rotina';
 import { dur, hora, hhmm, inicioDoDia, minutoDoDia } from '@/lib/consultoras-rotina';
 
 const H = 3600 * 1000;
@@ -151,6 +151,65 @@ export function Sequencia({ d }: { d: DiaV3 }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Evolução do sono: um dia por linha (dono, 12/11/2026) ──
+export function EvolucaoSono({ linhas, inicioVinculo, href }: { linhas: LinhaEvolucao[]; inicioVinculo: string | null; href: (dia: string) => string }) {
+  const comSono = linhas.filter((l) => l.totalMin !== null);
+  const med = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  const bloco = (ls: LinhaEvolucao[]) => ({ sono: med(ls.map((l) => l.totalMin ?? 0)), desp: med(ls.filter((l) => l.despertares !== null).map((l) => l.despertares ?? 0)) });
+  const a = bloco(comSono.slice(0, 7));
+  const b = bloco(comSono.slice(-7));
+  const um = (n: number | null) => (n === null ? '—' : (Math.round(n * 10) / 10).toString().replace('.', ','));
+  const alto = linhas.length > 20 ? 'h-3' : 'h-5';
+  return (
+    <div className="mt-2">
+      <div className="mb-1 ml-[78px] mr-[72px] flex justify-between text-[10px] font-bold text-[#9A95AD]">
+        {['18h', '21h', '0h', '3h', '6h', '9h', '12h', '15h', '18h'].map((h, i) => <span key={i}>{h}</span>)}
+      </div>
+      {linhas.map((l, i) => (
+        <div key={l.dia}>
+          {inicioVinculo === l.dia && i > 0 && (
+            <div className="mb-0.5 mt-2 flex items-center gap-1.5 text-[10.5px] font-extrabold text-[#7C5CD6]">
+              começou com você · {diaCurto(l.dia).split(' ')[1]}
+              <span className="h-px flex-1 bg-[#EDE4FB]" />
+            </div>
+          )}
+          <a href={href(l.dia)} className="my-[3px] flex items-center gap-2 rounded-md hover:bg-[#FAF8FE]">
+            <span className="w-[70px] shrink-0 whitespace-nowrap text-[11px] font-bold tabular-nums text-ninho-cinza">{diaCurto(l.dia)}</span>
+            <span className={`relative flex-1 overflow-hidden rounded-[5px] ${alto}`} style={{ background: COR.trilho }}>
+              {l.sonos.map((s, j) => (
+                <i key={j} className="absolute bottom-0 top-0 rounded-[3px]" style={{ left: `${s.de * 100}%`, width: `${Math.max(0.4, (s.ate - s.de) * 100)}%`, background: s.tipo === 'noite' ? COR.noite : COR.soneca }} />
+              ))}
+              {l.mamadas.map((m, j) => (
+                <b key={`m${j}`} className="absolute top-1/2 -ml-[2.5px] -mt-[2.5px] h-[5px] w-[5px] rounded-full" style={{ left: `${m * 100}%`, background: COR.mamada }} />
+              ))}
+            </span>
+            <span className="w-16 shrink-0 text-right text-[11px] font-extrabold tabular-nums">
+              {l.totalMin !== null ? dur(l.totalMin) : '—'}
+              {l.despertares !== null && <span className="block text-[9.5px] font-bold text-[#9A95AD]">{l.despertares} desp.</span>}
+            </span>
+          </a>
+        </div>
+      ))}
+      <Legenda itens={[[COR.noite, 'Noite'], [COR.soneca, 'Soneca'], [COR.mamada, 'Mamada', true], [COR.trilho, 'Acordado']]} />
+      {comSono.length >= 10 && (
+        <div className="mt-3.5 flex gap-2.5">
+          {[['Primeiros 7 dias', a], ['Últimos 7 dias', b]].map(([k, r]) => {
+            const x = r as { sono: number | null; desp: number | null };
+            return (
+              <div key={k as string} className="flex-1 rounded-[14px] bg-[#F5F1FB] px-3 py-2.5">
+                <div className="text-[11px] font-bold text-ninho-cinza">{k as string}</div>
+                <div className="mt-0.5 text-[15px] font-extrabold">
+                  {x.sono !== null ? dur(Math.round(x.sono)) : '—'} <span className="text-[11.5px] font-bold text-ninho-cinza">/dia · {um(x.desp)} desp.</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

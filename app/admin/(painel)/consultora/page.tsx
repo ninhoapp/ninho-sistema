@@ -51,11 +51,13 @@ import {
   minutoDaNoite,
   minutoDoDia,
   semanaV3,
+  evolucaoLiberada,
+  evolucaoSono,
   somarDias,
   FUSO_MS,
   type SemanaV3,
 } from '@/lib/consultoras-rotina';
-import { BarrasSemana, DiaStrip, FaixasNoites, Horarios, JanelaAntesDeDormir, Legenda, MiniNoites, Sequencia, SonecasNoite, diaCurto } from '@/components/consultoras/RotinaV3';
+import { BarrasSemana, DiaStrip, EvolucaoSono, FaixasNoites, Horarios, JanelaAntesDeDormir, Legenda, MiniNoites, Sequencia, SonecasNoite, diaCurto } from '@/components/consultoras/RotinaV3';
 import { CompartilharRelatorio } from '@/components/consultoras/CompartilharRelatorio';
 import { IA_LIMITE_MES, IA_PERIODOS, IA_PRECO_MENSAL, RODAPE_IA, iaStatus, lerRelatorio, listarRelatorios, secoes, type IaStatus } from '@/lib/consultoras-ia';
 import { Avatar, Aviso, Card, Kpi, Retorno, Selo, botao, brl, campo, rotuloCampo, td, th } from '@/components/consultoras/ui';
@@ -72,7 +74,7 @@ const H = 3600 * 1000;
 const pctTxt = (p: number) => `${String(p).replace('.', ',')}%`;
 const primeiro = (n: string | null) => (n || '').split(' ')[0];
 
-type Busca = { ficha?: string; aba?: string; bebe?: string; dia?: string; dias?: string; id?: string; mes?: string; filtro?: string; q?: string; ok?: string; erro?: string };
+type Busca = { ficha?: string; aba?: string; bebe?: string; dia?: string; evo?: string; dias?: string; id?: string; mes?: string; filtro?: string; q?: string; ok?: string; erro?: string };
 
 /**
  * Área da CONSULTORA (role consultora). Desenho e comportamento:
@@ -812,6 +814,12 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
   if (semAcesso) return <>{head}{trava('Sem acesso à rotina deste bebê agora.')}</>;
   const s = semanaV3(registros, ultimo, agora);
   const a = semanaV3(registros, somarDias(ultimo, -7), agora);
+  // Evolução do sono: até 30 dias que terminam hoje (pedido próprio, o servidor entrega até 35).
+  const evoDias = sp.evo === '7' ? 7 : sp.evo === '30' ? 30 : 14;
+  const evoLib = evolucaoLiberada(c.email_liberado);
+  const evoRot = evoLib ? await rotinaDe(c.id, f.baby_id, new Date(inicioDoDia(somarDias(hoje, -30)) - 6 * H), new Date(agora + 60_000)) : null;
+  const evo = !evoRot || evoRot.semAcesso ? [] : evolucaoSono(evoRot.registros, hoje, evoDias, agora);
+  const vinculoDia = f.vinculado_em ? new Date(new Date(f.vinculado_em).getTime() + FUSO_MS).toISOString().slice(0, 10) : null;
   return (
     <>
       {head}
@@ -821,6 +829,22 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
         <KpiDelta rotulo="1º bloco" valor={s.blocoMed !== null ? dur(s.blocoMed) : '—'} sub={<><Delta agora={s.blocoMed} antes={a.blocoMed} melhorQuando="maior" fmt={(x) => dur(x)} />{a.blocoMed !== null ? `antes ${dur(a.blocoMed)}` : ''}</>} />
         <KpiDelta rotulo="Sonecas por dia" valor={s.sonecasPorDia !== null ? `${um(s.sonecasPorDia)} · ${dur(s.sonecasMinMed ?? 0)}` : '—'} sub={a.sonecasPorDia !== null ? `antes ${um(a.sonecasPorDia)} · ${dur(a.sonecasMinMed ?? 0)}` : undefined} />
       </div>
+      {evoLib && <Card
+        className="mt-4"
+        titulo="Evolução do sono"
+        direita={
+          <span className="flex gap-1.5">
+            {[7, 14, 30].map((n) => (
+              <Link key={n} href={`${BASE}?aba=semana&bebe=${f.baby_id}${sp.dia ? `&dia=${sp.dia}` : ''}&evo=${n}`} className={`rounded-full px-3 py-1 text-[12px] font-bold ${n === evoDias ? 'bg-[#7C5CD6] text-white' : 'bg-[#F5F1FB] text-ninho-cinza'}`}>
+                {n} dias
+              </Link>
+            ))}
+          </span>
+        }
+      >
+        <p className="text-[12px] text-ninho-cinza">Cada linha é um dia, de 18h a 18h · toque para abrir o dia</p>
+        <EvolucaoSono linhas={evo} inicioVinculo={vinculoDia} href={(dia) => `${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${dia}`} />
+      </Card>}
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.25fr]">
         <Card titulo="Sono por dia" direita="sonecas do dia + a noite seguinte">
           <BarrasSemana s={s} href={(dia) => `${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${dia}`} />
