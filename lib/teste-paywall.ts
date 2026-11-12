@@ -322,6 +322,75 @@ export function pct(parte: number, base: number): string {
   return base > 0 ? `${((parte / base) * 100).toFixed(1)}%` : '—';
 }
 
+/** Depois da tela de planos, a pessoa continuou usando o app ou sumiu?
+ *  View teste_paywall_continuidade (00139 do Ninho-expo), uma linha por
+ *  pessoa; aqui vira uma linha por grupo e fatia. Só sorteados e só quem
+ *  passou pela tela há mais de 24h (`maduro`): quem chegou hoje ainda não
+ *  teve tempo de voltar. No A não há tela: conta a partir do fim do
+ *  onboarding, para comparar. */
+export type FatiaContinuidade = 'A' | 'cartao' | 'sem_cartao' | 'fechou_x' | 'saiu_na_tela';
+
+export interface Continuidade {
+  grupo: Grupo;
+  fatia: FatiaContinuidade;
+  pessoas: number;
+  continuaram: number;
+  voltaramOutroDia: number;
+  registrosDepois: number;
+  diasDepois: number;
+  pagaram: number;
+}
+
+const ORDEM_FATIA: FatiaContinuidade[] = ['A', 'cartao', 'fechou_x', 'sem_cartao', 'saiu_na_tela'];
+
+/** null = a view ainda não existe (migration 00139 não aplicada). */
+export async function fetchContinuidade(): Promise<Continuidade[] | null> {
+  const { data, error } = await lerTudo<{
+    profile_id: string;
+    grupo: string;
+    fatia: string;
+    continuou: boolean;
+    voltou_outro_dia: boolean;
+    registros_depois: number;
+    dias_abriu_depois: number;
+    pagou: boolean;
+  }>('teste_paywall_continuidade', (de, ate) =>
+    appDb()
+      .from('teste_paywall_continuidade')
+      .select('profile_id,grupo,fatia,continuou,voltou_outro_dia,registros_depois,dias_abriu_depois,pagou')
+      .eq('sorteado', true)
+      .eq('maduro', true)
+      .order('profile_id')
+      .range(de, ate),
+  );
+  if (error) return null;
+  const mapa = new Map<string, Continuidade>();
+  for (const r of data) {
+    if (!ehGrupo(r.grupo) || !ORDEM_FATIA.includes(r.fatia as FatiaContinuidade)) continue;
+    const chave = `${r.grupo}|${r.fatia}`;
+    const c = mapa.get(chave) ?? {
+      grupo: r.grupo,
+      fatia: r.fatia as FatiaContinuidade,
+      pessoas: 0,
+      continuaram: 0,
+      voltaramOutroDia: 0,
+      registrosDepois: 0,
+      diasDepois: 0,
+      pagaram: 0,
+    };
+    c.pessoas += 1;
+    if (r.continuou) c.continuaram += 1;
+    if (r.voltou_outro_dia) c.voltaramOutroDia += 1;
+    c.registrosDepois += n(r.registros_depois);
+    c.diasDepois += n(r.dias_abriu_depois);
+    if (r.pagou) c.pagaram += 1;
+    mapa.set(chave, c);
+  }
+  return [...mapa.values()].sort(
+    (x, y) => x.grupo.localeCompare(y.grupo) || ORDEM_FATIA.indexOf(x.fatia) - ORDEM_FATIA.indexOf(y.fatia),
+  );
+}
+
 /** Grupo do teste de cada conta, para a coluna "Teste" de Usuários ativos.
  *  `sorteado = false` = bebê ainda não nascido: vai para o A fora da
  *  comparação. `liberadoEm` = grupo B que ficou sem cartão (30 min; 2h até 02/11) e ganhou 7
@@ -347,7 +416,8 @@ export async function fetchGrupoTestePorUsuario(): Promise<Map<string, GrupoTest
   );
   if (error) return out;
   for (const r of data) {
-    if (r.grupo !== 'A' && r.grupo !== 'B') continue;
+    // O C (00100) ficava de fora daqui e aparecia como "—" em Usuários ativos.
+    if (!ehGrupo(r.grupo)) continue;
     out.set(r.profile_id, { grupo: r.grupo, sorteado: !!r.sorteado, liberadoEm: r.liberado_em ?? null });
   }
   return out;

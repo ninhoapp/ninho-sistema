@@ -82,7 +82,10 @@ export async function requireSessionAtiva(roles?: Role | Role[]): Promise<Sessio
  */
 export async function conferirSenhaDoAdmin(s: SessionData): Promise<void> {
   if (!s.pv) return;
-  let linha: { password_hash: string; active: boolean; role: Role } | null = null;
+  type LinhaPerfil = { password_hash: string; active: boolean; role: Role };
+  // Tipo com nome: `as typeof linha` aqui dentro virava `null` (o TS já
+  // estreitou a variável) e quebrava o build com "never".
+  let linha: LinhaPerfil | null = null;
   try {
     const { painelDb } = await import('@/lib/supabase/server');
     const { data, error } = await painelDb()
@@ -91,7 +94,7 @@ export async function conferirSenhaDoAdmin(s: SessionData): Promise<void> {
       .eq('id', s.sub)
       .maybeSingle();
     if (error) return;
-    linha = data as typeof linha;
+    linha = data as LinhaPerfil | null;
   } catch {
     return;
   }

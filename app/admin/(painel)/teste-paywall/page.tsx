@@ -1,7 +1,10 @@
 import { requireRole } from '@/lib/auth/guard';
 import {
   fetchTestePaywall,
+  fetchContinuidade,
   cadastrosPorDia,
+  type Continuidade,
+  type FatiaContinuidade,
   hojeDubai,
   pct,
   type Grupo,
@@ -194,9 +197,101 @@ function CartaoLiberados({ lista }: { lista: Liberado[] | null }) {
   );
 }
 
+const NOME_FATIA: Record<FatiaContinuidade, string> = {
+  A: 'Todos (sem tela de planos)',
+  cartao: 'Puseram o cartão',
+  fechou_x: 'Fecharam no X',
+  sem_cartao: 'Não puseram o cartão',
+  saiu_na_tela: 'Saíram na tela (sem fechar no X)',
+};
+
+/** Pergunta do dono (11/11/2026): quem cai no B ou no C e não assina sai de
+ *  vez do app ou fecha a tela e continua usando? Cada grupo tem a linha do
+ *  total e as fatias; o A entra como base de comparação. */
+function TabelaContinuidade({ linhas }: { linhas: Continuidade[] | null }) {
+  if (linhas == null) {
+    return (
+      <div className="rounded-2xl border border-dashed border-ninho-borda bg-white p-5 text-sm text-ninho-cinza">
+        Aparece quando a migration <strong>00139</strong> (teste_paywall_continuidade) for aplicada no Supabase.
+      </div>
+    );
+  }
+  const linhasComTotal: (Continuidade & { total: boolean })[] = [];
+  for (const g of ['A', 'B', 'C'] as Grupo[]) {
+    const doGrupo = linhas.filter((l) => l.grupo === g);
+    if (doGrupo.length === 0) continue;
+    if (doGrupo.length > 1) {
+      const soma = doGrupo.reduce(
+        (s, l) => ({
+          ...s,
+          pessoas: s.pessoas + l.pessoas,
+          continuaram: s.continuaram + l.continuaram,
+          voltaramOutroDia: s.voltaramOutroDia + l.voltaramOutroDia,
+          registrosDepois: s.registrosDepois + l.registrosDepois,
+          diasDepois: s.diasDepois + l.diasDepois,
+          pagaram: s.pagaram + l.pagaram,
+        }),
+        { grupo: g, fatia: 'A' as FatiaContinuidade, pessoas: 0, continuaram: 0, voltaramOutroDia: 0, registrosDepois: 0, diasDepois: 0, pagaram: 0 },
+      );
+      linhasComTotal.push({ ...soma, total: true });
+    }
+    for (const l of doGrupo) linhasComTotal.push({ ...l, total: doGrupo.length === 1 });
+  }
+  const media = (soma: number, base: number) => (base > 0 ? (soma / base).toFixed(1) : '—');
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-ninho-borda bg-white">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-ninho-borda text-left text-xs text-ninho-cinza">
+            <th className="px-4 py-3 font-semibold">Grupo</th>
+            <th className="px-4 py-3 text-right font-semibold">Pessoas</th>
+            <th className="px-4 py-3 text-right font-semibold">Continuaram usando</th>
+            <th className="px-4 py-3 text-right font-semibold">Sumiram de vez</th>
+            <th className="px-4 py-3 text-right font-semibold">Voltaram em outro dia</th>
+            <th className="px-4 py-3 text-right font-semibold">Registros depois (média)</th>
+            <th className="px-4 py-3 text-right font-semibold">Dias de uso depois (média)</th>
+            <th className="px-4 py-3 text-right font-semibold">Pagaram</th>
+          </tr>
+        </thead>
+        <tbody>
+          {linhasComTotal.map((l) => {
+            const sumiram = l.pessoas - l.continuaram;
+            return (
+              <tr
+                key={`${l.grupo}|${l.total ? 'total' : l.fatia}`}
+                className={`border-b border-ninho-borda last:border-b-0 ${l.total ? 'bg-ninho-nuvem/60 font-semibold' : ''}`}
+              >
+                <td className="px-4 py-2.5">
+                  <span className="inline-flex items-center gap-2">
+                    {l.total && <span className="inline-block h-3 w-3 rounded-sm" style={{ background: COR[l.grupo] }} />}
+                    <span className={l.total ? 'text-ninho-grafite' : 'pl-5 text-ninho-grafite'}>
+                      {l.total ? `Grupo ${l.grupo}${l.grupo === 'A' ? ' · sem tela de planos' : ' · total'}` : NOME_FATIA[l.fatia]}
+                    </span>
+                  </span>
+                </td>
+                <td className="px-4 py-2.5 text-right">{l.pessoas}</td>
+                <td className="px-4 py-2.5 text-right">
+                  {pct(l.continuaram, l.pessoas)} <span className="text-xs text-ninho-cinza">({l.continuaram})</span>
+                </td>
+                <td className={`px-4 py-2.5 text-right ${l.pessoas > 0 && sumiram / l.pessoas >= 0.5 ? 'text-state-danger' : ''}`}>
+                  {pct(sumiram, l.pessoas)} <span className="text-xs text-ninho-cinza">({sumiram})</span>
+                </td>
+                <td className="px-4 py-2.5 text-right">{pct(l.voltaramOutroDia, l.pessoas)}</td>
+                <td className="px-4 py-2.5 text-right">{media(l.registrosDepois, l.pessoas)}</td>
+                <td className="px-4 py-2.5 text-right">{media(l.diasDepois, l.pessoas)}</td>
+                <td className="px-4 py-2.5 text-right">{l.pagaram}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default async function TestePaywallPage() {
   requireRole('admin');
-  const t = await fetchTestePaywall();
+  const [t, continuidade] = await Promise.all([fetchTestePaywall(), fetchContinuidade()]);
   const { A, B, C } = t.resumo;
   const total = A.cadastros + B.cadastros + C.cadastros;
   const hoje = hojeDubai();
@@ -319,6 +414,20 @@ export default async function TestePaywallPage() {
             grátis da loja com cartão) com um X para fechar; quem fecha segue com os 7 dias do app, como o A.
             Rodízio 1 para cada desde 05/11/2026. Receita por cadastro aos 60 dias entra quando a primeira turma completar 60 dias.
           </p>
+
+          <h2 className="mb-1 text-base font-bold text-ninho-grafite">
+            Depois da tela de planos: sai do app ou continua usando?
+          </h2>
+          <p className="mb-3 text-xs text-ninho-cinza">
+            <strong>Continuaram usando</strong> = abriram o app mais de 1h depois da tela ou registraram
+            alguma coisa depois dela. <strong>Sumiram de vez</strong> = nem uma coisa nem outra.{' '}
+            <strong>Voltaram em outro dia</strong> = abriram ou registraram 24h ou mais depois. Só entra
+            quem passou pela tela há mais de 24h (quem chegou hoje ainda não teve tempo de voltar). No A
+            não há tela: conta a partir do fim do onboarding, para comparar.
+          </p>
+          <div className="mb-8">
+            <TabelaContinuidade linhas={continuidade} />
+          </div>
 
           <h2 className="mb-1 text-base font-bold text-ninho-grafite">Quem pôs o cartão</h2>
           <p className="mb-3 text-xs text-ninho-cinza">

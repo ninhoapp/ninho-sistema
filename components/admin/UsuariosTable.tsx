@@ -65,7 +65,7 @@ export interface UsuarioRow {
   pais: Pais | null;
   /** Fuso do cadastro — só no tooltip de País. */
   fuso: string | null;
-  /** Grupo do teste de paywall (A ou B); null = nunca entrou no teste. */
+  /** Grupo do teste de paywall (A, B ou C); null = nunca entrou no teste. */
   teste: GrupoTeste | null;
 }
 
@@ -282,8 +282,13 @@ const TESTE_STYLE: Record<GrupoTeste['grupo'], string> = {
 };
 
 function testeTooltip(t: GrupoTeste): string {
-  if (!t.sorteado) return 'A — fora da comparação: bebê ainda não nascido vai direto para o A';
+  if (!t.sorteado) {
+    return t.grupo === 'A'
+      ? 'A — fora da comparação: bebê ainda não nascido vai direto para o A'
+      : `${t.grupo} — conta de teste forçada no grupo, fora da comparação`;
+  }
   if (t.liberadoEm) return 'B — ficou sem cartão (30 min; 2h até 02/11) e ganhou 7 dias sem cartão; no teste continua contando no B';
+  if (t.grupo === 'C') return 'C — tela de planos depois do onboarding, com X para fechar e seguir no teste do app';
   return t.grupo === 'A' ? 'A — 7 dias de teste do app, sem cartão' : 'B — tela de planos obrigatória, 7 dias grátis da loja';
 }
 
@@ -1201,7 +1206,7 @@ export function UsuariosTable({
         <strong>Versão</strong> vem do aparelho mais recente com push token (o sistema está no
         tooltip): fica vazia pra quem recusou notificações.{' '}
         <strong>Teste:</strong> grupo do teste de paywall (passe o mouse para o detalhe). Cinza = fora
-        da comparação (bebê ainda não nascido). "—" = nunca entrou no teste (só existe a partir da
+        da comparação (bebê ainda não nascido ou conta de teste). "—" = nunca entrou no teste (só existe a partir da
         versão 1.0.6).
       </p>
     </div>
