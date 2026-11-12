@@ -233,18 +233,18 @@ export async function consultoraDaConta(profileId: string): Promise<Consultora |
  * /c/[codigo] que a frente Parceiros vai montar. Valida o formato antes de
  * consultar; o código é guardado em maiúsculas, então `.eq()` basta.
  */
-export async function consultoraAtivaPorCodigo(codigo: string): Promise<Pick<Consultora, 'id' | 'nome' | 'foto_url' | 'cidade' | 'uf' | 'codigo'> | null> {
+export async function consultoraAtivaPorCodigo(codigo: string): Promise<Pick<Consultora, 'id' | 'nome' | 'foto_url' | 'cidade' | 'uf' | 'codigo' | 'email_liberado'> | null> {
   const c = normalizarCodigo(codigo);
   if (!CODIGO_RE.test(c)) return null;
   const { data } = await appDb()
     .from('consultoras')
-    .select('id,nome,foto_url,cidade,uf,codigo')
+    .select('id,nome,foto_url,cidade,uf,codigo,email_liberado')
     .eq('codigo', c)
     .eq('estado', 'ativa')
     .not('termo_aceito_em', 'is', null)
     .limit(1)
     .maybeSingle();
-  return (data as Pick<Consultora, 'id' | 'nome' | 'foto_url' | 'cidade' | 'uf' | 'codigo'>) ?? null;
+  return (data as Pick<Consultora, 'id' | 'nome' | 'foto_url' | 'cidade' | 'uf' | 'codigo' | 'email_liberado'>) ?? null;
 }
 
 export async function listPedidos(status?: Pedido['status']): Promise<Pedido[]> {

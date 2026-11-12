@@ -527,8 +527,13 @@ export async function logClick(input: ClickInput): Promise<string | null> {
  * preenchido; migration 00112). Sem a 00112 a coluna não existe: não grava e
  * devolve null (o link continua levando à loja).
  */
-export async function logClickConsultora(input: Omit<ClickInput, 'perfil_id'> & { consultora_id: string }): Promise<string | null> {
+export async function logClickConsultora(
+  input: Omit<ClickInput, 'perfil_id'> & { consultora_id: string; vinculo?: boolean },
+): Promise<string | null> {
   const sb = painelDb();
+  // 00144: `vinculo` = clique no link da consultoria. Sem a coluna (migration
+  // ainda não aplicada) grava sem ela, para o clique nunca se perder.
+  const { vinculo, ...semVinculo } = input;
   let primeiro = true;
   if (input.visitor_hash) {
     const { data: anterior } = await sb
@@ -539,11 +544,17 @@ export async function logClickConsultora(input: Omit<ClickInput, 'perfil_id'> & 
       .limit(1);
     primeiro = !anterior || anterior.length === 0;
   }
-  const { data, error } = await sb
-    .from('link_clicks')
-    .insert({ ...input, perfil_id: null, primeiro_do_visitante: primeiro })
-    .select('id')
-    .single();
+  const gravar = (comVinculo: boolean) =>
+    sb
+      .from('link_clicks')
+      .insert({ ...semVinculo, ...(comVinculo ? { vinculo: true } : {}), perfil_id: null, primeiro_do_visitante: primeiro })
+      .select('id')
+      .single();
+  let { data, error } = await gravar(Boolean(vinculo));
+  if (error && vinculo && /vinculo/i.test(error.message)) {
+    console.warn('[painel] link_clicks sem a coluna vinculo (00144): gravando sem ela');
+    ({ data, error } = await gravar(false));
+  }
   if (error) console.error('[painel] link_clicks (consultora) falhou:', error.message);
   return (data as { id: string } | null)?.id ?? null;
 }

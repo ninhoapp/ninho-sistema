@@ -16,6 +16,10 @@
  *   { ref: '<CÓDIGO>', click_id: '<uuid>', tipo: 'parceiro' }   → registrar_indicacao_parceiro(ref, click_id)
  *   { ref: '<CÓDIGO>', click_id: '<uuid>', tipo: 'consultora' } → registrar_indicacao_consultora(ref, 'link', click_id)
  *     (tipo 'consultora' só sai com versao_atribuicao >= 2)
+ *     + vincular: true quando o clique veio do link da CONSULTORIA
+ *       (/consultoria/<código>, 00144): o app pergunta, depois do cadastro do
+ *       bebê, se a família aprova compartilhar a rotina com ela. App antigo
+ *       ignora o campo (vira só comissão, como o link de divulgação).
  *   { ref: '<CÓDIGO>', click_id: '<uuid>', tipo: 'amiga' }      → registrar_indicacao_amiga(ref, click_id)
  *     (tipo 'amiga' só sai com versao_atribuicao >= 3; migration 00130)
  *
@@ -66,6 +70,8 @@ interface Clique {
   perfil_id: string | null;
   consultora_id?: string | null;
   amiga_profile_id?: string | null;
+  /** 00144: clique no link da consultoria. */
+  vinculo?: boolean | null;
 }
 
 type Filtro = { tipo: 'id'; id: string } | { tipo: 'ip'; hashes: string[] };
@@ -172,7 +178,8 @@ export async function POST(req: NextRequest) {
       );
     if (error) console.warn('[track/match] install_events:', error.message);
 
-    return NextResponse.json({ ref: data.promo_code, click_id: data.id, tipo }, { headers: CORS });
+    const vincular = tipo === 'consultora' && data.vinculo === true;
+    return NextResponse.json({ ref: data.promo_code, click_id: data.id, tipo, ...(vincular ? { vincular: true } : {}) }, { headers: CORS });
   } catch (e) {
     console.warn('[track/match]', e);
     return NextResponse.json({ ref: null }, { headers: CORS });

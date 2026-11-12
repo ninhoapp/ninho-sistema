@@ -81,7 +81,7 @@ export function Detalhe({
   const filhas = consultoras.filter((x) => x.indicada_por === c.id);
   const opcoes = consultoras.filter((x) => x.id !== c.id && x.estado === 'ativa' && x.indicada_por !== c.id);
   const atual = c.indicada_por ? porId.get(c.indicada_por) : null;
-  const link = `${SITE_URL.replace(/^https?:\/\//, '')}/c/${(c.codigo ?? '').toLowerCase()}`;
+  const link = `${SITE_URL.replace(/^https?:\/\//, '')}/indica/${(c.codigo ?? '').toLowerCase()}`;
   const cliques6m = funil.reduce((s, m) => s + m.cliques, 0);
   const unicos6m = funil.reduce((s, m) => s + m.cliquesUnicos, 0);
   const perfilNovo = Boolean(c.bio_pendente || c.foto_pendente_url);

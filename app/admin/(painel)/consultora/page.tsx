@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireSessionAtiva } from '@/lib/auth/guard';
 import { appDb } from '@/lib/supabase/server';
-import { SITE_URL } from '@/lib/config';
 import { PRECOS } from '@/lib/precos';
 import {
   consultoraDoPerfil,
@@ -60,7 +59,8 @@ import { BarrasSemana, DiaStrip, FaixasNoites, Horarios, JanelaAntesDeDormir, Le
 import { CompartilharRelatorio } from '@/components/consultoras/CompartilharRelatorio';
 import { IA_LIMITE_MES, IA_PERIODOS, IA_PRECO_MENSAL, RODAPE_IA, iaStatus, lerRelatorio, listarRelatorios, secoes, type IaStatus } from '@/lib/consultoras-ia';
 import { Avatar, Aviso, Card, Kpi, Retorno, Selo, botao, brl, campo, rotuloCampo, td, th } from '@/components/consultoras/ui';
-import { CopyLink } from '@/components/admin/CopyLink';
+import { LinksConsultora } from '@/components/consultoras/LinksConsultora';
+import { consultoriaLiberada } from '@/lib/link-consultora';
 import { ConfirmButton } from '@/components/admin/ConfirmButton';
 import { cancelarConviteFamilia, encerrarAcompanhamento, convidarFamilia, enviarFoto, indicarConsultora, mandarSugestao, pedirRelatorio, responderPedidoFamilia, salvarFicha, salvarPerfil } from './actions';
 import { SUGESTAO_MAX, sugestoesDa, type StatusSugestao } from '@/lib/consultoras-sugestoes';
@@ -1177,16 +1177,18 @@ async function AssinaturaIA({ c }: { c: Consultora }) {
 }
 
 function Ajuda({ c }: { c: Consultora }) {
-  const link = `${SITE_URL}/c/${(c.codigo ?? '').toLowerCase()}`;
   return (
     <>
       <Titulo t="Código e ajuda" />
+      {c.codigo && (
+        <div className="mb-4">
+          <LinksConsultora codigo={c.codigo} compacto comConsultoria={consultoriaLiberada(c.email_liberado)} />
+        </div>
+      )}
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card titulo="Seu código e link">
-          <p className="text-[11px] font-extrabold tracking-[0.09em] text-[#9A95AD]">CÓDIGO</p>
+        <Card titulo="Seu código">
           <p className="text-3xl font-black tracking-[0.12em] text-[#24164F]">{c.codigo}</p>
-          <div className="mt-3"><CopyLink url={link} /></div>
-          <p className="mt-2 text-[12.5px] text-ninho-cinza">O link leva direto à loja e marca que a família veio de você. Quem já usa o Ninho digita o código em Cuidador ou Consultor › Adicionar › Consultora de sono.</p>
+          <p className="mt-2 text-[12.5px] text-ninho-cinza">Se o link não funcionar, a família digita o código em Cuidador ou Consultor › Adicionar › Consultora de sono.</p>
         </Card>
         <Card titulo="Ajuda">
           <ul className="space-y-2 text-[13.5px] leading-relaxed">
@@ -1205,31 +1207,31 @@ function Ajuda({ c }: { c: Consultora }) {
 async function Convidar({ c, ok, erro }: { c: Consultora; ok?: string; erro?: string }) {
   const [base, eventos] = await Promise.all([baseComissoes(), eventosDosLinks()]);
   const funil = funilDaConsultora(c.id, base.familias, eventos, ultimosMesesFunil(6));
-  const link = `${SITE_URL}/c/${(c.codigo ?? '').toLowerCase()}`;
-  const msg = `Oi! Para eu acompanhar a rotina do seu bebê, baixe o Ninho por este link: ${link}`;
+  const comConsultoria = consultoriaLiberada(c.email_liberado);
   return (
     <>
-      <Titulo t="Convidar família" sub="A família abre o link, cadastra o bebê e aceita compartilhar a rotina com você." />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card titulo="Seu link e código">
-          <div className="mt-2"><CopyLink url={link} /></div>
-          <p className="mt-5 text-[11px] font-extrabold tracking-[0.09em] text-[#9A95AD]">CÓDIGO</p>
-          <p className="text-3xl font-black tracking-[0.12em] text-[#24164F]">{c.codigo}</p>
-          <p className="mt-1.5 text-[12.5px] leading-relaxed text-ninho-cinza">Quem já usa o Ninho digita em Cuidadores › Adicionar consultora.</p>
-          <p className="mt-4 text-[11px] font-extrabold tracking-[0.09em] text-[#9A95AD]">MENSAGEM PARA O WHATSAPP</p>
-          <p className="mt-1 rounded-2xl bg-[#F5F2FB] p-3 text-[13px]">{msg}</p>
+      <Titulo
+        t="Convidar família"
+        sub={
+          comConsultoria
+            ? 'O link da consultoria é para as famílias que você atende. O de divulgação é para publicar.'
+            : 'O link é para publicar. As famílias que você atende digitam o seu código no app.'
+        }
+      />
+      {c.codigo ? <LinksConsultora codigo={c.codigo} comConsultoria={comConsultoria} /> : <Aviso tom="ambar">Seu código ainda não foi criado. Fale com o Ninho.</Aviso>}
+      <section className="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[22px] bg-white px-5 py-4 shadow-[0_10px_30px_-22px_rgba(80,40,160,.35)]">
+        <span className="text-[13px] text-ninho-cinza">Seu código</span>
+        <b className="text-[20px] font-black tracking-[0.12em] text-[#24164F]">{c.codigo}</b>
+        <span className="min-w-[220px] flex-1 text-[12.5px] leading-relaxed text-ninho-cinza">
+          Se o link não funcionar, a família digita o código em Cuidador ou Consultor › Adicionar › Consultora de sono.
+        </span>
+      </section>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Card titulo="Comissão">
+          <p className="text-[13.5px] leading-relaxed text-[#4d4a5c]">{TEXTO_QUEM_GERA_COMISSAO}</p>
+          <Aviso tom="vermelho">{comConsultoria ? 'Os dois links são só para famílias.' : 'O link é só para famílias.'} Para trazer uma amiga consultora, use Indicar consultora.</Aviso>
         </Card>
-        <Card titulo="Como funciona">
-          <div className="mt-2 space-y-2 text-[13.5px] leading-relaxed text-[#4d4a5c]">
-            <p><b>1.</b> A mãe abre o seu link e cria a conta no Ninho (ou digita o seu código no cadastro).</p>
-            <p><b>2.</b> Ela pede para compartilhar a rotina com {c.nome}, digitando seu código em Cuidadores.</p>
-            <p><b>3.</b> Você aprova em Famílias, aqui ou no app. Só então a rotina aparece. Ela pode tirar você quando quiser.</p>
-          </div>
-          <Aviso tom="vermelho">Este link é só para famílias. Para trazer uma amiga consultora, use Indicar consultora.</Aviso>
-          <Aviso>{TEXTO_QUEM_GERA_COMISSAO}</Aviso>
-        </Card>
-      </div>
-      <Card titulo="Convidar pelo e-mail da família" className="mt-4">
+      <Card titulo="Convidar pelo e-mail da família">
         <p className="text-[13px] leading-relaxed text-ninho-cinza">
           Para quem já usa o Ninho. Digite o e-mail exato da conta da família: ela recebe o convite no sininho, escolhe o
           bebê e decide. A rotina só aparece depois que ela aceitar. Convite não gera comissão.
@@ -1245,7 +1247,8 @@ async function Convidar({ c, ok, erro }: { c: Consultora; ok?: string; erro?: st
         </form>
         {(ok || erro) && <div className="mt-3"><Retorno ok={ok} erro={erro} /></div>}
       </Card>
-      <Card titulo="Funil do seu link" direita="últimos 6 meses" className="mt-4">
+      </div>
+      <Card titulo="Funil dos seus links" direita="últimos 6 meses" className="mt-4">
         <FunilTabela meses={funil} indisponivel={!eventos} titulo="Últimos 6 meses" />
       </Card>
     </>
