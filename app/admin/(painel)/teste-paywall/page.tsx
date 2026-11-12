@@ -303,7 +303,7 @@ export default async function TestePaywallPage() {
   const status = !t.config
     ? 'Configuração do teste não encontrada'
     : t.config.ativo
-    ? `Rodízio ligado · ${t.config.modo === 'ABC' ? '1 para cada grupo (A, B, C)' : proporcao(t.config.fracao_b)}`
+    ? `Rodízio ligado · ${t.config.modo === 'AC' ? '1 para o A, 1 para o C (B fora desde 12/11)' : t.config.modo === 'ABC' ? '1 para cada grupo (A, B, C)' : proporcao(t.config.fracao_b)}`
     : 'Rodízio desligado';
   // Quem entrou antes da 00088 foi pelo sorteio aleatório (1 em 3 para o B),
   // não pelo rodízio: sem este aviso, "3 para o A, 1 para o B" no selo e

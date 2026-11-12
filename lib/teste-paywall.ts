@@ -98,7 +98,7 @@ export interface DiaGrupo {
 export interface TestePaywall {
   /** sorteios = quantas contas já entraram pelo rodízio (00088). Quem
    *  entrou antes dele foi pelo sorteio aleatório da 00083. */
-  config: { ativo: boolean; fracao_b: number; sorteios: number; modo: 'AB' | 'ABC' } | null;
+  config: { ativo: boolean; fracao_b: number; sorteios: number; modo: 'AB' | 'ABC' | 'AC' } | null;
   resumo: Record<Grupo, ResumoGrupo>;
   diario: DiaGrupo[];
   foraDoSorteio: number;
@@ -216,7 +216,7 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
           ativo: !!cfg.data.ativo,
           fracao_b: n(cfg.data.fracao_b),
           sorteios: n(cfg.data.sorteios),
-          modo: cfg.data.modo === 'ABC' ? 'ABC' : 'AB',
+          modo: cfg.data.modo === 'ABC' || cfg.data.modo === 'AC' ? cfg.data.modo : 'AB',
         }
       : null,
     resumo,
