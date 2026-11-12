@@ -61,7 +61,7 @@ import { BarrasSemana, DiaStrip, EvolucaoSono, FaixasNoites, Horarios, JanelaAnt
 import { CompartilharRelatorio } from '@/components/consultoras/CompartilharRelatorio';
 import { IA_LIMITE_MES, IA_PERIODOS, IA_PRECO_MENSAL, RODAPE_IA, iaStatus, lerRelatorio, listarRelatorios, secoes, type IaStatus } from '@/lib/consultoras-ia';
 import { Avatar, Aviso, Card, Kpi, Retorno, Selo, botao, brl, campo, rotuloCampo, td, th } from '@/components/consultoras/ui';
-import { LinksConsultora } from '@/components/consultoras/LinksConsultora';
+import { CodigoConsultora, LinkConsultoria, LinkDivulgacao } from '@/components/consultoras/LinksConsultora';
 import { consultoriaLiberada } from '@/lib/link-consultora';
 import { ConfirmButton } from '@/components/admin/ConfirmButton';
 import { cancelarConviteFamilia, encerrarAcompanhamento, convidarFamilia, enviarFoto, indicarConsultora, mandarSugestao, pedirRelatorio, responderPedidoFamilia, salvarFicha, salvarPerfil } from './actions';
@@ -1204,15 +1204,10 @@ function Ajuda({ c }: { c: Consultora }) {
   return (
     <>
       <Titulo t="Código e ajuda" />
-      {c.codigo && (
-        <div className="mb-4">
-          <LinksConsultora codigo={c.codigo} compacto comConsultoria={consultoriaLiberada(c.email_liberado)} />
-        </div>
-      )}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card titulo="Seu código">
           <p className="text-3xl font-black tracking-[0.12em] text-[#24164F]">{c.codigo}</p>
-          <p className="mt-2 text-[12.5px] text-ninho-cinza">Se o link não funcionar, a família digita o código em Cuidador ou Consultor › Adicionar › Consultora de sono.</p>
+          <p className="mt-2 text-[12.5px] text-ninho-cinza">A família digita o código em Cuidador ou Consultor › Adicionar › Consultora de sono. O link para convidar fica em Convidar família; o de indicar e ganhar comissão, em Ganhos.</p>
         </Card>
         <Card titulo="Ajuda">
           <ul className="space-y-2 text-[13.5px] leading-relaxed">
@@ -1229,33 +1224,23 @@ function Ajuda({ c }: { c: Consultora }) {
 
 // ── Convidar ──────────────────────────────────────────────
 async function Convidar({ c, ok, erro }: { c: Consultora; ok?: string; erro?: string }) {
-  const [base, eventos] = await Promise.all([baseComissoes(), eventosDosLinks()]);
-  const funil = funilDaConsultora(c.id, base.familias, eventos, ultimosMesesFunil(6));
+  // Só o que liga a família a você (dono, 12/11/2026). O link de divulgação
+  // (indicar e ganhar comissão) fica no topo de Ganhos.
   const comConsultoria = consultoriaLiberada(c.email_liberado);
   return (
     <>
-      <Titulo
-        t="Convidar família"
-        sub={
-          comConsultoria
-            ? 'O link da consultoria é para as famílias que você atende. O de divulgação é para publicar.'
-            : 'O link é para publicar. As famílias que você atende digitam o seu código no app.'
-        }
-      />
-      {c.codigo ? <LinksConsultora codigo={c.codigo} comConsultoria={comConsultoria} /> : <Aviso tom="ambar">Seu código ainda não foi criado. Fale com o Ninho.</Aviso>}
-      <section className="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[22px] bg-white px-5 py-4 shadow-[0_10px_30px_-22px_rgba(80,40,160,.35)]">
-        <span className="text-[13px] text-ninho-cinza">Seu código</span>
-        <b className="text-[20px] font-black tracking-[0.12em] text-[#24164F]">{c.codigo}</b>
-        <span className="min-w-[220px] flex-1 text-[12.5px] leading-relaxed text-ninho-cinza">
-          Se o link não funcionar, a família digita o código em Cuidador ou Consultor › Adicionar › Consultora de sono.
-        </span>
-      </section>
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <Card titulo="Comissão">
-          <p className="text-[13.5px] leading-relaxed text-[#4d4a5c]">{TEXTO_QUEM_GERA_COMISSAO}</p>
-          <Aviso tom="vermelho">{comConsultoria ? 'Os dois links são só para famílias.' : 'O link é só para famílias.'} Para trazer uma amiga consultora, use Indicar consultora.</Aviso>
-        </Card>
-      <Card titulo="Convidar pelo e-mail da família">
+      <Titulo t="Convidar família" sub="Para as famílias que você atende compartilharem a rotina do bebê com você." />
+      {!c.codigo ? (
+        <Aviso tom="ambar">Seu código ainda não foi criado. Fale com o Ninho.</Aviso>
+      ) : (
+        <>
+          {comConsultoria && <LinkConsultoria codigo={c.codigo} />}
+          <div className={comConsultoria ? 'mt-3.5' : ''}>
+            <CodigoConsultora codigo={c.codigo} principal={!comConsultoria} />
+          </div>
+        </>
+      )}
+      <Card titulo="Convidar pelo e-mail da família" className="mt-4">
         <p className="text-[13px] leading-relaxed text-ninho-cinza">
           Para quem já usa o Ninho. Digite o e-mail exato da conta da família: ela recebe o convite no sininho, escolhe o
           bebê e decide. A rotina só aparece depois que ela aceitar. Convite não gera comissão.
@@ -1271,17 +1256,15 @@ async function Convidar({ c, ok, erro }: { c: Consultora; ok?: string; erro?: st
         </form>
         {(ok || erro) && <div className="mt-3"><Retorno ok={ok} erro={erro} /></div>}
       </Card>
-      </div>
-      <Card titulo="Funil dos seus links" direita="últimos 6 meses" className="mt-4">
-        <FunilTabela meses={funil} indisponivel={!eventos} titulo="Últimos 6 meses" />
-      </Card>
+      <Aviso tom="vermelho">Para trazer uma amiga consultora, use Indicar consultora.</Aviso>
     </>
   );
 }
 
 // ── Ganhos ────────────────────────────────────────────────
 async function Ganhos({ c, mes }: { c: Consultora; mes?: string }) {
-  const [g, eventos] = await Promise.all([montarGanhos(c), eventosDosLinks()]);
+  const [g, eventos, base] = await Promise.all([montarGanhos(c), eventosDosLinks(), baseComissoes()]);
+  const funil = funilDaConsultora(c.id, base.familias, eventos, ultimosMesesFunil(6));
   const { count: indicadas } = await appDb().from('consultoras').select('id', { count: 'exact', head: true }).eq('indicada_por', c.id);
   const meses = g.meses.map((m) => m.competencia);
   const m = mes && meses.includes(mes) ? mes : meses[0] ?? null;
@@ -1309,6 +1292,12 @@ async function Ganhos({ c, mes }: { c: Consultora; mes?: string }) {
           )
         }
       />
+      {/* Link de divulgação: indicar o Ninho e ganhar comissão (dono, 12/11/2026). */}
+      {c.codigo && (
+        <div className="mb-4">
+          <LinkDivulgacao codigo={c.codigo} />
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi rotulo="Famílias" valor={g.resumo.familias} sub="compartilham a rotina" />
         <Kpi rotulo="Assinantes" valor={g.resumo.assinantes} sub="famílias suas que pagam hoje" />
@@ -1390,6 +1379,9 @@ async function Ganhos({ c, mes }: { c: Consultora; mes?: string }) {
           <p className="mt-2 text-[11.5px] text-ninho-cinza">A comissão só existe quando a família paga: teste grátis não conta, e ela para quando a família cancela ou pede reembolso.</p>
         </Card>
       )}
+      <Card titulo="Funil dos seus links" direita="últimos 6 meses" className="mt-4">
+        <FunilTabela meses={funil} indisponivel={!eventos} titulo="Últimos 6 meses" />
+      </Card>
     </>
   );
 }
