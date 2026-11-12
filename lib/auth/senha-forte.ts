@@ -8,7 +8,8 @@
  * mostrar os critérios enquanto a pessoa digita).
  */
 
-export const SENHA_MIN = 10;
+// 8 caracteres desde 12/11/2026 (decisão do dono: os outros critérios bastam).
+export const SENHA_MIN = 8;
 
 export interface CriterioSenha {
   id: string;
