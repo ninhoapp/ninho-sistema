@@ -79,46 +79,76 @@ export function DiaStrip({ d, maiorJanela, agora }: { d: DiaV3; maiorJanela: num
   );
 }
 
-// ── Sequência do dia ──────────────────────────────────────
-export function Sequencia({ d, maiorJanela }: { d: DiaV3; maiorJanela: number | null }) {
-  type Item = { t: number; tipo: 'acordou' | 'soneca' | 'janela' | 'dormiu' | 'noite'; titulo: string; dir: string; min?: number };
-  const itens: Item[] = [];
-  if (d.acordou !== null) itens.push({ t: d.acordou, tipo: 'acordou', titulo: 'Acordou', dir: '' });
-  d.janelas.forEach((j) => itens.push({ t: j.de, tipo: 'janela', titulo: j.rotulo, dir: dur(j.min), min: j.min }));
-  d.sonecas.forEach((s, i) => itens.push({ t: s.a, tipo: 'soneca', titulo: `${i + 1}ª soneca${s.emAndamento ? ' (agora)' : ` · até ${hora(s.b)}`}`, dir: dur(s.min) }));
-  if (d.dormiu !== null) {
-    itens.push({ t: d.dormiu, tipo: 'dormiu', titulo: 'Dormiu', dir: '' });
-    const n = d.noite;
-    itens.push({
-      t: d.dormiu + 1,
-      tipo: 'noite',
-      titulo: `Noite · 1º bloco ${n.primeiroTrechoMin !== null ? dur(n.primeiroTrechoMin) : '—'}${d.despertaresLista.length ? ` · despertares: ${d.despertaresLista.map((x) => `${hora(x.a)} (${dur(x.min)})`).join(', ')}` : ' · sem despertar registrado'}`,
-      dir: n.totalMin !== null ? dur(n.totalMin) : '',
+// ── Sequência do dia v2 (dono, 12/11/2026) ────────────────
+// docs/design/consultora/sequencia-do-dia-v2.html (Ninho-expo): à esquerda
+// "início – fim", uma linha por sono com a duração entre parênteses e, na
+// noite picada, os pedaços. Acordado não vira linha: é o espaço pontilhado
+// entre um sono e outro (maior quanto mais tempo acordado).
+export function Sequencia({ d }: { d: DiaV3 }) {
+  type Pedaco = { a: number; b: number | null; min: number };
+  type Linha = { de: number; ate: number | null; cor: string; titulo: string; min: number | null; pedacos: Pedaco[]; antes: number | null };
+  const pedacosDe = (segs: { a: number; b: number; emAndamento: boolean }[]): Pedaco[] =>
+    segs.length > 1 ? segs.map((x) => ({ a: x.a, b: x.emAndamento ? null : x.b, min: (x.b - x.a) / 60000 })) : [];
+  const linhas: Linha[] = [];
+  const na = d.resumo.noiteAnterior;
+  if (na.dormiu !== null) {
+    linhas.push({ de: na.dormiu, ate: na.acordou, cor: COR.noite, titulo: 'Fim do sono noturno', min: na.acordou !== null ? na.totalMin : null, pedacos: pedacosDe(na.segmentos), antes: null });
+  }
+  let cursor = d.acordou;
+  d.sonecas.forEach((sn, i) => {
+    linhas.push({
+      de: sn.a,
+      ate: sn.emAndamento ? null : sn.b,
+      cor: COR.soneca,
+      titulo: `${i + 1}ª soneca`,
+      min: sn.emAndamento ? null : sn.min,
+      pedacos: [],
+      antes: cursor !== null && sn.a > cursor ? (sn.a - cursor) / 60000 : null,
+    });
+    cursor = sn.b;
+  });
+  const n = d.noite;
+  if (n.dormiu !== null) {
+    linhas.push({
+      de: n.dormiu,
+      ate: n.acordou,
+      cor: COR.noite,
+      titulo: 'Sono noturno',
+      min: n.acordou !== null ? n.totalMin : null,
+      pedacos: pedacosDe(n.segmentos),
+      antes: cursor !== null && n.dormiu > cursor ? (n.dormiu - cursor) / 60000 : null,
     });
   }
-  if (d.acordouSeguinte !== null) itens.push({ t: d.acordouSeguinte, tipo: 'acordou', titulo: 'Acordou (dia seguinte)', dir: '' });
-  itens.sort((a, b) => a.t - b.t);
-  if (!itens.length) return <p className="py-6 text-center text-sm text-ninho-cinza">Sem registros de sono neste dia.</p>;
-  const ponto = { acordou: '#F5C24E', soneca: COR.soneca, janela: '#D9D2EA', dormiu: COR.noite, noite: COR.noite };
+  if (!linhas.length) return <p className="py-6 text-center text-sm text-ninho-cinza">Sem registros de sono neste dia.</p>;
   return (
-    <div className="relative mt-2 pl-4">
-      <span className="absolute bottom-2 left-[5px] top-2 w-0.5 bg-[#EFEAF7]" />
-      {itens.map((it, i) => (
-        <div key={i} className="relative flex items-center gap-3 py-1.5 text-[13px]">
-          <i className="absolute -left-[15px] h-2.5 w-2.5 rounded-full border-2 border-white" style={{ background: ponto[it.tipo] }} />
-          <span className="w-11 shrink-0 font-bold tabular-nums text-ninho-cinza">{it.tipo === 'noite' ? '' : hora(it.t)}</span>
-          {it.tipo === 'janela' ? (
-            <div className="flex flex-1 items-center gap-2">
-              <span className="text-ninho-cinza">{it.titulo}</span>
-              <span
-                className="h-2.5 rounded-full"
-                style={{ width: `${Math.min(100, ((it.min ?? 0) / 360) * 100)}%`, maxWidth: 220, minWidth: 6, background: maiorJanela !== null && Math.round(it.min ?? 0) >= Math.round(maiorJanela) ? COR.maior : COR.acordado }}
-              />
+    <div className="mt-2">
+      {linhas.map((l, i) => (
+        <div key={i}>
+          {i > 0 && l.antes !== null && (
+            <div className="flex gap-2.5">
+              <span className="w-[104px] shrink-0" />
+              <span className="flex w-[18px] justify-center" style={{ height: Math.max(12, Math.min(40, 10 + l.antes / 8)) }}>
+                <span className="h-full border-l-2 border-dotted border-[#D9D3EA]" />
+              </span>
             </div>
-          ) : (
-            <span className={`flex-1 ${it.tipo === 'noite' ? 'text-[12.5px] text-ninho-cinza' : 'font-semibold'}`}>{it.titulo}</span>
           )}
-          <b className="shrink-0 tabular-nums">{it.dir}</b>
+          <div className="flex gap-2.5 py-1 text-[13px]">
+            <span className="w-[104px] shrink-0 text-right font-extrabold tabular-nums">
+              {hora(l.de)} – {l.ate !== null ? hora(l.ate) : <span className="text-ninho-cinza">agora</span>}
+            </span>
+            <span className="flex w-[18px] justify-center pt-[3px]">
+              <i className="h-3 w-3 rounded-full" style={{ background: l.cor }} />
+            </span>
+            <span className="flex-1">
+              <b className="text-[13.5px]">{l.titulo}</b>{' '}
+              <b className="text-[#7C5CD6]">({l.min !== null ? dur(l.min) : 'em andamento'})</b>
+              {l.pedacos.length > 1 && (
+                <span className="mt-0.5 block text-[11.5px] leading-snug text-ninho-cinza">
+                  {l.pedacos.length} pedaços: {l.pedacos.map((x) => `${hora(x.a)}–${x.b !== null ? hora(x.b) : 'agora'} (${dur(x.min)})`).join(' · ')}
+                </span>
+              )}
+            </span>
+          </div>
         </div>
       ))}
     </div>

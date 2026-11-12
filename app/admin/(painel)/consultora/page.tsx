@@ -759,12 +759,13 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
           <DiaStrip d={d} maiorJanela={cost.maiorJanela !== null ? Math.max(cost.maiorJanela, ...d.janelas.map((j) => j.min)) : null} agora={agora} />
         </Card>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <Card titulo="Sequência do dia" direita="janelas em tamanho real">
-            <Sequencia d={d} maiorJanela={cost.maiorJanela !== null ? Math.max(cost.maiorJanela, ...d.janelas.map((j) => j.min)) : null} />
+          <Card titulo="Sequência do dia" direita="cada sono com início e fim">
+            <Sequencia d={d} />
           </Card>
           <Card titulo="Registros" direita={`${d.resumo.registros.length}`}>
             <div className="max-h-[460px] overflow-auto">
-              {d.resumo.registros.map((reg) => {
+              {/* Na ordem do dia, igual à Sequência ao lado (dono, 12/11/2026). */}
+              {[...d.resumo.registros].reverse().map((reg) => {
                 const x = descreverRegistro(reg, agora);
                 return (
                   <div key={reg.id} className="flex items-center gap-3 border-b border-[#F3F0F8] py-2.5 last:border-0">
