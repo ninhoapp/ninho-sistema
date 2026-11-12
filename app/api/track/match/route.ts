@@ -29,7 +29,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { painelDb } from '@/lib/supabase/server';
-import { familiaDoIp, ipDe, ipHash, ipHashesParaLeitura, JANELA_DIAS } from '@/lib/atribuicao';
+import { cliqueAproximado, familiaDoIp, geoDe, ipDe, ipHash, ipHashesParaLeitura, JANELA_DIAS } from '@/lib/atribuicao';
 
 export const dynamic = 'force-dynamic';
 
@@ -146,18 +146,27 @@ export async function POST(req: NextRequest) {
     }
     if (!data) {
       const hashes = ipHashesParaLeitura(ip);
-      if (hashes.length === 0) {
-        console.log('[track/match] sem IP', JSON.stringify(diag));
-        return NextResponse.json({ ref: null }, { headers: CORS });
+      if (hashes.length > 0) {
+        data = await buscar({ tipo: 'ip', hashes });
+        via = 'ip';
       }
-      data = await buscar({ tipo: 'ip', hashes });
-      via = 'ip';
+    }
+    // 00145 (dono, 12/11/2026: indicação automática, sem "Permitir colar"):
+    // o IP mudou (Retransmissão Privada do Safari, Wi-Fi ↔ 4G). Casa pelo
+    // aparelho, pela região e pela hora do toque (até 2 h), com toque que
+    // ainda não virou instalação.
+    if (!data) {
+      const aprox = await cliqueAproximado(sb, { headers: req.headers, ua, convite: false });
+      if (aprox) {
+        data = await buscar({ tipo: 'id', id: aprox });
+        via = 'aproximado';
+      }
     }
 
     if (!data?.promo_code) {
       console.log(
         clickCopiado ? '[track/match] link copiado inválido e nenhum clique desse IP' : '[track/match] nenhum clique desse IP',
-        JSON.stringify({ ...diag, versao }),
+        JSON.stringify({ ...diag, versao, regiao: geoDe(req.headers).geo_regiao }),
       );
       return NextResponse.json({ ref: null }, { headers: CORS });
     }

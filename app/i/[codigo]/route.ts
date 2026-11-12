@@ -16,8 +16,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { detectDevice, LANDING_URL, STORE_ANDROID_URL, STORE_IOS_URL } from '@/lib/config';
 import { appDb, painelDb } from '@/lib/supabase/server';
-import { destinoDoLink, ehNavegadorEmbutido, ehSafariIphone, familiaDoIp, ipDe, ipHash, linkParaCopiar, visitorHash } from '@/lib/atribuicao';
-import { paginaNavegadorEmbutido, paginaSafari } from '@/lib/atribuicao-paginas';
+import { destinoDoLink, ehNavegadorEmbutido, familiaDoIp, geoDe, ipDe, ipHash, linkParaCopiar, visitorHash } from '@/lib/atribuicao';
+import { paginaNavegadorEmbutido } from '@/lib/atribuicao-paginas';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +56,9 @@ async function logClickAmiga(input: {
   ip_hash: string | null;
   referrer: string | null;
   user_agent: string;
+  geo_pais?: string | null;
+  geo_regiao?: string | null;
+  geo_cidade?: string | null;
 }): Promise<string | null> {
   const sb = painelDb();
   let primeiro = true;
@@ -121,6 +124,7 @@ export async function GET(req: NextRequest, { params }: { params: { codigo: stri
         ip_hash: ipHash(ip),
         referrer: dominio(req.headers.get('referer')),
         user_agent: ua.slice(0, 500),
+        ...geoDe(req.headers),
       })) || '';
   } catch (e) {
     console.error('[i] clique não gravado:', e instanceof Error ? e.message : e);
@@ -133,9 +137,7 @@ export async function GET(req: NextRequest, { params }: { params: { codigo: stri
   const res =
     device === 'ios' && ehNavegadorEmbutido(ua)
       ? html(paginaNavegadorEmbutido(url, copiar))
-      : device === 'ios' && ehSafariIphone(ua)
-        ? html(paginaSafari(url, copiar))
-        : NextResponse.redirect(url, 302);
+      : NextResponse.redirect(url, 302);
 
   const cookie = { httpOnly: false, sameSite: 'lax' as const, path: '/', maxAge: 60 * 60 * 24 * 30 };
   res.cookies.set('ninho_amiga', codigo, cookie);

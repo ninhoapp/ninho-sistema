@@ -50,6 +50,78 @@ function sha(input: string, sal: string): string {
   return createHash('sha256').update(input + sal).digest('hex').slice(0, 40);
 }
 
+/**
+ * Região aproximada de quem tocou ou de quem abriu o app (00145), pelos
+ * cabeçalhos da Vercel: país, estado e cidade. Nunca o IP. Serve para casar a
+ * instalação quando o IP muda (Retransmissão Privada do iCloud no Safari,
+ * Wi-Fi ↔ 4G): ver cliqueAproximado.
+ */
+export function geoDe(headers: Headers): { geo_pais: string | null; geo_regiao: string | null; geo_cidade: string | null } {
+  const ler = (k: string) => {
+    const v = (headers.get(k) || '').trim();
+    if (!v) return null;
+    try {
+      return decodeURIComponent(v).slice(0, 80);
+    } catch {
+      return v.slice(0, 80);
+    }
+  };
+  return { geo_pais: ler('x-vercel-ip-country'), geo_regiao: ler('x-vercel-ip-country-region'), geo_cidade: ler('x-vercel-ip-city') };
+}
+
+/** Plataforma de quem chama a API (o app): iPhone ou Android. */
+export function plataformaDoApp(ua: string): 'ios' | 'android' | null {
+  if (/android|okhttp/i.test(ua)) return 'android';
+  if (/iphone|ipad|ios|darwin|cfnetwork/i.test(ua)) return 'ios';
+  return null;
+}
+
+/** Janela do casamento aproximado: toque até 2 h antes da abertura do app. */
+export const JANELA_APROXIMADA_MIN = 120;
+
+/**
+ * Casamento APROXIMADO (00145, pedido do dono: indicação automática, sem
+ * "Permitir colar"). Quando o IP não casa, procura o toque mais recente, nas
+ * últimas 2 horas, do mesmo tipo de aparelho e da mesma região (país e
+ * estado), que ainda não virou instalação. Devolve o id do toque, ou null.
+ * Sem país de um dos lados, não casa.
+ */
+export async function cliqueAproximado(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  opcoes: {
+    headers: Headers;
+    ua: string;
+    /** Restringe o toque: só convite (landed='convite') ou só links de indicação. */
+    convite: boolean;
+  },
+): Promise<string | null> {
+  const plataforma = plataformaDoApp(opcoes.ua);
+  const { geo_pais, geo_regiao } = geoDe(opcoes.headers);
+  if (!plataforma || !geo_pais) return null;
+  const desde = new Date(Date.now() - JANELA_APROXIMADA_MIN * 60_000).toISOString();
+  let q = sb
+    .from('link_clicks')
+    .select('id, landed')
+    .eq('device', plataforma)
+    .eq('geo_pais', geo_pais)
+    .gte('clicked_at', desde);
+  if (geo_regiao) q = q.eq('geo_regiao', geo_regiao);
+  q = opcoes.convite ? q.eq('landed', 'convite') : q.neq('landed', 'convite');
+  const { data, error } = await q.order('clicked_at', { ascending: false }).limit(10);
+  if (error) {
+    console.warn('[atribuicao] aproximado falhou:', error.message);
+    return null;
+  }
+  const ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
+  if (ids.length === 0) return null;
+  if (opcoes.convite) return ids[0];
+  // Indicação: o toque que já virou instalação de outra pessoa não vale.
+  const { data: usados } = await sb.from('install_events').select('click_id').in('click_id', ids);
+  const ja = new Set(((usados ?? []) as { click_id: string }[]).map((u) => u.click_id));
+  return ids.find((id) => !ja.has(id)) ?? null;
+}
+
 /** IP do cliente (a Vercel põe o original em primeiro no x-forwarded-for). */
 export function ipDe(headers: Headers): string {
   return headers.get('x-forwarded-for')?.split(',')[0]?.trim() || headers.get('x-real-ip') || '';

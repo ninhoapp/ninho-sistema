@@ -14,8 +14,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { detectDevice, LANDING_URL, STORE_ANDROID_URL, STORE_IOS_URL } from '@/lib/config';
 import { logClickConsultora } from '@/lib/painel/store';
 import { consultoraAtivaPorCodigo } from '@/lib/consultoras';
-import { destinoDoLink, ehNavegadorEmbutido, ehSafariIphone, familiaDoIp, ipDe, ipHash, linkParaCopiar, visitorHash } from '@/lib/atribuicao';
-import { paginaNavegadorEmbutido, paginaSafari } from '@/lib/atribuicao-paginas';
+import { destinoDoLink, ehNavegadorEmbutido, familiaDoIp, geoDe, ipDe, ipHash, linkParaCopiar, visitorHash } from '@/lib/atribuicao';
+import { paginaNavegadorEmbutido } from '@/lib/atribuicao-paginas';
 
 /**
  * Link da CONSULTORIA liberado só para estas consultoras (dono, 12/11/2026).
@@ -101,6 +101,7 @@ export async function registrarCliqueConsultora(
         ip_hash: ipHash(ip),
         referrer: dominio(req.headers.get('referer')),
         user_agent: ua.slice(0, 500),
+        ...geoDe(req.headers),
         vinculo,
       })) || '';
   } catch (e) {
@@ -149,9 +150,7 @@ export function respostaDeDivulgacao(req: NextRequest, clique: CliqueConsultora)
   const res =
     device === 'ios' && ehNavegadorEmbutido(ua)
       ? html(paginaNavegadorEmbutido(destino, copiar))
-      : device === 'ios' && ehSafariIphone(ua)
-        ? html(paginaSafari(destino, copiar))
-        : NextResponse.redirect(destino, 302);
+      : NextResponse.redirect(destino, 302);
   gravarCookies(res, clique.consultora.codigo, clique.clickId);
   return semCache(res);
 }

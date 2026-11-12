@@ -489,6 +489,10 @@ export interface ClickInput {
   /** Só o domínio de onde veio (ex.: l.instagram.com), nunca a URL inteira. */
   referrer: string | null;
   user_agent: string | null;
+  /** 00145: região aproximada do toque (lib/atribuicao.ts › geoDe). */
+  geo_pais?: string | null;
+  geo_regiao?: string | null;
+  geo_cidade?: string | null;
 }
 
 /**

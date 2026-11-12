@@ -11,7 +11,7 @@
  * nunca entram nela.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { ipDe, ipHashesParaLeitura } from '@/lib/atribuicao';
+import { cliqueAproximado, ipDe, ipHashesParaLeitura } from '@/lib/atribuicao';
 import { painelDb } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -30,24 +30,36 @@ export async function OPTIONS() {
 
 export async function POST(req: NextRequest) {
   try {
+    const sb = painelDb();
     const hashes = ipHashesParaLeitura(ipDe(req.headers));
-    if (hashes.length === 0) return NextResponse.json({ codigo: null }, { headers: CORS });
     const desde = new Date(Date.now() - JANELA_MIN * 60_000).toISOString();
-    const { data, error } = await painelDb()
-      .from('link_clicks')
-      .select('promo_code, clicked_at')
-      .eq('landed', 'convite')
-      .in('ip_hash', hashes)
-      .gte('clicked_at', desde)
-      .order('clicked_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (error) {
-      console.warn('[convite/match]', error.message);
-      return NextResponse.json({ codigo: null }, { headers: CORS });
+    let codigo: string | null = null;
+    let via = 'ip';
+    if (hashes.length > 0) {
+      const { data, error } = await sb
+        .from('link_clicks')
+        .select('promo_code, clicked_at')
+        .eq('landed', 'convite')
+        .in('ip_hash', hashes)
+        .gte('clicked_at', desde)
+        .order('clicked_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) console.warn('[convite/match]', error.message);
+      codigo = (data as { promo_code?: string } | null)?.promo_code ?? null;
     }
-    const codigo = (data as { promo_code?: string } | null)?.promo_code ?? null;
-    console.log('[convite/match]', codigo ? 'casou' : 'nada');
+    // 00145: IP mudou (Retransmissão Privada do Safari, Wi-Fi ↔ 4G): casa pelo
+    // aparelho, pela região e pela hora do toque. O app ainda pergunta antes
+    // de vincular ("Não é isso" desfaz).
+    if (!codigo) {
+      const aprox = await cliqueAproximado(sb, { headers: req.headers, ua: req.headers.get('user-agent') || '', convite: true });
+      if (aprox) {
+        const { data } = await sb.from('link_clicks').select('promo_code').eq('id', aprox).maybeSingle();
+        codigo = (data as { promo_code?: string } | null)?.promo_code ?? null;
+        via = 'aproximado';
+      }
+    }
+    console.log('[convite/match]', codigo ? `casou (${via})` : 'nada');
     return NextResponse.json({ codigo }, { headers: CORS });
   } catch (e) {
     console.warn('[convite/match]', e);

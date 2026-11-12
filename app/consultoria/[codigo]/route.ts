@@ -4,9 +4,10 @@
  *
  * Página com a foto e o nome dela (desenho aprovado:
  * docs/design/consultora/links-divulgacao-consultoria.html, passo A):
- *  - "Baixar o Ninho grátis": copia /c/<código>?c=<clique> (para o app ler no
- *    iPhone) e vai para a loja certa. Depois do cadastro do bebê, o app
- *    pergunta se a família aprova compartilhar a rotina com a consultora.
+ *  - "Baixar o Ninho grátis": vai direto para a loja certa (sem copiar nada e
+ *    sem "Permitir colar": o app casa pelo IP ou pela região e hora do toque,
+ *    00145). Depois do cadastro do bebê, o app pergunta se a família aprova
+ *    compartilhar a rotina com a consultora.
  *  - "Já tenho o Ninho": abre ninho://consultoria/<código>
  *    (Adicionar consultora, com o código preenchido).
  *
@@ -22,7 +23,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { ehNavegadorEmbutido } from '@/lib/atribuicao';
-import { escaparHtml, paginaNavegadorEmbutido, scriptCopiar } from '@/lib/atribuicao-paginas';
+import { escaparHtml, paginaNavegadorEmbutido } from '@/lib/atribuicao-paginas';
 import { gravarCookies, lojaSemRastreio, registrarCliqueConsultora, respostaDeDivulgacao, semCache, type CliqueConsultora } from '@/lib/link-consultora';
 
 export const dynamic = 'force-dynamic';
@@ -33,7 +34,7 @@ function iniciais(nome: string): string {
 }
 
 function pagina(c: CliqueConsultora): string {
-  const { consultora, device, destino, copiar } = c;
+  const { consultora, device, destino } = c;
   const nome = (consultora.nome ?? '').trim() || 'Sua consultora';
   const prim = nome.split(/\s+/)[0] || nome;
   const app = `ninho://consultoria/${encodeURIComponent(consultora.codigo)}`;
@@ -45,9 +46,6 @@ function pagina(c: CliqueConsultora): string {
     ? `<a id="baixar" class="btn prim" href="${escaparHtml(destino)}">Baixar o Ninho grátis</a>
   <a class="btn sec" href="${escaparHtml(app)}">Já tenho o Ninho</a>`
     : `<p class="pc">Abra este link no celular para baixar o Ninho.</p>`;
-  const nota = device === 'ios'
-    ? `<p class="nota">Ao abrir o Ninho pela primeira vez, toque em <b>Permitir colar</b>: é assim que o app sabe que a ${escaparHtml(prim)} te convidou.</p>`
-    : '';
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -92,10 +90,8 @@ h1{font-size:25px;line-height:1.2;font-weight:800;letter-spacing:-.4px;color:#24
   <div class="acoes">
   ${botoes}
   <p class="rodape">7 dias grátis. Código da ${escaparHtml(prim)}: <b>${escaparHtml(consultora.codigo)}</b></p>
-  ${nota}
   </div>
 </div>
-${celular ? scriptCopiar(copiar, destino) : ''}
 </body>
 </html>`;
 }

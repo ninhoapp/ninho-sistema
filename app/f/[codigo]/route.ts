@@ -17,7 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { detectDevice, LANDING_URL, STORE_ANDROID_URL, STORE_IOS_URL } from '@/lib/config';
 import { escaparHtml } from '@/lib/atribuicao-paginas';
-import { ipDe, ipHash, visitorHash } from '@/lib/atribuicao';
+import { geoDe, ipDe, ipHash, visitorHash } from '@/lib/atribuicao';
 import { painelDb } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -97,6 +97,7 @@ export async function GET(request: NextRequest, { params }: { params: { codigo: 
           ip_hash: ipHash(ip),
           referrer: null,
           user_agent: ua.slice(0, 500),
+          ...geoDe(request.headers),
           perfil_id: null,
           primeiro_do_visitante: true,
         });
