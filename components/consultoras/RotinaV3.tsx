@@ -125,11 +125,15 @@ export function Sequencia({ d }: { d: DiaV3 }) {
       {linhas.map((l, i) => (
         <div key={i}>
           {i > 0 && l.antes !== null && (
-            <div className="flex gap-2.5">
+            // Janela de sono: quanto tempo ficou acordado entre um sono e o
+            // outro (pedido de consultora pelo dono, 13/11/2026; ele escolheu
+            // o nome "Janela de sono", que é como as consultoras falam).
+            <div className="flex items-center gap-2.5">
               <span className="w-[104px] shrink-0" />
-              <span className="flex w-[18px] justify-center" style={{ height: Math.max(12, Math.min(40, 10 + l.antes / 8)) }}>
+              <span className="flex w-[18px] justify-center" style={{ height: Math.max(16, Math.min(40, 10 + l.antes / 8)) }}>
                 <span className="h-full border-l-2 border-dotted border-[#D9D3EA]" />
               </span>
+              <span className="text-[11.5px] font-semibold tabular-nums text-[#9A95AD]">Janela de sono {dur(l.antes)}</span>
             </div>
           )}
           <div className="flex gap-2.5 py-1 text-[13px]">
