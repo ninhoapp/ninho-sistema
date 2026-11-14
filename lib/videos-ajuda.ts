@@ -8,8 +8,10 @@
  *
  * Desenho aprovado: Ninho-expo/docs/design/consultora/videos-de-ajuda.html.
  *
- * O MP4 e a imagem de prévia ficam em public/videos/<slug>.mp4 e .jpg. Enquanto
- * não existirem, a página mostra só os passos escritos (ver temArquivo).
+ * O vídeo NÃO é um arquivo: é desenhado em código e tocado por
+ * public/videos/player.js, a mesma receita que roda dentro do app. Se um dia
+ * existir um MP4 em public/videos/<slug>.mp4, ele ganha do player desenhado
+ * (ver temArquivo).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -34,15 +36,15 @@ export const VIDEOS: VideoAjuda[] = [
   {
     slug: 'convidar',
     titulo: 'Como convidar uma família',
-    linha: 'Para consultoras do Ninho. Leva 1 minuto.',
+    linha: 'Para consultoras do Ninho. Leva 30 segundos.',
     descricao:
       'O passo a passo para trazer uma cliente para o Ninho: mandar o seu link, o que ela vê e onde você aprova.',
     interno: true,
     passos: [
-      'No app, abra Convidar família e copie o seu link da consultoria.',
-      'Mande o link para a cliente pelo WhatsApp.',
+      'No app, abra Convidar família e toque em Enviar pelo WhatsApp.',
+      'Escolha a conversa da cliente: a mensagem já vai escrita.',
       'Ela cria a conta pelo link, cadastra o bebê e toca em Aprovar.',
-      'O pedido chega para você em Início; é só confirmar.',
+      'O pedido chega no seu sininho: toque no aviso, marque a caixa e aprove.',
     ],
   },
   {

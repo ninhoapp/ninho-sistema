@@ -5,14 +5,23 @@
  * é a mesma para quem tem e para quem não tem o Ninho instalado: vídeo vertical
  * em cima, passos escritos embaixo. Conteúdo em lib/videos-ajuda.ts.
  *
- * Enquanto o MP4 não estiver publicado em public/videos/<slug>.mp4, a página
- * mostra só os passos — nunca um player quebrado.
+ * O VÍDEO NÃO É UM ARQUIVO (dono, 14/11/2026: "quando mandar o link no
+ * WhatsApp, a pessoa tocar, ela tem que ver o vídeo"). Os vídeos do Ninho são
+ * as telas do app desenhadas em código e uma câmera que se aproxima enquanto
+ * um dedo toca — o mesmo que roda dentro do app. Aqui eles são tocados por
+ * public/videos/player.js, que não depende de nada e funciona em qualquer
+ * celular, sem instalar o app.
+ *
+ * Se um dia existir um MP4 em public/videos/<slug>.mp4, ele ganha do player
+ * desenhado: é só publicar o arquivo.
  */
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import Script from 'next/script';
 import { SITE_URL } from '@/lib/config';
 import { VIDEOS, temArquivo, videoPorSlug } from '@/lib/videos-ajuda';
 import './video.css';
+import './player.css';
 
 export const dynamicParams = false;
 
@@ -55,7 +64,12 @@ export default function VideoPage({ params }: { params: { slug: string } }) {
         {temVideo ? (
           <video controls playsInline preload="metadata" poster={poster} src={`/videos/${v.slug}.mp4`} />
         ) : (
-          <p className="vw-sem">O passo a passo está logo abaixo, em três passos.</p>
+          <>
+            {/* O player desenha dentro desta div; sem JavaScript, a pessoa
+                ainda tem os passos escritos logo abaixo. */}
+            <div className="nv" data-video={v.slug} />
+            <Script src="/videos/player.js" strategy="afterInteractive" />
+          </>
         )}
       </div>
 
