@@ -196,6 +196,16 @@ export function Detalhe({
           <Chave ligada={c.na_lista && c.estado !== 'pausada'} desabilitada={c.estado === 'pausada'} />
         </form>
       </Linha>
+      <Linha rotulo="Como soube do Ninho" ajuda="o que ela respondeu no pedido ou o que você marcou no cadastro">
+        {c.como_soube ?? <span className="text-ninho-cinza">não informado</span>}
+      </Linha>
+      <Linha rotulo="Observação">
+        {c.nota_interna ? (
+          <span className="max-w-[26rem] text-right whitespace-pre-line">{c.nota_interna}</span>
+        ) : (
+          <span className="text-ninho-cinza">nenhuma</span>
+        )}
+      </Linha>
       <Linha rotulo="Termo aceito">{c.termo_aceito_em ? `${dataDubai(c.termo_aceito_em)} (${c.termo_versao})` : 'ainda não'}</Linha>
       <Linha rotulo="Relatório IA">
         <span>

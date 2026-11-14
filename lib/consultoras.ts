@@ -64,6 +64,9 @@ export interface Consultora {
   termo_versao: string | null;
   cpf: string | null;
   pix_chave: string | null;
+  /** Migration 00150 (cadastro do painel igual ao do site): ausentes enquanto ela não for aplicada. */
+  como_soube?: string | null;
+  nota_interna?: string | null;
 }
 
 export interface Pedido {
@@ -108,6 +111,42 @@ export async function inserirPedido(p: NovoPedido): Promise<{ error: { code?: st
     return { error: again.error };
   }
   return { error };
+}
+
+export interface NovaConsultoraLinha {
+  nome: string;
+  email_liberado: string;
+  codigo: string;
+  instagram: string | null;
+  whatsapp: string | null;
+  indicada_por: string | null;
+  estado: string;
+  liberada_em: string;
+  /** Migration 00150: se ela ainda não foi aplicada, a consultora é criada sem estes dois. */
+  como_soube: string | null;
+  nota_interna: string | null;
+}
+
+/** Coluna que o banco ainda não tem (migration pendente). */
+function colunaQueFalta(error: { code?: string; message: string } | null, campos: RegExp): boolean {
+  return Boolean(error && (error.code === 'PGRST204' || error.code === '42703') && campos.test(error.message));
+}
+
+/**
+ * Cria a consultora pelo painel do dono. Se a 00150 (como_soube, nota_interna)
+ * ainda não foi aplicada, cria sem esses dois campos em vez de falhar.
+ */
+export async function inserirConsultora(
+  linha: NovaConsultoraLinha,
+): Promise<{ id?: string; error: { code?: string; message: string } | null }> {
+  const cria = async (l: object) => appDb().from('consultoras').insert(l as never).select('id').single();
+  let { data, error } = await cria(linha);
+  if (colunaQueFalta(error, /como_soube|nota_interna/)) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { como_soube, nota_interna, ...sem } = linha;
+    ({ data, error } = await cria(sem));
+  }
+  return { id: (data as { id: string } | null)?.id, error };
 }
 
 export interface Indicacao {

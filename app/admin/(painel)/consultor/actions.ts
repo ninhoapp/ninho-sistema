@@ -17,6 +17,7 @@ import { getPerfil, listPerfis } from '@/lib/painel/store';
 import { appDb, painelDb } from '@/lib/supabase/server';
 import {
   getConsultora,
+  inserirConsultora,
   listConsultoras,
   baseComissoesAgora,
   CONSULTORAS_TAG,
@@ -30,10 +31,12 @@ import {
   EMAIL_RE,
   codigoDoNome,
   normalizarCodigo,
+  normalizarComoSoube,
   normalizarEmail,
   normalizarInstagram,
   normalizarWhatsapp,
 } from '@/lib/consultoras-regras';
+import { juntarTelefone } from '@/lib/telefone';
 
 const BASE = '/admin/consultor';
 
@@ -149,11 +152,17 @@ export async function liberarConsultora(fd: FormData) {
   const instagram = igBruto ? normalizarInstagram(igBruto) : null;
   const codigoDigitado = normalizarCodigo(txt(fd, 'codigo'));
   const indicadaPor = txt(fd, 'indicada_por') || null;
+  // Mesmos campos do formulário público "Quero ser consultora" (dono, 14/11/2026).
+  const zapBruto = txt(fd, 'whatsapp');
+  const whatsapp = zapBruto ? juntarTelefone(txt(fd, 'whatsapp_pais'), zapBruto) : null;
+  const comoSoube = normalizarComoSoube(txt(fd, 'como_soube'));
+  const nota = txt(fd, 'nota_interna').slice(0, 500) || null;
   const aba = 'consultoras';
 
   if (!EMAIL_RE.test(email)) volta({ aba, erro: 'Coloque o e-mail que ela vai usar no app.' });
   if (nome.length < 2 || nome.length > 80) volta({ aba, erro: 'Coloque o nome (2 a 80 letras).' });
   if (igBruto && !instagram) volta({ aba, erro: 'Instagram inválido. Use só o @ dela.' });
+  if (zapBruto && !whatsapp) volta({ aba, erro: 'WhatsApp com DDD (ex.: 11 98765-4321).' });
   if (codigoDigitado && !CODIGO_RE.test(codigoDigitado)) volta({ aba, erro: 'Código inválido: de 2 a 20 letras ou números, sem espaço.' });
 
   const todas = await listConsultoras();
@@ -164,21 +173,20 @@ export async function liberarConsultora(fd: FormData) {
   const codigo = codigoDigitado || (await codigoLivre(codigoDoNome(nome)));
   if (!codigo) volta({ aba, erro: 'Não consegui montar um código pelo nome. Digite um código.' });
 
-  const { data, error } = await appDb()
-    .from('consultoras')
-    .insert({
-      nome,
-      email_liberado: email,
-      codigo,
-      instagram,
-      indicada_por: indicadaPor,
-      estado: 'esperando',
-      liberada_em: agora(),
-    })
-    .select('id')
-    .single();
+  const { id, error } = await inserirConsultora({
+    nome,
+    email_liberado: email,
+    codigo,
+    instagram,
+    whatsapp,
+    indicada_por: indicadaPor,
+    estado: 'esperando',
+    liberada_em: agora(),
+    como_soube: comoSoube,
+    nota_interna: nota,
+  });
   if (error) volta({ aba, erro: error.code === '23505' ? 'E-mail ou código já usado.' : error.message });
-  volta({ aba, id: (data as { id: string }).id, ok: `E-mail liberado. Quando ${nome.split(' ')[0]} entrar no app com ${email} (confirmado), vira consultora.` });
+  volta({ aba, id, ok: `E-mail liberado. Quando ${nome.split(' ')[0]} entrar no app com ${email} (confirmado), vira consultora.` });
 }
 
 // ── Estado ────────────────────────────────────────────────
@@ -352,7 +360,16 @@ export async function decidirPedido(fd: FormData) {
   const id = txt(fd, 'id');
   const aprovar = txt(fd, 'decisao') === 'aprovar';
   const { data } = await appDb().from('consultora_pedidos').select('*').eq('id', id).eq('status', 'pendente').maybeSingle();
-  const p = data as { id: string; nome: string; email: string; instagram: string | null; whatsapp: string | null; indicada_por: string | null } | null;
+  const p = data as {
+    id: string;
+    nome: string;
+    email: string;
+    instagram: string | null;
+    whatsapp: string | null;
+    indicada_por: string | null;
+    como_soube?: string | null;
+    comentario?: string | null;
+  } | null;
   if (!p) volta({ aba: 'pedidos', erro: 'Pedido já decidido ou não encontrado.' });
 
   if (!aprovar) {
@@ -370,23 +387,22 @@ export async function decidirPedido(fd: FormData) {
   if (!codigo) volta({ aba: 'pedidos', erro: 'Não consegui montar um código pelo nome. Libere pela aba Consultoras.' });
   const indicadaPor = p.indicada_por && todas.some((c) => c.id === p.indicada_por) ? p.indicada_por : null;
 
-  const { data: nova, error } = await appDb()
-    .from('consultoras')
-    .insert({
-      nome: p.nome.slice(0, 80),
-      email_liberado: email,
-      codigo,
-      instagram: p.instagram ? normalizarInstagram(p.instagram) : null,
-      whatsapp: p.whatsapp ? normalizarWhatsapp(p.whatsapp) : null,
-      indicada_por: indicadaPor,
-      estado: 'esperando',
-      liberada_em: agora(),
-    })
-    .select('id')
-    .single();
+  // O que ela respondeu no site ("como soube" e o comentário) segue para a ficha.
+  const { id: novaId, error } = await inserirConsultora({
+    nome: p.nome.slice(0, 80),
+    email_liberado: email,
+    codigo,
+    instagram: p.instagram ? normalizarInstagram(p.instagram) : null,
+    whatsapp: p.whatsapp ? normalizarWhatsapp(p.whatsapp) : null,
+    indicada_por: indicadaPor,
+    estado: 'esperando',
+    liberada_em: agora(),
+    como_soube: p.como_soube ?? null,
+    nota_interna: p.comentario ?? null,
+  });
   if (error) volta({ aba: 'pedidos', erro: error.message });
   await appDb().from('consultora_pedidos').update({ status: 'aprovado', decidido_em: agora() }).eq('id', id);
-  volta({ aba: 'consultoras', id: (nova as { id: string }).id, ok: `Aprovada e liberada como "esperando cadastro" (código ${codigo}).` });
+  volta({ aba: 'consultoras', id: novaId, ok: `Aprovada e liberada como "esperando cadastro" (código ${codigo}).` });
 }
 
 // ── Pagamento (Pix) ───────────────────────────────────────

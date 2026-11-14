@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { botao, campo, rotuloCampo } from '@/components/consultoras/ui';
+import { TelefonePais } from '@/components/TelefonePais';
+import { COMO_SOUBE_OPCOES } from '@/lib/consultoras-regras';
 
 /**
  * Botão "+ Nova consultora" do painel do dono (09/11/2026). O formulário só
@@ -59,6 +61,10 @@ export function NovaConsultora({
                 <label className={rotuloCampo}>Instagram</label>
                 <input name="instagram" placeholder="@" className={campo} />
               </div>
+              <div className="sm:col-span-2">
+                <label className={rotuloCampo}>WhatsApp</label>
+                <TelefonePais name="whatsapp" classeSelect={campo} classeInput={campo} />
+              </div>
               <div>
                 <label className={rotuloCampo}>Código do link</label>
                 <input name="codigo" maxLength={20} placeholder="Sai do nome se ficar vazio" className={`${campo} uppercase`} />
@@ -69,6 +75,17 @@ export function NovaConsultora({
                   <option value="">Ninguém · {pctDireto}</option>
                   {opcoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className={rotuloCampo}>Como ficou sabendo do Ninho?</label>
+                <select name="como_soube" className={campo} defaultValue="">
+                  <option value="">Não informado</option>
+                  {COMO_SOUBE_OPCOES.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className={rotuloCampo}>Observação (opcional)</label>
+                <textarea name="nota_interna" maxLength={500} rows={3} placeholder="O trabalho dela, de onde veio, o que combinaram" className={campo} />
               </div>
             </div>
             <p className="mt-2 text-[11.5px] leading-snug text-ninho-cinza">
