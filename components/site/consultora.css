@@ -212,14 +212,17 @@
 .nc-kp .v { font-size: 15px; font-weight: 900; letter-spacing: -.02em; margin-top: 2px; white-space: nowrap; }
 .nc-kp .s { font-size: 8.5px; color: var(--tx2); margin-top: 2px; }
 .nc-g2w { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.nc-seq .r { display: grid; grid-template-columns: 30px 10px 1fr auto; align-items: center; column-gap: 6px; min-height: 19px; }
-.nc-seq .h { font-size: 9px; font-weight: 800; text-align: right; }
-.nc-seq .d { width: 8px; height: 8px; border-radius: 50%; }
-.nc-seq .l { font-size: 9.5px; font-weight: 700; }
-.nc-seq .l.w { font-weight: 600; color: var(--tx2); }
-.nc-seq .l .bar { height: 4px; border-radius: 2px; background: #E9E3F6; margin-top: 2px; }
-.nc-seq .l .bar.lg { background: #F6C77E; }
-.nc-seq .du { font-size: 9.5px; font-weight: 800; }
+/* Sequência do dia v2 (igual ao painel: "início – fim", uma linha por sono,
+   e entre um e outro o pontilhado com a janela de sono). */
+.nc-seq .r { display: grid; grid-template-columns: 68px 10px 1fr; align-items: flex-start; column-gap: 6px; padding: 2px 0; }
+.nc-seq .h { font-size: 9px; font-weight: 800; text-align: right; line-height: 13px; white-space: nowrap; }
+.nc-seq .d { width: 8px; height: 8px; border-radius: 50%; margin-top: 3px; }
+.nc-seq .l { font-size: 9.5px; font-weight: 700; line-height: 13px; }
+.nc-seq .l b { color: #7C5CD6; }
+.nc-seq .l .ped { display: block; font-size: 8.5px; font-weight: 600; color: var(--tx2); margin-top: 1px; }
+.nc-seq .g { display: grid; grid-template-columns: 68px 10px 1fr; column-gap: 6px; align-items: center; }
+.nc-seq .g .pt { justify-self: center; width: 0; border-left: 2px dotted #D9D3EA; }
+.nc-seq .g .jan { font-size: 8.5px; font-weight: 600; color: #9A95AD; }
 .nc-li { display: flex; align-items: center; gap: 7px; padding: 5px 0; }
 .nc-li + .nc-li { border-top: 1px solid #F3F0F8; }
 .nc-li .a { font-size: 10px; font-weight: 700; } .nc-li .b2 { font-size: 9px; color: var(--tx2); }

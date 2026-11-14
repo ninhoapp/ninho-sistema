@@ -177,7 +177,7 @@ function LegendaDia() {
 }
 
 // ── Painel web ──
-const MENU_WEB = ['Início', 'Famílias', 'Rotina', 'Semana', 'Relatório IA', 'Convidar família', 'Ganhos'];
+const MENU_WEB = ['Início', 'Famílias', 'Rotina', 'Evolução', 'Relatório IA', 'Convidar família', 'Ganhos'];
 
 function Navegador({ url, ativo, children }: { url: string; ativo: string; children: React.ReactNode }) {
   return (
@@ -229,19 +229,47 @@ function TelaWebInicio() {
   );
 }
 
+// ── Sequência do dia (igual ao app e ao painel desde 13/11/2026): uma linha
+// por sono, com "início – fim" e a duração, e entre um sono e o outro o
+// pontilhado dizendo quanto tempo o bebê ficou acordado (janela de sono).
+interface LinhaSeq { de: string; ate: string; cor: string; titulo: string; dur: string; janela?: string; janelaMin?: number; pedacos?: string }
+const SEQ: LinhaSeq[] = [
+  { de: '20:55', ate: '06:15', cor: '#3B2C78', titulo: 'Fim do sono noturno', dur: '9h05' },
+  { de: '08:45', ate: '09:30', cor: '#9F86E0', titulo: '1ª soneca', dur: '45 min', janela: '2h30', janelaMin: 150 },
+  { de: '13:10', ate: '14:00', cor: '#9F86E0', titulo: '2ª soneca', dur: '50 min', janela: '3h40', janelaMin: 220 },
+  {
+    de: '19:05', ate: '06:10', cor: '#3B2C78', titulo: 'Sono noturno', dur: '9h10', janela: '5h05', janelaMin: 305,
+    pedacos: '6 pedaços: 19:05–20:40 (1h35) · 21:00–23:10 (2h10) · 23:25–01:50 (2h25) · …',
+  },
+];
+
+function SequenciaDia({ compacta }: { compacta?: boolean }) {
+  return (
+    <div className="nc-seq" style={{ marginTop: 4 }}>
+      {SEQ.map((l, i) => (
+        <div key={i}>
+          {l.janelaMin ? (
+            <div className="g">
+              <span />
+              <span className="pt" style={{ height: Math.max(12, Math.min(34, 8 + l.janelaMin / 11)) }} />
+              <span className="jan nc-num">Janela de sono {l.janela}</span>
+            </div>
+          ) : null}
+          <div className="r">
+            <span className="h nc-num">{l.de} – {l.ate}</span>
+            <span className="d" style={{ background: l.cor }} />
+            <span className="l">
+              {l.titulo} <b className="nc-num">({l.dur})</b>
+              {l.pedacos && !compacta ? <span className="ped nc-num">{l.pedacos}</span> : null}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function TelaWebRotina() {
-  const seq: [string, string, string, string, number?, boolean?][] = [
-    [hm(375), '#F2B35A', 'Acordou', ''],
-    ['', '#E9E3F6', 'Acordado', '2h30', 150],
-    [hm(525), '#9F86E0', '1ª soneca', '45 min'],
-    ['', '#E9E3F6', 'Acordado', '3h40', 220],
-    [hm(790), '#9F86E0', '2ª soneca', '50 min'],
-    ['', '#F6C77E', 'Acordado', '5h05', 305, true],
-    [hm(1145), '#3B2C78', 'Dormiu', ''],
-    ['', '#5B48A8', '1º bloco', '1h35'],
-    ['', '#F0B456', '5 despertares', ''],
-    [hm(1810), '#F2B35A', 'Acordou (sáb.)', '9h10'],
-  ];
   const reg: [string, React.ComponentProps<typeof Ic>['n'], string, string][] = [
     ['bottle', 'gota', 'Mamadeira', '18:45 · 180 ml · Rafael'],
     ['food', 'garfo', 'Comida', '17:30 · papinha de legumes · Carla'],
@@ -267,17 +295,8 @@ function TelaWebRotina() {
       </div>
       <div className="nc-g2w">
         <div className="nc-pc">
-          <div className="ttl">Sequência do dia<small>janelas em tamanho real</small></div>
-          <div className="nc-seq" style={{ marginTop: 4 }}>
-            {seq.map(([h, cor, l, du, jan, longa], i) => (
-              <div key={i} className="r">
-                <span className="h nc-num">{h}</span>
-                <span className="d" style={{ background: cor }} />
-                <span className={`l${jan ? ' w' : ''}`}>{l}{jan ? <span className={`bar${longa ? ' lg' : ''}`} style={{ display: 'block', width: `${Math.min(100, (jan / 360) * 100)}%` }} /> : null}</span>
-                <span className="du nc-num" style={longa ? { color: '#A8670F' } : undefined}>{du}</span>
-              </div>
-            ))}
-          </div>
+          <div className="ttl">Sequência do dia<small>cada sono com início e fim</small></div>
+          <SequenciaDia />
         </div>
         <div className="nc-pc">
           <div className="ttl">Registros<small>Carla e Rafael</small></div>
@@ -294,12 +313,14 @@ function TelaWebRotina() {
 }
 
 // ── Celular ──
+// A barra de baixo do app, como ficou em 13/11/2026: à esquerda os bebês
+// (Rotina, Evolução), no meio o Início, à direita a administração.
 const BARRA: [string, React.ComponentProps<typeof Ic>['n'], boolean?][] = [
-  ['Semana', 'barras'],
-  ['Convidar', 'pessoaMais'],
+  ['Rotina', 'relogio'],
+  ['Evolução', 'barras'],
   ['Início', 'casa', true],
+  ['Convidar', 'pessoaMais'],
   ['Ganhos', 'dinheiro'],
-  ['IA', 'brilho'],
 ];
 
 function Celular({ t1, t2, barraAberta, escala, children }: { t1: string; t2: string; barraAberta?: boolean; escala?: number; children: React.ReactNode }) {
@@ -378,7 +399,7 @@ function CelBebe({ escala }: { escala?: number }) {
     <Celular t1="Theo · 7 meses" t2="Mãe: Carla · com você desde 12/10" escala={escala}>
       <div className="mod">
         <div className="back"><span className="b"><Ic n="esq" s={17} /></span>Início<span className="r">Trocar <Ic n="troca" s={15} /></span></div>
-        <div className="abas"><span>Ficha</span><span className="on">Rotina</span><span>Semana</span><span>Relatório</span></div>
+        <div className="abas"><span>Ficha</span><span className="on">Rotina</span><span>Evolução</span><span>Relatório</span></div>
       </div>
       <div className="mod">
         <div className="data"><span className="ar"><Ic n="esq" s={15} /></span><b>Ontem, sex. 6 de nov.</b><span className="ar"><Ic n="dir" s={15} /></span></div>
@@ -397,6 +418,10 @@ function CelBebe({ escala }: { escala?: number }) {
           <div><div className="k">Despertares</div><div className="v" style={{ color: '#A8670F' }}>5</div><div className="s">média 2,6</div></div>
           <div><div className="k">1º bloco</div><div className="v">1h35</div><div className="s">média 3h59</div></div>
         </div>
+      </div>
+      <div className="mod">
+        <div className="mt"><div><div className="t">Sequência do dia</div><div className="s">cada sono com início e fim</div></div></div>
+        <SequenciaDia compacta />
       </div>
     </Celular>
   );
