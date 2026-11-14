@@ -60,6 +60,7 @@ import {
 } from '@/lib/consultoras-rotina';
 import { BarrasSemana, DiaStrip, EvolucaoSono, FaixasNoites, Horarios, JanelaAntesDeDormir, Legenda, MiniNoites, Sequencia, SonecasNoite, diaCurto } from '@/components/consultoras/RotinaV3';
 import { CompartilharRelatorio } from '@/components/consultoras/CompartilharRelatorio';
+import { ManualDaConsultora } from '@/components/consultoras/ManualDaConsultora';
 import { IA_LIMITE_MES, IA_PERIODOS, IA_PRECO_MENSAL, RODAPE_IA, iaStatus, lerRelatorio, listarRelatorios, secoes, type IaStatus } from '@/lib/consultoras-ia';
 import { Avatar, Aviso, Card, Kpi, Retorno, Selo, botao, brl, campo, rotuloCampo, td, th } from '@/components/consultoras/ui';
 import { CodigoConsultora, LinkConsultoria, LinkDivulgacao } from '@/components/consultoras/LinksConsultora';
@@ -101,6 +102,7 @@ export default async function ConsultoraPage({ searchParams }: { searchParams: B
   else if (aba === 'relatorio') corpo = await RelatorioIA({ c, sp: searchParams });
   else if (aba === 'assinatura') corpo = await AssinaturaIA({ c });
   else if (aba === 'ajuda') corpo = <Ajuda c={c} />;
+  else if (aba === 'manual') corpo = <Manual c={c} />;
   else if (aba === 'sugestoes') corpo = await Sugestoes({ c });
   else if (aba === 'familias') corpo = await PedidosEConvites({ c, sp: searchParams });
   else corpo = await Familias({ c, sp: searchParams });
@@ -1227,6 +1229,21 @@ function Ajuda({ c }: { c: Consultora }) {
           </ul>
         </Card>
       </div>
+    </>
+  );
+}
+
+/**
+ * Manual da consultora (dono, 14/11/2026): o mesmo passo a passo que ele manda
+ * em PDF, agora dentro do painel dela. O app tem a versão enxuta no menu ☰.
+ */
+function Manual({ c }: { c: Consultora }) {
+  return (
+    <>
+      <Titulo t="Manual" sub="Do convite ao acompanhamento, com as telas do app." />
+      <ManualDaConsultora
+        dados={{ nome: primeiro(c.nome) || 'consultora', email: c.email_liberado ?? '', codigo: c.codigo, whatsapp: c.whatsapp }}
+      />
     </>
   );
 }

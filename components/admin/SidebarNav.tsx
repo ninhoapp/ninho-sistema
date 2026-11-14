@@ -43,6 +43,7 @@ const CONSULTORA: NavItem[] = [
   { href: '/admin/consultora?aba=relatorio', label: 'Relatório IA' },
   { href: '/admin/consultora?aba=convidar', label: 'Convidar família' },
   { href: '/admin/consultora?aba=ganhos', label: 'Ganhos' },
+  { href: '/admin/consultora?aba=manual', label: 'Manual' },
   // Meu perfil, Indicar, Assinatura IA e Ajuda: menu ☰ do topo e bloco "Sua conta" abaixo.
 ];
 

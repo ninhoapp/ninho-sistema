@@ -384,7 +384,12 @@ export function Paginas({ tipo, d, refs }: { tipo: TipoManual; d: DadosManual; r
 
 const esperarQuadro = () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 
-export function AcoesManual({ tipo, dados }: { tipo: TipoManual; dados: DadosManual }) {
+/**
+ * `apenasPdf` (dono, 14/11/2026): no painel da CONSULTORA só faz sentido
+ * baixar o PDF — copiar o texto e "enviar no WhatsApp" são do dono, que manda
+ * o manual para ela.
+ */
+export function AcoesManual({ tipo, dados, apenasPdf = false, rotuloPdf }: { tipo: TipoManual; dados: DadosManual; apenasPdf?: boolean; rotuloPdf?: string }) {
   const [desenhar, setDesenhar] = useState(false);
   const [estado, setEstado] = useState<'' | 'gerando' | 'copiado' | 'erro'>('');
   const refs = useRef<(HTMLDivElement | null)[]>([]);
@@ -472,25 +477,30 @@ export function AcoesManual({ tipo, dados }: { tipo: TipoManual; dados: DadosMan
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <button type="button" onClick={aoCopiar} className="inline-flex h-8 items-center rounded-pill bg-[#F0EEF4] px-3 text-[12.5px] font-bold text-ninho-cinza">
-          {estado === 'copiado' ? 'Copiado!' : 'Copiar texto'}
-        </button>
-        <a
-          href={linkWhatsApp(dados.whatsapp, textoManual(tipo, dados))}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex h-8 items-center rounded-pill bg-[#F1EBFC] px-3 text-[12.5px] font-bold text-[#7C5CD6]"
-        >
-          Só o texto no WhatsApp
-        </a>
+        {!apenasPdf && (
+          <button type="button" onClick={aoCopiar} className="inline-flex h-8 items-center rounded-pill bg-[#F0EEF4] px-3 text-[12.5px] font-bold text-ninho-cinza">
+            {estado === 'copiado' ? 'Copiado!' : 'Copiar texto'}
+          </button>
+        )}
+        {!apenasPdf && (
+          <a
+            href={linkWhatsApp(dados.whatsapp, textoManual(tipo, dados))}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-8 items-center rounded-pill bg-[#F1EBFC] px-3 text-[12.5px] font-bold text-[#7C5CD6]"
+          >
+            Só o texto no WhatsApp
+          </a>
+        )}
         <button
           type="button"
           onClick={aoBaixar}
           disabled={gerando}
           className="inline-flex h-8 items-center rounded-pill bg-[#24164F] px-3.5 text-[12.5px] font-bold text-white disabled:opacity-50"
         >
-          {gerando ? 'Gerando PDF…' : 'Baixar PDF'}
+          {gerando ? 'Gerando PDF…' : (rotuloPdf ?? 'Baixar PDF')}
         </button>
+        {!apenasPdf && (
         <button
           type="button"
           onClick={aoEnviar}
@@ -502,12 +512,15 @@ export function AcoesManual({ tipo, dados }: { tipo: TipoManual; dados: DadosMan
           </svg>
           Enviar PDF no WhatsApp
         </button>
+        )}
       </div>
       {estado === 'erro' && <p className="text-[11.5px] font-bold text-[#E85D5D]">Não consegui gerar o PDF agora. Tente de novo.</p>}
-      <p className="max-w-[420px] text-right text-[11px] leading-snug text-ninho-cinza">
-        No computador, o PDF é baixado e o WhatsApp abre com a mensagem: arraste o PDF para a conversa. No celular, escolha o WhatsApp na
-        lista.
-      </p>
+      {!apenasPdf && (
+        <p className="max-w-[420px] text-right text-[11px] leading-snug text-ninho-cinza">
+          No computador, o PDF é baixado e o WhatsApp abre com a mensagem: arraste o PDF para a conversa. No celular, escolha o WhatsApp na
+          lista.
+        </p>
+      )}
       {desenhar && (
         <div aria-hidden style={{ position: 'fixed', left: -100000, top: 0, width: L }}>
           <Paginas tipo={tipo} d={dados} refs={refs} />
