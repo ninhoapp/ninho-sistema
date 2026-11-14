@@ -1,0 +1,135 @@
+/* Página de um vídeo de ajuda (/v/<slug>): feita para o celular, vídeo
+   vertical em cima e os passos escritos embaixo.
+   Desenho: Ninho-expo/docs/design/consultora/videos-de-ajuda.html */
+
+.vw {
+  min-height: 100dvh;
+  background: #fff;
+  color: #1e1f25;
+  font-family: Inter, -apple-system, 'SF Pro Text', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.vw-palco {
+  background: radial-gradient(120% 90% at 50% 20%, #4b2e9e 0%, #1c1038 100%);
+  display: flex;
+  justify-content: center;
+  padding: 18px 16px 22px;
+}
+.vw-palco video,
+.vw-palco .vw-sem {
+  width: 100%;
+  max-width: 300px;
+  aspect-ratio: 9 / 16;
+  border-radius: 20px;
+  background: linear-gradient(160deg, #6a46cf 0%, #9a6bf0 55%, #cdb0ff 100%);
+  box-shadow: 0 26px 50px -24px rgba(0, 0, 0, 0.8);
+  display: block;
+}
+.vw-sem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.vw-in {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 22px 18px 44px;
+}
+.vw-in h1 {
+  font-size: 23px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: #24164f;
+  line-height: 1.2;
+}
+.vw-linha {
+  font-size: 14.5px;
+  color: #6b6f80;
+  line-height: 1.5;
+  margin-top: 7px;
+}
+.vw-abas {
+  display: flex;
+  background: #f1eef7;
+  border-radius: 999px;
+  padding: 4px;
+  margin-top: 16px;
+}
+.vw-abas a {
+  flex: 1;
+  text-align: center;
+  padding: 10px 6px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #6b6f80;
+  text-decoration: none;
+}
+.vw-abas a.on {
+  background: #fff;
+  color: #24164f;
+  box-shadow: 0 2px 6px rgba(40, 20, 90, 0.12);
+}
+.vw-passos {
+  margin-top: 16px;
+  list-style: none;
+  counter-reset: p;
+}
+.vw-passos li {
+  counter-increment: p;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 13px 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: #3d3a4c;
+}
+.vw-passos li + li {
+  border-top: 1px solid #f3f0f8;
+}
+.vw-passos li::before {
+  content: counter(p);
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #efe8fc;
+  color: #7c5cd6;
+  font-size: 13px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vw-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 52px;
+  border-radius: 999px;
+  margin-top: 20px;
+  background: linear-gradient(135deg, #a46dff, #8c5cf8);
+  color: #fff;
+  font-size: 15.5px;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 12px 22px -10px rgba(140, 92, 248, 0.8);
+}
+.vw-pe {
+  margin-top: 22px;
+  text-align: center;
+  font-size: 12.5px;
+  color: #9a95ad;
+}
+.vw-pe a {
+  color: #7c5cd6;
+  font-weight: 700;
+  text-decoration: none;
+}
