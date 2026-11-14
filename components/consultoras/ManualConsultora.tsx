@@ -2,6 +2,10 @@ import { Aviso, Card } from '@/components/consultoras/ui';
 import { AcoesManual } from '@/components/consultoras/AcoesManual';
 import { LINK_BAIXAR, codigoDe, type DadosManual } from '@/components/consultoras/manualTextos';
 import {
+  TelaApareca,
+  TelaEditarPerfil,
+  TelaListaConsultoras,
+  TelaPerfilNaLista,
   TelaAprovado,
   TelaConfirmar,
   TelaConvidar,
@@ -101,6 +105,27 @@ function PassosDepoisDeEntrar({ inicio, codigo, nome }: { inicio: number; codigo
         <p>
           Chega o aviso <b>Novo pedido de família</b>. No Início, em <b>Pedidos de famílias</b>, ela toca em <b>Aprovar</b> e depois em{' '}
           <b>Aprovar e acompanhar</b>. O bebê aparece em <b>Suas famílias</b>, e a rotina fica em <b>Rotina</b> e <b>Evolução</b>.
+        </p>
+      </Passo>
+      <Passo
+        n={inicio + 3}
+        titulo="Completar o perfil público e aparecer na lista"
+        telas={
+          <>
+            <TelaApareca />
+            <TelaEditarPerfil nome={nome} />
+            <TelaListaConsultoras nome={nome} />
+            <TelaPerfilNaLista nome={nome} />
+          </>
+        }
+      >
+        <p>
+          No menu ☰ › <b>Editar perfil</b> (ou <b>Completar perfil</b>, na apresentação), ela coloca foto, texto, cidade, idades e WhatsApp. O
+          texto e a foto chegam para você aprovar na aba <b>Perfil público</b>; depois, ligue <b>Na lista do app</b> na aba Cadastro.
+        </p>
+        <p>
+          As famílias encontram em menu ☰ › <b>Apoio</b> › <b>Encontrar consultora de sono</b>, com <b>Conversar no WhatsApp</b> no perfil dela.
+          A lista mostra até 10, quem traz mais assinantes primeiro.
         </p>
       </Passo>
     </>

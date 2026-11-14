@@ -7,6 +7,10 @@ import { linkWhatsApp } from '@/components/consultoras/BotaoWhatsApp';
 import { LINK_BAIXAR, codigoDe, textoComPdf, textoManual, type DadosManual, type TipoManual } from '@/components/consultoras/manualTextos';
 import {
   TelaAprovado,
+  TelaApareca,
+  TelaEditarPerfil,
+  TelaListaConsultoras,
+  TelaPerfilNaLista,
   TelaConfirmar,
   TelaConvidar,
   TelaCriarConta,
@@ -194,12 +198,62 @@ function PassosComuns({ d, inicio }: { d: DadosManual; inicio: number }) {
         </p>
       </PassoPdf>
     ),
+    perfil: (
+      <>
+        <PassoPdf
+          lado
+          n={inicio + 4}
+          titulo="Complete o seu perfil público"
+          telas={
+            <>
+              <Encolhido><TelaApareca /></Encolhido>
+              <Encolhido><TelaEditarPerfil nome={d.nome} /></Encolhido>
+            </>
+          }
+        >
+          <p>
+            Agora o passo que coloca você na vitrine: o seu perfil público. Mais de 2 mil pessoas já usam o Ninho, e quem procura ajuda com o
+            sono do bebê encontra as consultoras dentro do próprio app.
+          </p>
+          <p>
+            No menu ☰, toque em <b>Editar perfil</b> (ou em <b>Completar perfil</b>, na apresentação). Coloque uma foto, um texto curto sobre
+            como você ajuda as famílias, a cidade, as idades que atende e o seu WhatsApp, e toque em <b>Salvar</b>.
+          </p>
+          <p>
+            Eu reviso o texto e a foto e libero o seu perfil na lista. É só evitar promessa de resultado e indicação de remédio ou de posição de
+            sono.
+          </p>
+        </PassoPdf>
+        <PassoPdf
+          lado
+          n={inicio + 5}
+          titulo="Veja como as famílias vão te encontrar"
+          telas={
+            <>
+              <Encolhido><TelaListaConsultoras nome={d.nome} /></Encolhido>
+              <Encolhido><TelaPerfilNaLista nome={d.nome} /></Encolhido>
+            </>
+          }
+        >
+          <p>
+            No app, a família abre o menu ☰ › <b>Apoio</b> › <b>Encontrar consultora de sono</b>. Lá aparece a lista com foto, nome e cidade.
+          </p>
+          <p>
+            Ao tocar no seu nome, ela vê o seu perfil completo e o botão <b>Conversar no WhatsApp</b>, que abre a conversa direto com você.
+          </p>
+          <p>
+            A lista mostra até 10 consultoras, e quem traz mais famílias assinantes aparece primeiro. Quanto mais você convidar, mais perto do
+            topo você fica.
+          </p>
+        </PassoPdf>
+      </>
+    ),
   };
 }
 
 function Ajuda() {
   return (
-    <div className="mt-8 rounded-[22px] bg-[#E7F5EC] p-5">
+    <div className="mt-5 rounded-[22px] bg-[#E7F5EC] p-4">
       <p className="text-[16px] font-black text-[#2F8A55]">Estou aqui com você</p>
       <p className="mt-1 text-[13.5px] leading-relaxed text-[#2D4A39]">
         Qualquer dúvida, me chama no WhatsApp, no horário que for. Se travar em alguma tela, me manda um print que a gente resolve junto. E as
@@ -216,7 +270,7 @@ export function Paginas({ tipo, d, refs }: { tipo: TipoManual; d: DadosManual; r
     refs.current[i] = el;
   };
   if (tipo === 'sem-conta') {
-    const total = 5;
+    const total = 6;
     return (
       <>
         <Pagina n={1} total={total} refPagina={set(0)}>
@@ -275,12 +329,15 @@ export function Paginas({ tipo, d, refs }: { tipo: TipoManual; d: DadosManual; r
         </Pagina>
         <Pagina n={5} total={total} refPagina={set(4)}>
           {c.aprovar}
+        </Pagina>
+        <Pagina n={6} total={total} refPagina={set(5)}>
+          {c.perfil}
           <Ajuda />
         </Pagina>
       </>
     );
   }
-  const total = 4;
+  const total = 5;
   const c2 = PassosComuns({ d, inicio: 2 });
   return (
     <>
@@ -316,6 +373,9 @@ export function Paginas({ tipo, d, refs }: { tipo: TipoManual; d: DadosManual; r
       </Pagina>
       <Pagina n={4} total={total} refPagina={set(3)}>
         {c2.aprovar}
+      </Pagina>
+      <Pagina n={5} total={total} refPagina={set(4)}>
+        {c2.perfil}
         <Ajuda />
       </Pagina>
     </>

@@ -21,6 +21,8 @@ const passosComuns = (codigo: string, n: number) =>
   `Também dá para convidar pelo e-mail da cliente, em "Convidar pelo e-mail da família".\n\n` +
   `${n + 2}. Quando a cliente digitar o seu código, chega o aviso "Novo pedido de família". No Início, toque em "Aprovar" e depois em "Aprovar e acompanhar". ` +
   `Pronto: a rotina do bebê aparece para você.\n\n` +
+  `${n + 3}. Complete o seu perfil público: no menu ☰, toque em "Editar perfil" e coloque foto, um texto sobre como você ajuda as famílias, cidade, idades que atende e WhatsApp. ` +
+  `Eu reviso e libero você na lista "Encontrar consultora de sono", que as famílias veem dentro do app. Mais de 2 mil pessoas já usam o Ninho.\n\n` +
   `Qualquer dúvida, é só me chamar aqui.`;
 
 /** Passo a passo completo, em texto, para mandar pelo WhatsApp. */

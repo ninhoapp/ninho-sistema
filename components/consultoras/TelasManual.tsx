@@ -333,3 +333,115 @@ export function TelaSininho({ nome }: { nome: string }) {
     </Celular>
   );
 }
+
+// ── Perfil público e a lista "Encontrar consultora de sono" ────────────────
+// Textos: consultora.ts (apresentacao t3/f3, perfil, editar) e consultants.ts no Ninho-expo.
+
+export function TelaApareca() {
+  return (
+    <Celular legenda="Apresentação: Apareça no Ninho" fundo="#F4EEFF">
+      <div className="flex h-full flex-col px-3 pb-3 pt-4">
+        <p className="text-center text-[8.5px] font-bold text-[#9A95AD]">3 de 3</p>
+        <p className="mt-3 text-[16px] font-black leading-tight text-[#24164F]">Apareça no Ninho</p>
+        <p className="mt-1 text-[9.5px] text-[#4B3A8C]">Com foto, cidade, idades e WhatsApp, você entra na lista que as famílias veem no app.</p>
+        <div className="mt-3 space-y-1.5">
+          {['Foto', 'Cidade', 'Idades que atende', 'WhatsApp'].map((f) => (
+            <div key={f} className="flex items-center gap-1.5 rounded-[10px] bg-white px-2 py-1.5 text-[9.5px] font-bold">
+              <span className="h-3 w-3 rounded-full border-[1.5px] border-[#9F86E0]" />
+              {f}
+            </div>
+          ))}
+        </div>
+        <div className="mt-auto">
+          <Pilula dedo>Completar perfil</Pilula>
+          <Pilula tom="cinza">Fazer depois</Pilula>
+        </div>
+      </div>
+    </Celular>
+  );
+}
+
+export function TelaEditarPerfil({ nome }: { nome: string }) {
+  const campo = (rotulo: string, valor: string) => (
+    <div className="mt-1.5 flex items-center justify-between border-b border-[#F5F2FA] pb-1 text-[8.5px]">
+      <span className="font-bold text-[#9A95AD]">{rotulo}</span>
+      <span className="font-bold">{valor}</span>
+    </div>
+  );
+  return (
+    <Celular legenda="Menu ☰ › Editar perfil">
+      <Head titulo="Editar perfil" sub="Consultora independente" />
+      <Modulo>
+        <div className="flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#C066AE] text-[11px] font-black text-white">{nome.slice(0, 1)}</span>
+          <span className="rounded-full bg-[#F1EBFC] px-2 py-0.5 text-[8px] font-bold text-[#7C5CD6]">Trocar foto</span>
+        </div>
+        <p className="mt-2 text-[8px] font-bold text-[#9A95AD]">Sobre você</p>
+        <div className="mt-0.5 rounded-[8px] bg-[#F7F5FB] px-2 py-1 text-[8.5px] text-[#6B6F80]">Como você ajuda as famílias com o sono do bebê</div>
+        {campo('Cidade · UF', 'Recife · PE')}
+        {campo('WhatsApp', '(81) 9····-····')}
+        {campo('Instagram', '@seuperfil')}
+        {campo('Atende', 'Presencial e online')}
+        {campo('Idades que atende', '0 a 3 anos')}
+        <Pilula dedo>Salvar</Pilula>
+      </Modulo>
+    </Celular>
+  );
+}
+
+export function TelaListaConsultoras({ nome }: { nome: string }) {
+  const card = (n: string, cor: string, cidade: string, destaque = false) => (
+    <div className={`mt-1.5 flex items-center gap-2 rounded-[12px] bg-white p-2 ${destaque ? 'shadow-[inset_0_0_0_1.5px_#9F86E0]' : ''}`}>
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-black text-white" style={{ background: cor }}>
+        {n.slice(0, 1)}
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-[10px] font-black">{n}</p>
+        <p className="truncate text-[8px] text-[#6B6F80]">Consultora independente · {cidade}</p>
+      </div>
+      {destaque && <Dedo />}
+    </div>
+  );
+  return (
+    <Celular legenda="Família: ☰ › Apoio › Encontrar consultora de sono">
+      <div className="relative h-full">
+        <Head titulo="Consultoras de sono" sub="Consultoras independentes" />
+        <div className="px-2.5 pt-2">
+          <p className="text-[8.5px] leading-snug text-[#6B6F80]">Consultoras de sono independentes que ajudam com a rotina de sono do bebê. Converse com elas direto pelo WhatsApp.</p>
+          <div className="mt-1.5 flex gap-1">
+            {['Todas', 'Atende online', 'Presencial'].map((f, i) => (
+              <span key={f} className={`rounded-full px-1.5 py-0.5 text-[7.5px] font-bold ${i === 0 ? 'bg-[#24164F] text-white' : 'bg-white text-[#6B6F80]'}`}>{f}</span>
+            ))}
+          </div>
+          <div className="relative">{card(nome, '#C066AE', 'Recife · PE', true)}</div>
+          {card('Juliana', '#4583D6', 'São Paulo · SP')}
+          {card('Camila', '#3E9D70', 'Online')}
+        </div>
+      </div>
+    </Celular>
+  );
+}
+
+export function TelaPerfilNaLista({ nome }: { nome: string }) {
+  return (
+    <Celular legenda="O seu perfil, como a família vê">
+      <Head titulo="Consultora de sono" sub={nome} />
+      <Modulo>
+        <div className="flex items-center gap-2">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#C066AE] text-[14px] font-black text-white">{nome.slice(0, 1)}</span>
+          <div>
+            <p className="text-[11px] font-black">{nome}</p>
+            <p className="text-[8px] text-[#6B6F80]">Consultora independente · Recife · PE</p>
+          </div>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-1.5 text-[8px]">
+          <div className="rounded-[8px] bg-[#F7F5FB] p-1.5"><p className="font-bold text-[#9A95AD]">Atende</p><p className="font-bold">Presencial e online</p></div>
+          <div className="rounded-[8px] bg-[#F7F5FB] p-1.5"><p className="font-bold text-[#9A95AD]">Idades</p><p className="font-bold">0 a 3 anos</p></div>
+        </div>
+        <p className="mt-2 text-[8.5px] leading-snug text-[#3A3B45]">Ajudo famílias a construir uma rotina de sono gentil, no tempo de cada bebê.</p>
+        <Pilula tom="verde" dedo>Conversar no WhatsApp</Pilula>
+        <Pilula tom="branco">Ver Instagram</Pilula>
+      </Modulo>
+    </Celular>
+  );
+}
