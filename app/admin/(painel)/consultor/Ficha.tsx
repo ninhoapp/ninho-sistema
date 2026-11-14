@@ -8,6 +8,8 @@ import { TrocarFoto } from '@/components/consultoras/TrocarFoto';
 import { LimparLink } from '@/components/admin/LimparLink';
 import { CopyLink } from '@/components/admin/CopyLink';
 import { AbasFicha } from '@/components/consultoras/AbasFicha';
+import { ManualConsultora } from '@/components/consultoras/ManualConsultora';
+import { PrimeirosContatos } from '@/components/consultoras/PrimeirosContatos';
 import { CadastrosConsultora, type CadastroLinha } from '@/components/consultoras/CadastrosConsultora';
 import { FunilTabela } from '@/components/consultoras/Funil';
 import type { IaStatus } from '@/lib/consultoras-ia';
@@ -472,6 +474,33 @@ export function Detalhe({
           { chave: 'familias', rotulo: 'Famílias vinculadas', conta: vinculadas.length, alerta: pedidosVinculo.length > 0, conteudo: familiasVinc },
           { chave: 'comissao', rotulo: 'Comissão', alerta: faltaPix && comissaoTotalMes > 0, conteudo: comissao },
           { chave: 'links', rotulo: 'Links', conteudo: links },
+          {
+            chave: 'manual',
+            rotulo: 'Manual',
+            conteudo: (
+              <ManualConsultora
+                temConta={Boolean(c.profile_id)}
+                dados={{ nome: primeiro(c.nome) || 'consultora', email: c.email_liberado ?? '', codigo: c.codigo, whatsapp: c.whatsapp }}
+              />
+            ),
+          },
+          {
+            chave: 'contatos',
+            rotulo: 'Primeiros contatos',
+            conteudo: (
+              <PrimeirosContatos
+                dados={{
+                  nome: primeiro(c.nome) || 'tudo bem',
+                  whatsapp: c.whatsapp,
+                  email: c.email_liberado ?? '',
+                  codigo: c.codigo,
+                  ativa: c.estado === 'ativa',
+                  indicada: Boolean(c.indicada_por),
+                  pct: pctTxt(pct),
+                }}
+              />
+            ),
+          },
         ]}
       />
     </>
