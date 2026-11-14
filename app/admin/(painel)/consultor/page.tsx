@@ -6,7 +6,7 @@ import { mesNoPainel } from '@/lib/dashboard-charts';
 import { SITE_URL } from '@/lib/config';
 import { telefoneLegivel } from '@/lib/telefone';
 import { NovaConsultora } from '@/components/consultoras/NovaConsultora';
-import { Detalhe } from './Ficha';
+import { Detalhe, type VinculadaLinha } from './Ficha';
 import { iaStatus } from '@/lib/consultoras-ia';
 import {
   baseComissoes,
@@ -85,7 +85,7 @@ function brutoDoMes(familias: FamiliaAtribuida[], mes: string, consultoraId?: st
 export default async function ConsultorPage({
   searchParams,
 }: {
-  searchParams: { aba?: string; id?: string; mes?: string; ok?: string; erro?: string; estado?: string; q?: string };
+  searchParams: { aba?: string; id?: string; mes?: string; ok?: string; erro?: string; estado?: string; q?: string; parte?: string };
 }) {
   requireRole('admin');
   // Comissões e Receita viraram a aba Dinheiro (09/11/2026); links antigos continuam valendo.
@@ -220,7 +220,7 @@ export default async function ConsultorPage({
                 titulo={`${c.nome} mudou ${c.bio_pendente && c.foto_pendente_url ? 'o texto e a foto' : c.bio_pendente ? 'o texto' : 'a foto'} do perfil`}
                 sub={c.bio_pendente ? `“${c.bio_pendente.length > 90 ? `${c.bio_pendente.slice(0, 90)}…` : c.bio_pendente}”` : 'foto nova esperando aprovação'}
               >
-                <Link href={`${BASE}?aba=consultoras&id=${c.id}#perfil`} className={botao.suave}>Ver e aprovar</Link>
+                <Link href={`${BASE}?aba=consultoras&id=${c.id}&parte=perfil`} className={botao.suave}>Ver e aprovar</Link>
               </Tarefa>
             ))}
             {aPagar.map((x) => {
@@ -246,7 +246,7 @@ export default async function ConsultorPage({
                 titulo={`${c.nome} tem comissão a receber e falta ${!c.pix_chave && !c.cpf ? 'Pix e CPF' : !c.pix_chave ? 'Pix' : 'CPF'}`}
                 sub="ela cadastra no painel dela, em Ganhos"
               >
-                <Link href={`${BASE}?aba=consultoras&id=${c.id}#conta`} className={botao.cinza}>Abrir</Link>
+                <Link href={`${BASE}?aba=consultoras&id=${c.id}&parte=comissao`} className={botao.cinza}>Abrir</Link>
               </Tarefa>
             ))}
             {esperando.map((c) => {
@@ -424,15 +424,41 @@ export default async function ConsultorPage({
     );
     // Ficha aberta: ocupa a área da tela no lugar da lista (09/11/2026; a
     // gaveta por cima da lista ficou ruim para o dono).
-    if (det)
+    if (det) {
+      // Famílias vinculadas (rotina compartilhada): nome da mãe (dona do bebê) e do bebê.
+      const vincDet = vincPor(det.id);
+      const idsDet = vincDet.map((v) => v.baby_id);
+      const [bebesDet, cuidDet] = await Promise.all([bebesPorId(idsDet), cuidadoresDe(idsDet)]);
+      const userPorDet = new Map(users.map((u) => [u.id, u]));
+      const hojeDet = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+      const vinculadas: VinculadaLinha[] = vincDet
+        .map((v) => {
+          const b = bebesDet.get(v.baby_id);
+          const dono = cuidDet.find((x) => x.baby_id === v.baby_id && x.role === 'owner');
+          const u = dono ? userPorDet.get(dono.profile_id) : undefined;
+          const fam = familias.find((f) => f.babyId === v.baby_id && f.consultoraId === v.consultora_id);
+          return {
+            id: v.id,
+            bebe: b?.name ?? 'Bebê',
+            meses: idadeMeses(b?.birth_date ?? null, hojeDet),
+            mae: u?.name?.trim() || null,
+            email: u?.email ?? null,
+            ligadaEm: v.aceito_em,
+            plano: u ? accountStatus(u) : null,
+            planoCor: (u?.estadoEfetivo === 'pagante' ? 'verde' : u?.estadoEfetivo === 'trial_ativo' ? 'lilas' : 'cinza') as VinculadaLinha['planoCor'],
+            gera: Boolean(fam?.gera),
+          };
+        })
+        .sort((a, z) => z.ligadaEm.localeCompare(a.ligadaEm));
       conteudo = (
             <Detalhe
               c={det}
               fechar={urlLista({})}
+              parte={searchParams.parte}
               porId={porId}
               consultoras={consultoras}
               familias={familias.filter((f) => f.consultoraId === det.id)}
-              vinculos={vincPor(det.id).length}
+              vinculadas={vinculadas}
               assinam={assinamPor(det.id)}
               comissaoTotalMes={totalDe(linhas, det.id, mesAtual)}
               pedidosVinculo={pedVincPor(det.id)}
@@ -454,6 +480,7 @@ export default async function ConsultorPage({
               mesAtual={mesAtual}
             />
       );
+    }
   }
 
   if (aba === 'sugestoes') {

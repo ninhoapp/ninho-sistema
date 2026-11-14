@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ficha da consultora em abas</title>
+<style>
+  :root{
+    --lilas:#9F86E0; --lilas-claro:#EDE4FB; --lilas-escuro:#7C5CD6; --grad1:#A46DFF; --grad2:#8C5CF8;
+    --fundo:#F2F3F6; --texto:#1E1F25; --sec:#6B6F80; --borda:#ECE6F5; --titulo:#24164F;
+    --verde:#4CAF74; --verde-fundo:#E7F5EC; --verde-txt:#2F8A55; --ambar:#B7791F; --ambar-fundo:#FFF2D6;
+    --vermelho:#E85D5D; --vermelho-fundo:#FDEEEE; --rot:#9A95AD; --zap:#25A35A; --sombra:0 10px 30px -22px rgba(80,40,160,.35);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#E9E6F0;color:var(--texto);font-size:13px}
+  b{font-weight:800}
+  .topo{max-width:1240px;margin:0 auto;padding:28px 20px 14px}
+  .topo h1{font-size:24px;font-weight:900;color:var(--titulo);letter-spacing:-.02em}
+  .topo p{color:var(--sec);margin-top:6px;font-size:14px;line-height:1.5;max-width:860px}
+  .wrap{max-width:1240px;margin:0 auto;padding:0 20px 40px}
+  .janela{border-radius:16px;overflow:hidden;box-shadow:0 30px 60px -30px rgba(40,20,90,.45);background:var(--fundo)}
+  .barra{height:34px;background:#fff;border-bottom:1px solid var(--borda);display:flex;align-items:center;gap:6px;padding:0 14px}
+  .barra i{width:10px;height:10px;border-radius:50%;background:#E2DEEA}
+  .barra span{margin-left:14px;font-size:11.5px;color:var(--rot);background:#F5F2FB;border-radius:8px;padding:3px 12px}
+  .cab{display:flex;align-items:center;justify-content:space-between;background:#fff;border-bottom:1px solid var(--borda);padding:10px 22px}
+  .logo{display:flex;align-items:center;gap:8px;font-weight:900;color:var(--lilas-escuro);font-size:16px}
+  .logo i{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--grad1),var(--grad2))}
+  .cab .eu{font-size:12px;color:var(--sec);font-weight:600}
+  .corpo{display:flex;gap:20px;padding:20px 22px 28px}
+  .lado{width:190px;flex-shrink:0}
+  .lado div{background:#fff;border-radius:16px;padding:10px}
+  .lado a{display:block;padding:8px 10px;border-radius:10px;color:var(--sec);font-weight:600;font-size:12.5px;text-decoration:none}
+  .lado a.on{background:var(--lilas-claro);color:var(--lilas-escuro);font-weight:800}
+  .main{flex:1;min-width:0}
+  .voltar{display:inline-block;font-weight:800;color:var(--lilas-escuro);font-size:13px;margin-bottom:10px}
+
+  .card{background:#fff;border-radius:22px;padding:18px;box-shadow:var(--sombra)}
+  .card h4{font-size:14.5px;font-weight:900;color:var(--texto)}
+  .card .dir{font-size:11.5px;font-weight:600;color:var(--sec)}
+  .linha-tit{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:36px;border-radius:999px;padding:0 16px;font-weight:800;font-size:13px;border:0;cursor:pointer;white-space:nowrap;text-decoration:none}
+  .btn.grad{background:linear-gradient(135deg,var(--grad1),var(--grad2));color:#fff}
+  .btn.suave{background:#F1EBFC;color:var(--lilas-escuro)}
+  .btn.cinza{background:#F0EEF4;color:var(--sec)}
+  .btn.verde{background:var(--verde);color:#fff}
+  .btn.zap{background:var(--zap);color:#fff}
+  .btn.verm{background:var(--vermelho-fundo);color:var(--vermelho)}
+  .btn.peq{height:30px;padding:0 12px;font-size:12px}
+  .btn svg{width:16px;height:16px}
+  .selo{display:inline-block;border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:800;white-space:nowrap}
+  .s-verde{background:var(--verde-fundo);color:var(--verde-txt)} .s-lilas{background:#EFE8FC;color:var(--lilas-escuro)}
+  .s-ambar{background:var(--ambar-fundo);color:var(--ambar)} .s-cinza{background:#F0EEF4;color:var(--sec)}
+  .av{border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:900;flex-shrink:0}
+  .a1{background:#3E9D70}.a2{background:#4583D6}.a3{background:#C066AE}.a4{background:#E58A1F}.a5{background:#5F6CCB}
+
+  /* cabeçalho da ficha */
+  .ficha-cab{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .ficha-cab .nome{font-size:21px;font-weight:900;color:var(--titulo);letter-spacing:-.02em}
+  .ficha-cab .sub{color:var(--sec);font-size:13px;margin-top:3px}
+  .contatos{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:#F7F5FB;border-radius:999px;padding:6px 12px;font-weight:700;font-size:12.5px;color:var(--texto)}
+  .chip svg{width:14px;height:14px}
+  .acoes{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto;align-self:flex-start}
+
+  /* abas */
+  .abas{display:flex;gap:4px;background:#fff;border-radius:999px;padding:5px;margin:16px 0;box-shadow:var(--sombra);width:max-content;max-width:100%;overflow-x:auto}
+  .abas button{border:0;background:transparent;border-radius:999px;padding:9px 16px;font-weight:800;font-size:13px;color:var(--sec);cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+  .abas button.on{background:var(--titulo);color:#fff}
+  .abas em{font-style:normal;background:#EFE8FC;color:var(--lilas-escuro);border-radius:999px;padding:0 7px;font-size:11px}
+  .abas button.on em{background:rgba(255,255,255,.2);color:#fff}
+  .abas .ponto{width:7px;height:7px;border-radius:50%;background:var(--ambar)}
+  .painel-aba{display:none}
+  .painel-aba.on{display:block}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+  .kpi{background:#fff;border-radius:20px;padding:14px 16px;box-shadow:var(--sombra)}
+  .kpi small{display:block;font-size:11px;font-weight:800;color:var(--rot);text-transform:uppercase;letter-spacing:.06em}
+  .kpi b{display:block;font-size:24px;font-weight:900;color:var(--titulo);margin-top:4px;font-variant-numeric:tabular-nums}
+  .kpi span{font-size:12px;color:var(--sec)}
+  .kpi.verde b{color:var(--verde-txt)}
+
+  .linha{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #F5F2FA;padding:11px 0;flex-wrap:wrap}
+  .linha:last-child{border-bottom:0}
+  .linha .r{font-weight:800;color:var(--rot);font-size:12.5px}
+  .linha .r small{display:block;font-weight:500;color:var(--sec);font-size:11px;max-width:240px;line-height:1.35}
+  .linha .v{font-weight:700;text-align:right;display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+  .chave{width:38px;height:22px;border-radius:999px;background:var(--verde);position:relative}
+  .chave:after{content:"";position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff}
+  .sel{height:30px;border-radius:10px;border:1.5px solid var(--borda);padding:0 10px;font-weight:700;font-size:12px;color:var(--texto);background:#fff}
+
+  .perfil-pub{background:#F8F6FC;border-radius:20px;padding:16px}
+  .aprovar{margin-top:12px;background:#F3EEFC;border-radius:16px;padding:12px}
+  .aprovar p.t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--lilas-escuro)}
+  .aviso{margin-top:12px;font-size:11.5px;line-height:1.45;color:var(--rot)}
+  .nota{background:#F3EEFC;border-radius:16px;padding:12px 14px;color:#4B3A8C;font-size:12.5px;line-height:1.5;margin-top:14px}
+
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;font-size:11px;font-weight:800;color:var(--rot);text-transform:uppercase;letter-spacing:.06em;padding:8px 10px;border-bottom:1px solid var(--borda)}
+  td{padding:11px 10px;border-bottom:1px solid #F5F2FA;vertical-align:middle;font-variant-numeric:tabular-nums}
+  tr:last-child td{border-bottom:0}
+  td .pri{font-weight:800;color:var(--titulo)}
+  td .seg{font-size:11.5px;color:var(--sec);margin-top:2px}
+  .pessoa{display:flex;align-items:center;gap:10px}
+  .filtros{display:flex;gap:6px;flex-wrap:wrap}
+  .filtros span{border-radius:999px;padding:5px 11px;font-size:11.5px;font-weight:800;background:#F0EEF4;color:var(--sec)}
+  .filtros span.on{background:var(--lilas-claro);color:var(--lilas-escuro)}
+  .busca{height:32px;border-radius:999px;border:1.5px solid var(--borda);padding:0 14px;font-size:12.5px;width:220px}
+
+  .link-card{border-radius:22px;padding:18px;background:#fff;box-shadow:var(--sombra)}
+  .link-card.principal{box-shadow:inset 0 0 0 2px var(--lilas),var(--sombra)}
+  .link-topo{display:flex;align-items:center;gap:12px}
+  .ico{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+  .ico svg{width:22px;height:22px}
+  .ico.lua{background:#EFE8FC;color:var(--lilas-escuro)} .ico.insta{background:#FCE8F1;color:#C9407A}
+  .url{display:flex;align-items:center;gap:8px;background:#F7F5FB;border-radius:14px;padding:10px 12px;margin-top:14px;font-weight:800;color:var(--lilas-escuro);font-size:13.5px}
+  .url span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .para{font-size:12.5px;color:var(--sec);line-height:1.5;margin-top:10px}
+  .funil{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+  .funil div{background:#F8F6FC;border-radius:14px;padding:10px;text-align:center}
+  .funil b{display:block;font-size:19px;font-weight:900;color:var(--titulo);font-variant-numeric:tabular-nums}
+  .funil small{font-size:11px;color:var(--sec);font-weight:700}
+  .seta{font-size:11px;color:var(--rot);text-align:center;margin-top:6px}
+
+  @media (max-width:900px){
+    .lado{display:none}.grid2{grid-template-columns:1fr}.grid4{grid-template-columns:1fr 1fr}.corpo{padding:14px}
+    .acoes{margin-left:0}
+  }
+</style>
+</head>
+<body>
+
+<div class="topo">
+  <h1>Ficha da consultora em abas</h1>
+  <p>Ideia para a página de cada consultora no painel (/admin › Consultoras). Em cima fica sempre o essencial: quem é, o <b>WhatsApp com botão para chamar</b>, o estado e os botões de pausar e excluir. Embaixo, quatro abas: <b>Perfil</b>, <b>Famílias vinculadas</b>, <b>Comissão</b> e <b>Links</b>. Toque nas abas para ver cada uma. Os nomes das famílias são de exemplo.</p>
+</div>
+
+<div class="wrap">
+<div class="janela">
+  <div class="barra"><i></i><i></i><i></i><span>useninho.com.br/admin/consultor?aba=consultoras&amp;id=…</span></div>
+  <div class="cab"><div class="logo"><i></i>Ninho · Painel</div><div class="eu">Mailson</div></div>
+  <div class="corpo">
+    <nav class="lado"><div>
+      <a>Visão geral</a><a>Usuários</a><a>Assinaturas</a><a class="on">Consultoras</a><a>Parceiros</a><a>Atendimento</a><a>Financeiro</a>
+    </div></nav>
+
+    <main class="main">
+      <span class="voltar">‹ Todas as consultoras</span>
+
+      <!-- Cabeçalho fixo da ficha -->
+      <div class="card">
+        <div class="ficha-cab">
+          <span class="av a3" style="width:64px;height:64px;font-size:24px">NF</span>
+          <div style="min-width:240px;flex:1">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span class="nome">Nathalia Frias</span>
+              <span class="selo s-verde">ativa</span>
+              <span class="selo s-lilas">perfil novo para aprovar</span>
+            </div>
+            <p class="sub">Consultora independente · Recife · PE · ativa desde 06/11/2026 · código <b>NATHA</b></p>
+            <div class="contatos">
+              <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="#25A35A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-13.5 7.8L3 21l1.2-4.4A9 9 0 1 1 21 12z"/></svg>+55 81 99999-1234</span>
+              <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="#C9407A" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/></svg>@nathaliafrias.sono</span>
+              <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="#7C5CD6" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m3 7 9 6 9-6"/></svg>nathalia@exemplo.com</span>
+            </div>
+          </div>
+          <div class="acoes">
+            <a class="btn zap"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-13.5 7.8L3 21l1.2-4.4A9 9 0 1 1 21 12z"/></svg>Chamar no WhatsApp</a>
+            <button class="btn verm">Pausar</button>
+            <button class="btn cinza">Excluir</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Abas -->
+      <div class="abas" role="tablist">
+        <button class="on" data-aba="perfil">Perfil <span class="ponto" title="perfil novo para aprovar"></span></button>
+        <button data-aba="familias">Famílias vinculadas <em>4</em></button>
+        <button data-aba="comissao">Comissão</button>
+        <button data-aba="links">Links</button>
+      </div>
+
+      <!-- ABA PERFIL -->
+      <section class="painel-aba on" id="perfil">
+        <div class="grid2">
+          <div class="card">
+            <div class="linha-tit"><h4>Contato e cadastro</h4><span class="dir">só você vê</span></div>
+            <div class="linha"><span class="r">WhatsApp</span><span class="v">+55 81 99999-1234 <a class="btn zap peq">Chamar</a></span></div>
+            <div class="linha"><span class="r">Instagram</span><span class="v">@nathaliafrias.sono <a class="btn suave peq">Abrir</a></span></div>
+            <div class="linha"><span class="r">E-mail liberado<small>a conta do app com este e-mail vira consultora</small></span><span class="v">nathalia@exemplo.com</span></div>
+            <div class="linha"><span class="r">Conta do app</span><span class="v"><span class="selo s-verde">ligada</span></span></div>
+            <div class="linha"><span class="r">Termo aceito</span><span class="v">06/11/2026 (v3)</span></div>
+            <div class="linha"><span class="r">Na lista do app<small>aparece em Encontrar consultora (até 10)</small></span><span class="v"><span class="chave"></span></span></div>
+            <div class="linha"><span class="r">Indicada por<small>só muda as famílias daqui para frente</small></span><span class="v"><select class="sel"><option>Ninguém (25%)</option></select><button class="btn cinza peq">Salvar</button></span></div>
+            <div class="linha"><span class="r">Ela indicou</span><span class="v">Ana Lima</span></div>
+            <div class="linha"><span class="r">Relatório IA</span><span class="v">assina até 08/12/2026 · 4 de 30 no mês</span></div>
+          </div>
+
+          <div class="card">
+            <div class="linha-tit"><h4>Perfil público</h4><span class="dir">como as famílias veem no app</span></div>
+            <div class="perfil-pub">
+              <div style="display:flex;align-items:center;gap:12px">
+                <span class="av a3" style="width:52px;height:52px;font-size:19px">NF</span>
+                <div><b style="font-size:15px">Nathalia Frias</b><p style="font-size:12.5px;color:var(--sec)">Consultora independente · Recife · PE</p><p style="font-size:12px;color:var(--sec)">Online e presencial · 0 a 3 anos</p></div>
+              </div>
+              <p style="margin-top:12px;font-size:13.5px;line-height:1.55">Ajudo famílias a construir uma rotina de sono gentil, respeitando o tempo de cada bebê.</p>
+            </div>
+            <div class="aprovar">
+              <p class="t">Texto novo para aprovar</p>
+              <p style="margin-top:4px;color:#4B3A8C">"Sou consultora de sono há 5 anos e ajudo famílias a dormirem melhor, com uma rotina gentil e possível."</p>
+              <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px"><button class="btn cinza peq">Recusar</button><button class="btn verde peq">Aprovar texto</button></div>
+            </div>
+            <div style="margin-top:12px"><button class="btn suave peq">Trocar foto</button></div>
+            <p class="aviso">Aviso que as famílias veem: consultora independente; as orientações são de responsabilidade dela e não substituem o pediatra.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ABA FAMÍLIAS -->
+      <section class="painel-aba" id="familias">
+        <div class="grid4">
+          <div class="kpi"><small>Vinculadas</small><b>4</b><span>famílias com a rotina aberta para ela</span></div>
+          <div class="kpi"><small>Assinam hoje</small><b>1</b><span>das vinculadas</span></div>
+          <div class="kpi"><small>Em teste grátis</small><b>3</b><span>podem virar assinatura</span></div>
+          <div class="kpi"><small>Pedidos esperando</small><b>1</b><span>de família, ela ainda não aprovou</span></div>
+        </div>
+        <div class="card">
+          <div class="linha-tit">
+            <h4>Famílias vinculadas</h4>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <div class="filtros"><span class="on">Todas 4</span><span>Assinam 1</span><span>Teste grátis 3</span><span>Geram comissão 1</span></div>
+              <input class="busca" placeholder="Buscar mãe ou bebê">
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Mãe</th><th>Bebê</th><th>Ligada em</th><th>Como chegou</th><th>Plano</th><th>Comissão</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><div class="pessoa"><span class="av a2" style="width:34px;height:34px;font-size:13px">JS</span><div><div class="pri">Juliana Souza</div><div class="seg">juliana@exemplo.com</div></div></div></td>
+                <td><div class="pri">Theo</div><div class="seg">3 meses</div></td>
+                <td>13/11/2026</td>
+                <td><span class="selo s-lilas">link de consultoria</span></td>
+                <td><span class="selo s-verde">Premium mensal</span></td>
+                <td><span class="selo s-verde">gera · 1 de 6</span></td>
+              </tr>
+              <tr>
+                <td><div class="pessoa"><span class="av a4" style="width:34px;height:34px;font-size:13px">BR</span><div><div class="pri">Bruna Ramos</div><div class="seg">bruna@exemplo.com</div></div></div></td>
+                <td><div class="pri">Mauro</div><div class="seg">8 meses</div></td>
+                <td>12/11/2026</td>
+                <td><span class="selo s-cinza">código em Cuidadores</span></td>
+                <td><span class="selo s-lilas">Teste grátis</span></td>
+                <td><span class="selo s-cinza">não gera</span></td>
+              </tr>
+              <tr>
+                <td><div class="pessoa"><span class="av a1" style="width:34px;height:34px;font-size:13px">AC</span><div><div class="pri">Adriana Costa</div><div class="seg">adriana@exemplo.com</div></div></div></td>
+                <td><div class="pri">Caroline</div><div class="seg">4 meses</div></td>
+                <td>11/11/2026</td>
+                <td><span class="selo s-cinza">convite por e-mail</span></td>
+                <td><span class="selo s-lilas">Teste grátis</span></td>
+                <td><span class="selo s-cinza">não gera</span></td>
+              </tr>
+              <tr>
+                <td><div class="pessoa"><span class="av a5" style="width:34px;height:34px;font-size:13px">NM</span><div><div class="pri">Natália Melo</div><div class="seg">natalia@exemplo.com</div></div></div></td>
+                <td><div class="pri">Ana Cecília</div><div class="seg">4 meses</div></td>
+                <td>11/11/2026</td>
+                <td><span class="selo s-cinza">lista do app</span></td>
+                <td><span class="selo s-lilas">Teste grátis</span></td>
+                <td><span class="selo s-cinza">não gera</span></td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+          <div class="nota"><b>Pedido esperando:</b> a família de <b>Lara</b> (mãe: Paula Dias) pediu vínculo pelo código em 13/11/2026. Ela aprova pelo app dela.</div>
+        </div>
+      </section>
+
+      <!-- ABA COMISSÃO -->
+      <section class="painel-aba" id="comissao">
+        <div class="grid4">
+          <div class="kpi verde"><small>Comissão de novembro</small><b>R$ 4,47</b><span>Pix até 05/12/2026</span></div>
+          <div class="kpi"><small>Famílias que geram</small><b>1</b><span>criaram a conta pelo link ou código</span></div>
+          <div class="kpi"><small>Já pago</small><b>R$ 0,00</b><span>desde o começo</span></div>
+          <div class="kpi"><small>Percentual</small><b>25%</b><span>por 6 meses, não foi indicada</span></div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="linha-tit"><h4>Famílias que geram comissão</h4><span class="dir">mãe · bebê</span></div>
+            <table>
+              <thead><tr><th>Família</th><th>Plano</th><th>Parcela</th><th style="text-align:right">No mês</th></tr></thead>
+              <tbody>
+                <tr><td><div class="pri">Juliana Souza</div><div class="seg">Theo · pelo link</div></td><td>Premium mensal</td><td>1 de 6</td><td style="text-align:right;font-weight:800">R$ 4,47</td></tr>
+              </tbody>
+            </table>
+            <div class="nota">Comissão só nasce quando a família cria a conta pelo link ou pelo código dela. Vínculo sozinho não gera, e para no cancelamento ou reembolso.</div>
+          </div>
+          <div class="card">
+            <div class="linha-tit"><h4>Pagamento</h4><span class="dir">Pix até o 5º dia útil</span></div>
+            <div class="linha"><span class="r">Chave Pix</span><span class="v">nathalia@exemplo.com</span></div>
+            <div class="linha"><span class="r">CPF</span><span class="v">***.456.789-**</span></div>
+            <div class="linha"><span class="r">Novembro/2026</span><span class="v">R$ 4,47 <span class="selo s-ambar">a pagar</span> <button class="btn verde peq">Marcar como pago</button></span></div>
+            <div class="linha"><span class="r">Outubro/2026</span><span class="v">R$ 0,00 <span class="selo s-cinza">sem valor</span></span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ABA LINKS -->
+      <section class="painel-aba" id="links">
+        <div class="grid2">
+          <div class="link-card principal">
+            <div class="link-topo">
+              <span class="ico lua"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></span>
+              <div style="flex:1"><h4 style="font-size:15px;font-weight:900">Convidar clientes</h4><p style="font-size:12px;color:var(--sec)">link principal · para quem ela já atende</p></div>
+              <span class="selo s-lilas">principal</span>
+            </div>
+            <div class="url"><span>useninho.com.br/consultoria/natha</span><button class="btn suave peq">Copiar</button></div>
+            <p class="para">A família abre a página com a foto e o nome dela, baixa o app e, depois de cadastrar o bebê, o app pergunta se quer ligar à consultora. Gera comissão e já pede o vínculo.</p>
+            <div class="funil"><div><b>38</b><small>cliques</small></div><div><b>12</b><small>downloads</small></div><div><b>6</b><small>cadastros</small></div><div><b>1</b><small>assinaturas</small></div></div>
+            <p class="seta">últimos 6 meses</p>
+          </div>
+
+          <div class="link-card">
+            <div class="link-topo">
+              <span class="ico insta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg></span>
+              <div style="flex:1"><h4 style="font-size:15px;font-weight:900">Divulgação no Instagram</h4><p style="font-size:12px;color:var(--sec)">para a bio e os stories</p></div>
+            </div>
+            <div class="url"><span>useninho.com.br/indica/natha</span><button class="btn suave peq">Copiar</button></div>
+            <p class="para">Para quem ainda não é cliente dela. Leva para a loja e conta a comissão se a pessoa assinar, mas não liga a família a ela.</p>
+            <div class="funil"><div><b>124</b><small>cliques</small></div><div><b>21</b><small>downloads</small></div><div><b>9</b><small>cadastros</small></div><div><b>0</b><small>assinaturas</small></div></div>
+            <p class="seta">últimos 6 meses</p>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <div class="linha-tit"><h4>Mês a mês</h4><span class="dir">os dois links somados</span></div>
+          <table>
+            <thead><tr><th>Mês</th><th>Cliques</th><th>Downloads</th><th>Cadastros</th><th>Assinaturas</th></tr></thead>
+            <tbody>
+              <tr><td class="pri">Novembro/2026</td><td>131</td><td>29</td><td>13</td><td>1</td></tr>
+              <tr><td class="pri">Outubro/2026</td><td>31</td><td>4</td><td>2</td><td>0</td></tr>
+            </tbody>
+          </table>
+          <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn cinza peq">Zerar contagem dos links</button></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+</div>
+
+<script>
+  document.querySelectorAll('.abas button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.abas button').forEach(function (x) { x.classList.toggle('on', x === b); });
+      document.querySelectorAll('.painel-aba').forEach(function (s) { s.classList.toggle('on', s.id === b.dataset.aba); });
+    });
+  });
+</script>
+</body>
+</html>
