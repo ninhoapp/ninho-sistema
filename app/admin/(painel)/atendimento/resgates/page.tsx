@@ -76,6 +76,9 @@ function Linha({ r, conversa }: { r: Resgate; conversa: MensagemConversa[] }) {
         >
           {NOME_TIPO_RESGATE[r.tipo] ?? r.tipo}
         </span>
+        {r.canal === 'email' ? (
+          <span className="mr-2 rounded-pill bg-ninho-roxo-suave px-2 py-0.5 text-xs text-ninho-roxo-escuro">por e-mail</span>
+        ) : null}
         {situacao}
         {r.voltaria ? (
           <span className="ml-2 rounded-pill bg-ninho-lavanda px-2 py-0.5 text-xs text-ninho-roxo-escuro">{NOME_VOLTARIA[r.voltaria] ?? r.voltaria}</span>
@@ -147,6 +150,7 @@ export default async function ResgatesPage({ searchParams }: { searchParams: Par
   const paraExcel = linhas.map((r) => ({
     Data: quando(r.iniciado_em),
     Tipo: NOME_TIPO_RESGATE[r.tipo] ?? r.tipo,
+    Canal: r.canal === 'email' ? 'E-mail' : 'Nina',
     Nome: r.nome ?? '',
     'E-mail': r.email ?? '',
     Registros: r.registros,

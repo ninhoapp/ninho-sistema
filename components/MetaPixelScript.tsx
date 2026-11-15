@@ -20,7 +20,9 @@ import Script from 'next/script';
 import { usePathname } from 'next/navigation';
 import { META_PIXEL_ID } from '@/lib/config';
 
-const PRIVADO = /^\/(admin|api)(\/|$)/;
+// /motivo: o endereço leva o código pessoal do e-mail (que também descadastra)
+// e a resposta da pessoa — nada disso pode ir para a Meta (15/11/2026).
+const PRIVADO = /^\/(admin|api|motivo)(\/|$)/;
 
 export function MetaPixelScript() {
   const pathname = usePathname() ?? '';

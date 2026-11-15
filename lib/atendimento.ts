@@ -359,6 +359,8 @@ export interface Resgate {
   /** 00138: marcado pelo dono para investigar, com nota. */
   investigar: boolean;
   nota_dono: string | null;
+  /** 00156. Sem a coluna, vem 'nina'. */
+  canal: 'nina' | 'email';
   nome: string | null;
   email: string | null;
 }
@@ -398,6 +400,8 @@ const COLUNAS_RESGATE_V1 =
   'id, profile_id, registros, app_version, iniciado_em, respondeu_em, motivo, motivo_resumo, motivo_em, codigo_oferecido, visto_pelo_dono_em, teste';
 const COLUNAS_RESGATE_V2 = `${COLUNAS_RESGATE_V1}, tipo, resposta_rapida, push_enviada_em, lembrete_em, converteu_em`;
 const COLUNAS_RESGATE = `${COLUNAS_RESGATE_V2}, voltaria, voltaria_resumo, investigar, nota_dono`;
+/** 00156: canal 'nina' (conversa no app) ou 'email' (pergunta por e-mail). */
+const COLUNAS_RESGATE_CANAL = `${COLUNAS_RESGATE}, canal`;
 
 type LinhaResgate = Omit<Resgate, 'nome' | 'email'>;
 
@@ -415,6 +419,7 @@ function normalizar(linhas: unknown[] | null): LinhaResgate[] {
         voltaria_resumo: null,
         investigar: false,
         nota_dono: null,
+        canal: 'nina',
         ...l,
       }) as LinhaResgate,
   );
@@ -442,7 +447,8 @@ export async function fetchAlertaResgate(): Promise<{ novos: number; ultimos: Re
       .is('visto_pelo_dono_em', null)
       .order('motivo_em', { ascending: false })
       .limit(3);
-  let r = await consultar(COLUNAS_RESGATE);
+  let r = await consultar(COLUNAS_RESGATE_CANAL);
+  if (r.error) r = await consultar(COLUNAS_RESGATE);
   if (r.error) r = await consultar(COLUNAS_RESGATE_V2);
   if (r.error) r = await consultar(COLUNAS_RESGATE_V1);
   if (r.error) return { novos: 0, ultimos: [] };
@@ -452,7 +458,8 @@ export async function fetchAlertaResgate(): Promise<{ novos: number; ultimos: Re
 export async function fetchResgates(limite = 60): Promise<Resgate[]> {
   const consultar = (colunas: string) =>
     appDb().from('atendimento_resgates').select(colunas).order('iniciado_em', { ascending: false }).limit(limite);
-  let r = await consultar(COLUNAS_RESGATE);
+  let r = await consultar(COLUNAS_RESGATE_CANAL);
+  if (r.error) r = await consultar(COLUNAS_RESGATE);
   if (r.error) r = await consultar(COLUNAS_RESGATE_V2);
   if (r.error) r = await consultar(COLUNAS_RESGATE_V1);
   if (r.error) return [];
@@ -486,7 +493,8 @@ export async function fetchResgatesFiltrados(f: FiltroResgates): Promise<Resgate
     if (f.dias && f.dias > 0) q = q.gte('iniciado_em', new Date(Date.now() - f.dias * 86_400_000).toISOString());
     return q;
   };
-  let r = await consultar(COLUNAS_RESGATE);
+  let r = await consultar(COLUNAS_RESGATE_CANAL);
+  if (r.error) r = await consultar(COLUNAS_RESGATE);
   if (r.error) r = await consultar(COLUNAS_RESGATE_V2);
   if (r.error) r = await consultar(COLUNAS_RESGATE_V1);
   if (r.error) return [];
