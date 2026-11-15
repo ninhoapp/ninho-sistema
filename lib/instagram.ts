@@ -14,11 +14,15 @@ export interface PostInstagram {
   id: string;
   slug: string;
   semana: string;
-  formato: 'imagem' | 'carrossel';
+  formato: 'imagem' | 'carrossel' | 'reels';
   objetivo: string | null;
   vende: boolean;
   legenda: string;
   imagens: string[];
+  /** Reels (ENG-009, migration 00166): o vídeo e se é Reels de teste (só para quem não segue). */
+  video_url: string | null;
+  capa_url: string | null;
+  teste: boolean;
   agendado_para: string;
   status: StatusPost;
   ajuste: string | null;
@@ -34,6 +38,8 @@ export interface PostInstagram {
     likes?: number;
     comments?: number;
     follows?: number;
+    /** Só Reels: tempo médio assistido, em milissegundos. */
+    ig_reels_avg_watch_time?: number;
     comentarios_saude?: { id: string; texto: string; em: string }[];
   } | null;
 }

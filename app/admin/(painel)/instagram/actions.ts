@@ -55,6 +55,22 @@ export async function recusarPost(fd: FormData) {
   await mudar(id(fd), { status: 'recusado', aprovado_em: null }, ['rascunho', 'aprovado', 'erro']);
 }
 
+/** Reels de teste (só para quem não segue) ou Reels normal. Trocar não tira o OK. */
+export async function trocarTeste(fd: FormData) {
+  const teste = String(fd.get('teste') ?? '') === 'true';
+  requireRole('admin');
+  const postId = id(fd);
+  if (!/^[0-9a-f-]{36}$/.test(postId)) throw new Error('post inválido');
+  const { error } = await painelDb()
+    .from('instagram_posts')
+    .update({ teste, erro: null })
+    .eq('id', postId)
+    .eq('formato', 'reels')
+    .in('status', ['rascunho', 'aprovado', 'erro', 'recusado']);
+  if (error) throw new Error(error.message);
+  revalidatePath('/admin/instagram');
+}
+
 /**
  * Horário digitado em Dubai, o relógio do dono (correção dele em 27/10/2026:
  * ele lia o horário do card como se fosse de Dubai). Dubai não tem horário de verão.

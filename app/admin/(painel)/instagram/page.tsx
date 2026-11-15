@@ -2,7 +2,8 @@ import { requireRole } from '@/lib/auth/guard';
 import { listarPosts, listarConta, quando, melhoresHoras, type PostInstagram, type StatusPost } from '@/lib/instagram';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
-import { aprovarPost, aprovarSemana, pedirAjuste, recusarPost, mudarHorario } from './actions';
+import { GaleriaInstagram } from '@/components/admin/GaleriaInstagram';
+import { aprovarPost, aprovarSemana, pedirAjuste, recusarPost, mudarHorario, trocarTeste } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +18,18 @@ const STATUS: Record<StatusPost, { label: string; cor: string }> = {
 
 const botao = 'rounded-pill px-3 py-1.5 text-sm font-medium transition';
 
+/**
+ * Abas do topo (pedido do dono, 15/11/2026): ao entrar, só o que espera o OK
+ * dele; o resto fica nas outras abas.
+ */
+const ABAS = {
+  espera: { label: 'Para aprovar', status: ['rascunho', 'erro'] as StatusPost[] },
+  aprovados: { label: 'Aprovados', status: ['aprovado', 'publicando'] as StatusPost[] },
+  publicados: { label: 'Publicados', status: ['publicado'] as StatusPost[] },
+  recusados: { label: 'Recusados', status: ['recusado'] as StatusPost[] },
+} as const;
+type Aba = keyof typeof ABAS;
+
 /** "2026-10-26T14:30" em Dubai (o relógio do dono), para o campo de horário. */
 function valorHorario(iso: string): string {
   const d = new Date(new Date(iso).getTime() + 4 * 3_600_000);
@@ -29,6 +42,8 @@ function Numeros({ m }: { m: PostInstagram['metricas'] }) {
     ['alcance', m.reach], ['salvamentos', m.saved], ['compartilhamentos', m.shares],
     ['curtidas', m.likes], ['comentários', m.comments], ['seguidores', m.follows],
   ];
+  if (m.views != null) itens.unshift(['visualizações', m.views]);
+  if (m.ig_reels_avg_watch_time != null) itens.push(['s assistidos em média', Math.round(m.ig_reels_avg_watch_time / 100) / 10]);
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ninho-cinza">
       {itens.map(([k, v]) => (
@@ -61,16 +76,24 @@ function CardPost({ p }: { p: PostInstagram }) {
         <span className={`rounded-pill px-2.5 py-1 text-xs font-semibold ${s.cor}`}>{s.label}</span>
       </div>
 
-      <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
-        {p.imagens.map((src, i) => (
-          <a key={src} href={src} target="_blank" rel="noreferrer" className="shrink-0">
-            <img src={src} alt={`slide ${i + 1}`} className="h-44 w-[141px] rounded-lg border border-ninho-borda object-cover" />
-          </a>
-        ))}
-      </div>
+      {p.formato === 'reels' && p.video_url ? (
+        <video
+          src={p.video_url}
+          poster={p.capa_url ?? undefined}
+          controls
+          playsInline
+          preload="metadata"
+          className="mb-3 h-80 rounded-lg border border-ninho-borda bg-black"
+        />
+      ) : (
+        <GaleriaInstagram imagens={p.imagens} />
+      )}
 
-      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-ninho-cinza">
-        {p.formato} · {p.objetivo ?? '—'}{p.vende ? ' · vende' : ''}
+      <p className="mb-1 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-ninho-cinza">
+        {p.formato === 'reels' && p.teste && (
+          <span className="rounded-pill bg-sky-100 px-2 py-0.5 normal-case tracking-normal text-sky-800">Reels de teste · só para quem não segue</span>
+        )}
+        <span>{p.formato} · {p.objetivo ?? '—'}{p.vende ? ' · vende' : ''}</span>
       </p>
       <pre className="mb-3 whitespace-pre-wrap font-sans text-sm text-ninho-grafite">{p.legenda}</pre>
 
@@ -100,6 +123,15 @@ function CardPost({ p }: { p: PostInstagram }) {
               <button className={`${botao} bg-ninho-roxo text-white hover:bg-ninho-roxo-escuro`}>Aprovar</button>
             </form>
           )}
+          {p.formato === 'reels' && (
+            <form action={trocarTeste}>
+              <input type="hidden" name="id" value={p.id} />
+              <input type="hidden" name="teste" value={p.teste ? 'false' : 'true'} />
+              <button className={`${botao} border border-ninho-borda hover:border-ninho-roxo`}>
+                {p.teste ? 'Sair como Reels normal' : 'Mudar para Reels de teste'}
+              </button>
+            </form>
+          )}
           <form action={mudarHorario} className="flex items-center gap-1">
             <input type="hidden" name="id" value={p.id} />
             <input type="datetime-local" name="quando" defaultValue={valorHorario(p.agendado_para)}
@@ -124,20 +156,27 @@ function CardPost({ p }: { p: PostInstagram }) {
   );
 }
 
-export default async function InstagramPage() {
+export default async function InstagramPage({ searchParams }: { searchParams?: { aba?: string } }) {
   requireRole('admin');
-  const [posts, conta] = await Promise.all([listarPosts(), listarConta()]);
+  const [todos, conta] = await Promise.all([listarPosts(), listarConta()]);
+  const aba: Aba = searchParams?.aba && searchParams.aba in ABAS ? (searchParams.aba as Aba) : 'espera';
+  const contagem = Object.fromEntries(
+    (Object.keys(ABAS) as Aba[]).map((k) => [k, todos.filter((p) => ABAS[k].status.includes(p.status)).length]),
+  ) as Record<Aba, number>;
+  const posts = todos.filter((p) => ABAS[aba].status.includes(p.status));
 
   const hoje = conta[0];
   const semanaAtras = conta.find((c) => c.dia <= new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10));
   const ganho = hoje?.seguidores != null && semanaAtras?.seguidores != null ? hoje.seguidores - semanaAtras.seguidores : null;
   const horas = melhoresHoras(conta.find((c) => c.online_por_hora)?.online_por_hora ?? null);
-  const esperando = posts.filter((p) => p.status === 'rascunho');
+  const esperando = todos.filter((p) => p.status === 'rascunho');
 
   // Atrasados no topo e nunca escondidos; depois, as semanas da mais próxima para a mais distante.
   const atrasados = posts.filter(atrasado);
-  const proximo = posts.find((p) => p.status === 'aprovado');
+  const proximo = todos.find((p) => p.status === 'aprovado');
   const semanas = [...new Set(posts.filter((p) => !atrasado(p)).map((p) => p.semana))].sort();
+  // Publicados e recusados: o mais recente primeiro.
+  if (aba === 'publicados' || aba === 'recusados') semanas.reverse();
 
   return (
     <>
@@ -153,8 +192,22 @@ export default async function InstagramPage() {
         <StatCard label="Seguidores mais online" value={horas.length ? horas.join(' · ') : '—'} hint="Horário de Dubai" />
       </div>
 
+      <nav className="mb-6 flex flex-wrap gap-2 border-b border-ninho-borda pb-3">
+        {(Object.keys(ABAS) as Aba[]).map((k) => (
+          <a
+            key={k}
+            href={k === 'espera' ? '/admin/instagram' : `/admin/instagram?aba=${k}`}
+            className={`${botao} ${k === aba ? 'bg-ninho-roxo text-white' : 'border border-ninho-borda bg-white hover:border-ninho-roxo'}`}
+          >
+            {ABAS[k].label} <span className={k === aba ? 'opacity-80' : 'text-ninho-cinza'}>({contagem[k]})</span>
+          </a>
+        ))}
+      </nav>
+
       {posts.length === 0 && (
-        <p className="rounded-2xl bg-white p-6 text-sm text-ninho-cinza">Nenhum post ainda. A Lívia sobe a semana com marketing/instagram/gerador/subir.py.</p>
+        <p className="mb-6 rounded-2xl bg-white p-6 text-sm text-ninho-cinza">
+          {aba === 'espera' ? 'Nada esperando o seu OK.' : 'Nada nesta aba.'}
+        </p>
       )}
 
       <p className={`mb-6 rounded-2xl p-4 text-sm ${proximo ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-900'}`}>
@@ -179,7 +232,7 @@ export default async function InstagramPage() {
           <section key={semana} className="mb-8">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-bold">Semana de {semana.split('-').reverse().slice(0, 2).join('/')}</h2>
-              {rascunhos > 0 && (
+              {aba === 'espera' && rascunhos > 0 && (
                 <form action={aprovarSemana}>
                   <input type="hidden" name="semana" value={semana} />
                   <button className={`${botao} bg-ninho-roxo text-white hover:bg-ninho-roxo-escuro`}>
