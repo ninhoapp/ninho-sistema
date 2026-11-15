@@ -16,6 +16,7 @@ import {
   type ConviteEnviado,
   montarGanhos,
   rotinaDe,
+  relogioDaFamilia,
   type Consultora,
   type FamiliaDaConsultora,
   type Ficha,
@@ -159,13 +160,16 @@ function desdeTxt(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' });
 }
 
-function SeloAgora({ f }: { f: FamiliaDaConsultora }) {
+async function SeloAgora({ f }: { f: FamiliaDaConsultora }) {
   if (!f.plano_ok) return <Selo cor="cinza">Família sem plano</Selo>;
   if (f.dormindo_desde) return <Selo cor="noite">Dormindo · {dur((Date.now() - new Date(f.dormindo_desde).getTime()) / 60000)}</Selo>;
   if (!f.ultimo_registro_em) return <Selo cor="vermelho">Sem registro</Selo>;
   const h = (Date.now() - new Date(f.ultimo_registro_em).getTime()) / H;
   if (h >= 12) return <Selo cor="vermelho">Sem registro há {Math.floor(h)}h</Selo>;
-  return <Selo cor="ambar">Último registro às {hora(new Date(f.ultimo_registro_em).getTime())}</Selo>;
+  // Na hora da família (dono, 15/11/2026).
+  const ms = new Date(f.ultimo_registro_em).getTime();
+  const rel = await relogioDaFamilia(f.baby_id, ms);
+  return <Selo cor="ambar">Último registro às {hora(ms + rel.delta)}</Selo>;
 }
 
 // ── Início (v3) ───────────────────────────────────────────
@@ -175,6 +179,8 @@ interface FamiliaComSemana {
   f: FamiliaDaConsultora;
   semana: SemanaV3 | null;
   ficha: Ficha | null;
+  /** "Ontem" no relógio da família. */
+  ontem?: string;
 }
 
 function waLink(digitos: string | null | undefined, texto: string): string {
@@ -195,15 +201,18 @@ async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
   const lista = todas.slice(0, 40);
   const dados: FamiliaComSemana[] = await Promise.all(
     lista.map(async (f) => {
+      // Hora da família (dono, 15/11/2026): o dia e o "agora" são os dela.
+      const rel = await relogioDaFamilia(f.baby_id, agora);
+      const hojeF = diaLocalDe(rel.agora);
       const [rot, fi] = await Promise.all([
-        f.plano_ok ? rotinaDe(c.id, f.baby_id, new Date(inicioDoDia(somarDias(hoje, -7)) - 12 * H), new Date(agora + 60_000)) : Promise.resolve({ registros: [], semAcesso: true }),
+        f.plano_ok ? rotinaDe(c.id, f.baby_id, new Date(inicioDoDia(somarDias(hojeF, -7)) - 12 * H), new Date(rel.agora + 60_000), rel) : Promise.resolve({ registros: [], semAcesso: true }),
         fichaDe(c.id, f.baby_id),
       ]);
-      return { f, semana: rot.semAcesso ? null : semanaV3(rot.registros, ontem, agora), ficha: fi.ficha };
+      return { f, semana: rot.semAcesso ? null : semanaV3(rot.registros, somarDias(hojeF, -1), rel.agora), ficha: fi.ficha, ontem: somarDias(hojeF, -1) };
     }),
   );
   const porBebe = new Map(dados.map((d) => [d.f.baby_id, d]));
-  const noiteOntem = (d: FamiliaComSemana) => d.semana?.dias.find((x) => x.dia === ontem) ?? null;
+  const noiteOntem = (d: FamiliaComSemana) => d.semana?.dias.find((x) => x.dia === (d.ontem ?? ontem)) ?? null;
   const semReg = (f: FamiliaDaConsultora) => f.plano_ok && !f.dormindo_desde && (!f.ultimo_registro_em || agora - new Date(f.ultimo_registro_em).getTime() >= 12 * H);
   const agitada = (d: FamiliaComSemana) => {
     const n = noiteOntem(d);
@@ -291,7 +300,7 @@ async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
             if (agitada(d) && n) {
               return (
                 <div key={d.f.baby_id} className="mt-2 flex flex-wrap items-center gap-3 rounded-2xl bg-[#FFF8EC] px-3 py-2.5">
-                  <Link href={`${BASE}?aba=rotina&bebe=${d.f.baby_id}&dia=${ontem}`} className="min-w-[200px] flex-1">
+                  <Link href={`${BASE}?aba=rotina&bebe=${d.f.baby_id}&dia=${d.ontem ?? ontem}`} className="min-w-[200px] flex-1">
                     <p className="text-[13.5px] font-extrabold">{d.f.bebe_nome} · noite agitada</p>
                     <p className="text-xs tabular-nums text-ninho-cinza">
                       {n.noite.despertares} despertares{n.noite.primeiroTrechoMin !== null ? `, 1º bloco de ${dur(n.noite.primeiroTrechoMin)}` : ''}. Dia com {n.sonecas.length} soneca{n.sonecas.length === 1 ? '' : 's'}.
@@ -652,8 +661,7 @@ async function Fichas({ c, familias, aberta }: { c: Consultora; familias: Famili
 }
 
 // ── Rotina e semana (v3) ──────────────────────────────────
-function diaRotulo(dia: string): string {
-  const hoje = hojeSP();
+function diaRotulo(dia: string, hoje: string = hojeSP()): string {
   if (dia === hoje) return 'Hoje';
   if (dia === somarDias(hoje, -1)) return `Ontem, ${diaCurto(dia)}`;
   return diaCurto(dia).replace(/^./, (x) => x.toUpperCase());
@@ -696,8 +704,11 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
       </>
     );
   }
-  const hoje = hojeSP();
-  const agora = Date.now();
+  // Hora da FAMÍLIA, não a de Brasília (dono, 15/11/2026): o dia, o "agora" e
+  // cada horário saem do fuso do responsável principal (lib/consultoras-fuso.ts).
+  const rel = await relogioDaFamilia(f.baby_id);
+  const hoje = diaLocalDe(rel.agora);
+  const agora = rel.agora;
   const seletor = (extra: React.ReactNode = null) => (
     <form className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="aba" value={aba} />
@@ -726,11 +737,11 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
     const dia = sp.dia && /^\d{4}-\d{2}-\d{2}$/.test(sp.dia) && sp.dia <= hoje && sp.dia >= somarDias(hoje, -30) ? sp.dia : hoje;
     const de = new Date(inicioDoDia(somarDias(dia, -8)) - 12 * H);
     const ate = new Date(Math.min(inicioDoDia(somarDias(dia, 1)) + 14 * H, agora + 60_000));
-    const { registros, semAcesso } = await rotinaDe(c.id, f.baby_id, de, ate);
+    const { registros, semAcesso } = await rotinaDe(c.id, f.baby_id, de, ate, rel);
     const nav = (
       <div className="flex items-center gap-2 rounded-pill bg-white p-1 shadow-[inset_0_0_0_1.5px_#ECE6F5]">
         {dia > somarDias(hoje, -30) ? <Link href={`${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${somarDias(dia, -1)}`} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F3EEFC] text-[#7C5CD6]">‹</Link> : <span className="h-8 w-8" />}
-        <b className="min-w-[150px] text-center text-[13.5px]">{diaRotulo(dia)}</b>
+        <b className="min-w-[150px] text-center text-[13.5px]">{diaRotulo(dia, hoje)}</b>
         {dia < hoje ? <Link href={`${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${somarDias(dia, 1)}`} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F3EEFC] text-[#7C5CD6]">›</Link> : <span className="h-8 w-8" />}
       </div>
     );
@@ -787,7 +798,7 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
                 );
               })}
             </div>
-            <p className="mt-2.5 text-[11.5px] font-semibold text-[#9A95AD]">Só leitura. Fotos, momentos e chat ficam com a família. Horário de Brasília.</p>
+            <p className="mt-2.5 text-[11.5px] font-semibold text-[#9A95AD]">Só leitura. Fotos, momentos e chat ficam com a família. Horário da família{rel.fuso ? ` (${rel.fuso.replace(/_/g, ' ')})` : ''}.</p>
           </Card>
         </div>
       </>
@@ -802,12 +813,12 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
   const ultimo = sp.dia && /^\d{4}-\d{2}-\d{2}$/.test(sp.dia) && sp.dia < hoje && sp.dia >= somarDias(hoje, -60) ? sp.dia : somarDias(hoje, -1);
   const de = new Date(inicioDoDia(somarDias(ultimo, -Math.max(14, evoDias))) - 12 * H);
   const ate = new Date(Math.min(inicioDoDia(somarDias(ultimo, 1)) + 14 * H, agora + 60_000));
-  const { registros, semAcesso } = await rotinaDe(c.id, f.baby_id, de, ate);
+  const { registros, semAcesso } = await rotinaDe(c.id, f.baby_id, de, ate, rel);
   // 14 e 30: o período anterior num segundo pedido (o servidor entrega até 35 dias).
   const regsAntes =
     evoDias === 7 || semAcesso
       ? registros
-      : (await rotinaDe(c.id, f.baby_id, new Date(inicioDoDia(somarDias(ultimo, -2 * evoDias)) - 12 * H), new Date(inicioDoDia(somarDias(ultimo, -evoDias + 1)) + 14 * H))).registros;
+      : (await rotinaDe(c.id, f.baby_id, new Date(inicioDoDia(somarDias(ultimo, -2 * evoDias)) - 12 * H), new Date(inicioDoDia(somarDias(ultimo, -evoDias + 1)) + 14 * H), rel)).registros;
   const ini = somarDias(ultimo, -(evoDias - 1));
   const nav = (
     <div className="flex items-center gap-2 rounded-pill bg-white p-1 shadow-[inset_0_0_0_1.5px_#ECE6F5]">
@@ -891,13 +902,13 @@ async function RelatorioIA({ c, sp }: { c: Consultora; sp: Busca & { dias?: stri
   const f = elegiveis.find((x) => x.baby_id === sp.bebe) ?? elegiveis[0];
   const dias: 7 | 14 = sp.dias === '14' ? 14 : 7;
   const agora = Date.now();
-  const hoje = hojeSP();
   let chips: { ok: boolean; txt: string }[] = [];
   if (f) {
-    const ultimo = somarDias(hoje, -1);
-    const { registros, semAcesso } = await rotinaDe(c.id, f.baby_id, new Date(inicioDoDia(somarDias(ultimo, -dias)) - 12 * H), new Date(agora + 60_000));
+    const rel = await relogioDaFamilia(f.baby_id, agora);
+    const ultimo = somarDias(diaLocalDe(rel.agora), -1);
+    const { registros, semAcesso } = await rotinaDe(c.id, f.baby_id, new Date(inicioDoDia(somarDias(ultimo, -dias)) - 12 * H), new Date(rel.agora + 60_000), rel);
     if (!semAcesso) {
-      const s = semanaV3(registros, ultimo, agora, dias);
+      const s = semanaV3(registros, ultimo, rel.agora, dias);
       const sonecas = s.dias.reduce((x, d) => x + d.sonecas.length, 0);
       const mamadas = registros.filter((r) => r.tipo === 'feeding' && new Date(r.inicio).getTime() >= inicioDoDia(somarDias(ultimo, -(dias - 1)))).length;
       chips = [
@@ -1030,8 +1041,9 @@ async function RelatorioCompleto({ c, id, status, fams }: { c: Consultora; id: s
   if (fam && fam.plano_ok && r.ate) {
     const ultimo = r.ate.slice(0, 10);
     const n = r.dias === 14 ? 14 : 7;
-    const rot = await rotinaDe(c.id, fam.baby_id, new Date(inicioDoDia(somarDias(ultimo, -n)) - 12 * H), new Date(Math.min(inicioDoDia(somarDias(ultimo, 1)) + 14 * H, Date.now() + 60_000)));
-    if (!rot.semAcesso) s = semanaV3(rot.registros, ultimo, Date.now(), n);
+    const rel = await relogioDaFamilia(fam.baby_id);
+    const rot = await rotinaDe(c.id, fam.baby_id, new Date(inicioDoDia(somarDias(ultimo, -n)) - 12 * H), new Date(Math.min(inicioDoDia(somarDias(ultimo, 1)) + 14 * H, rel.agora + 60_000)), rel);
+    if (!rot.semAcesso) s = semanaV3(rot.registros, ultimo, rel.agora, n);
   }
   const ficha = fam ? (await fichaDe(c.id, fam.baby_id)).ficha : null;
   const periodo = `${r.dias ? `${r.dias} dias` : ''}${r.de && r.ate ? ` · ${dataBr(r.de).slice(0, 5)} a ${dataBr(r.ate).slice(0, 5)}` : ''}`;

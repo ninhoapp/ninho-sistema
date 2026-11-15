@@ -13,6 +13,7 @@
 import { randomUUID } from 'crypto';
 import { unstable_cache } from 'next/cache';
 import { appDb, painelDb } from '@/lib/supabase/server';
+import { fusoValido, moverIso, relogio, type RelogioFamilia } from '@/lib/consultoras-fuso';
 import { mesNoPainel } from '@/lib/dashboard-charts';
 import { lerTudo } from '@/lib/supabase/paginar';
 import { fetchAppUsersTodos as fetchAppUsers, type AppUser } from '@/lib/app-users';
@@ -682,24 +683,119 @@ export interface RegistroRotina {
   registrado_por: string | null;
 }
 
-/** Rotina de um bebê. `sem_acesso` = pausada, sem vínculo ou família sem plano. */
+/** Fuso da família (o do responsável principal, profiles.timezone), igual à
+ *  consultora_fuso() do app. null = sem fuso: fica o de Brasília. */
+export async function fusoDaFamilia(babyId: string): Promise<string | null> {
+  const { data, error } = await appDb()
+    .from('caregivers')
+    .select('created_at, profiles!inner(timezone)')
+    .eq('baby_id', babyId)
+    .eq('role', 'owner')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true })
+    .limit(1);
+  if (error) {
+    console.error('[consultoras] fusoDaFamilia:', error.message);
+    return null;
+  }
+  const linha = (data as unknown as { profiles: { timezone: string | null } | { timezone: string | null }[] }[] | null)?.[0];
+  const p = Array.isArray(linha?.profiles) ? linha?.profiles[0] : linha?.profiles;
+  return fusoValido(p?.timezone) ? (p!.timezone as string) : null;
+}
+
+/** O relógio da família do bebê (fuso, delta e "agora" deslocado). */
+export async function relogioDaFamilia(babyId: string, agoraReal: number = Date.now()): Promise<RelogioFamilia> {
+  return relogio(await fusoDaFamilia(babyId), agoraReal);
+}
+
+/**
+ * Rotina de um bebê. `sem_acesso` = pausada, sem vínculo ou família sem plano.
+ *
+ * Com `rel` (relogioDaFamilia), `de`/`ate` estão no relógio da família e os
+ * instantes devolvidos andam o `delta` (lib/consultoras-fuso.ts).
+ *
+ * Novidades da família (00157): com o aceite v6 ('aceito'), cada sono traz
+ * `despertares` (sempre) e `marcas` (quando a família respondeu "Como foi a
+ * soneca?"), como a consultora_rotina do app. A `_consultora_rotina` fica sem
+ * eles porque o Relatório IA também a usa (Política, 10.11). As anotações
+ * livres dos registros NÃO vêm (decisão do dono, 12/11/2026; fora do aceite).
+ */
 export async function rotinaDe(
   consultoraId: string,
   babyId: string,
   de: Date,
   ate: Date,
+  rel?: RelogioFamilia,
 ): Promise<{ registros: RegistroRotina[]; semAcesso: boolean }> {
+  const delta = rel?.delta ?? 0;
   const { data, error } = await appDb().rpc('_consultora_rotina', {
     p_consultora: consultoraId,
     p_baby: babyId,
-    p_de: de.toISOString(),
-    p_ate: ate.toISOString(),
+    p_de: new Date(de.getTime() - delta).toISOString(),
+    p_ate: new Date(ate.getTime() - delta).toISOString(),
   });
   if (error) {
     if (/sem_acesso/.test(error.message)) return { registros: [], semAcesso: true };
     throw new Error(`_consultora_rotina: ${error.message}`);
   }
-  return { registros: (data as RegistroRotina[]) ?? [], semAcesso: false };
+  let registros = await comNovidades(consultoraId, babyId, (data as RegistroRotina[]) ?? []);
+  if (delta !== 0) {
+    registros = registros.map((r) => ({
+      ...r,
+      inicio: moverIso(r.inicio, delta) ?? r.inicio,
+      fim: moverIso(r.fim, delta),
+      detalhe: Array.isArray(r.detalhe?.despertares)
+        ? {
+            ...r.detalhe,
+            despertares: (r.detalhe.despertares as { de?: string; ate?: string | null }[]).map((d) => ({
+              de: moverIso(d?.de ?? null, delta),
+              ate: moverIso(d?.ate ?? null, delta),
+            })),
+          }
+        : r.detalhe,
+    }));
+  }
+  return { registros, semAcesso: false };
+}
+
+/** Despertares e marcas da soneca, só com as novidades aceitas pela família (00157). */
+async function comNovidades(consultoraId: string, babyId: string, registros: RegistroRotina[]): Promise<RegistroRotina[]> {
+  const ids = registros.filter((r) => r.tipo === 'sleep').map((r) => r.id);
+  if (ids.length === 0) return registros;
+  const { data: estado, error: e1 } = await appDb().rpc('_consultora_novidades_estado', { p_consultora: consultoraId, p_baby: babyId });
+  if (e1) {
+    // Sem a 00157 ou com erro: a rotina segue como antes.
+    console.error('[consultoras] _consultora_novidades_estado:', e1.message);
+    return registros;
+  }
+  if (estado !== 'aceito') return registros;
+  const extras = new Map<string, { despertares: unknown; marcas: string[] | null }>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await appDb()
+      .from('sleep_logs')
+      .select('activity_id, despertares, marcas_soneca')
+      .in('activity_id', ids.slice(i, i + 200))
+      .is('deleted_at', null);
+    if (error) {
+      console.error('[consultoras] sleep_logs (novidades):', error.message);
+      return registros;
+    }
+    for (const s of (data as { activity_id: string; despertares: unknown; marcas_soneca: string[] | null }[]) ?? []) {
+      extras.set(s.activity_id, { despertares: s.despertares, marcas: s.marcas_soneca });
+    }
+  }
+  return registros.map((r) => {
+    const x = r.tipo === 'sleep' ? extras.get(r.id) : undefined;
+    if (!x) return r;
+    return {
+      ...r,
+      detalhe: {
+        ...r.detalhe,
+        despertares: Array.isArray(x.despertares) ? x.despertares : [],
+        ...(x.marcas && x.marcas.length > 0 ? { marcas: x.marcas } : {}),
+      },
+    };
+  });
 }
 
 // ── Vínculo com aceite dos dois lados (migration 00109) ───

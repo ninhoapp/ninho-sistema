@@ -84,15 +84,65 @@ export function DiaStrip({ d, maiorJanela, agora }: { d: DiaV3; maiorJanela: num
 // "início – fim", uma linha por sono com a duração entre parênteses e, na
 // noite picada, os pedaços. Acordado não vira linha: é o espaço pontilhado
 // entre um sono e outro (maior quanto mais tempo acordado).
+// Novidades da família (00157, dono 15/11/2026): o que a família marcou em
+// cada soneca e os despertares da noite. Só chegam quando a família aceitou
+// as novidades (lib/consultoras.ts, rotinaDe). As anotações livres dos
+// registros NÃO aparecem (decisão do dono, 12/11/2026).
+const MARCA_TXT: Record<string, string> = {
+  adormeceu_rapido: 'Adormeceu rápido',
+  demorou_adormecer: 'Demorou para adormecer',
+  no_colo: 'No colo',
+  fora_do_colo: 'Fora do colo',
+  acordou_feliz: 'Acordou feliz',
+  acordou_irritado: 'Acordou irritado(a)',
+  acordou_no_meio: 'Acordou no meio',
+};
+const MARCA_ATENCAO = new Set(['demorou_adormecer', 'acordou_no_meio']);
+const PROLONGADO_MIN = 30;
+
+type Despertar = { de: number; ate: number | null };
+
+function despertaresDe(detalhe: Record<string, unknown> | undefined): Despertar[] | null {
+  const lista = detalhe?.despertares;
+  if (!Array.isArray(lista)) return null;
+  const out: Despertar[] = [];
+  for (const x of lista as { de?: unknown; ate?: unknown }[]) {
+    const de = typeof x?.de === 'string' ? new Date(x.de).getTime() : NaN;
+    if (Number.isNaN(de)) continue;
+    const ate = typeof x?.ate === 'string' ? new Date(x.ate).getTime() : null;
+    out.push({ de, ate: ate !== null && !Number.isNaN(ate) ? ate : null });
+  }
+  return out;
+}
+
+function Etiqueta({ txt, atencao }: { txt: string; atencao?: boolean }) {
+  return (
+    <span className={`rounded-pill px-2 py-0.5 text-[11px] font-bold ${atencao ? 'bg-[#FFF1DE] text-[#A2631A]' : 'bg-[#F4F1FA] text-[#5E4FA8]'}`}>{txt}</span>
+  );
+}
+
 export function Sequencia({ d }: { d: DiaV3 }) {
+  // Sonos do dia com os extras, pelo início (mesmo instante da linha).
+  const sonosReg = d.resumo.registros.filter((r) => r.tipo === 'sleep');
+  const porInicio = new Map(sonosReg.map((r) => [new Date(r.inicio).getTime(), r.detalhe]));
+  const temNovidades = sonosReg.some((r) => Array.isArray(r.detalhe?.despertares));
+  const despertaresEntre = (de: number, ate: number | null): Despertar[] => {
+    const out: Despertar[] = [];
+    for (const r of sonosReg) {
+      const a = new Date(r.inicio).getTime();
+      if (a < de - 60_000 || (ate !== null && a > ate)) continue;
+      out.push(...(despertaresDe(r.detalhe) ?? []));
+    }
+    return out.sort((x, y) => x.de - y.de);
+  };
   type Pedaco = { a: number; b: number | null; min: number };
-  type Linha = { de: number; ate: number | null; cor: string; titulo: string; min: number | null; pedacos: Pedaco[]; antes: number | null };
+  type Linha = { de: number; ate: number | null; cor: string; titulo: string; min: number | null; pedacos: Pedaco[]; antes: number | null; marcas?: string[] | null; desp?: Despertar[] | null };
   const pedacosDe = (segs: { a: number; b: number; emAndamento: boolean }[]): Pedaco[] =>
     segs.length > 1 ? segs.map((x) => ({ a: x.a, b: x.emAndamento ? null : x.b, min: (x.b - x.a) / 60000 })) : [];
   const linhas: Linha[] = [];
   const na = d.resumo.noiteAnterior;
   if (na.dormiu !== null) {
-    linhas.push({ de: na.dormiu, ate: na.acordou, cor: COR.noite, titulo: 'Fim do sono noturno', min: na.acordou !== null ? na.totalMin : null, pedacos: pedacosDe(na.segmentos), antes: null });
+    linhas.push({ de: na.dormiu, ate: na.acordou, cor: COR.noite, titulo: 'Fim do sono noturno', min: na.acordou !== null ? na.totalMin : null, pedacos: pedacosDe(na.segmentos), antes: null, desp: temNovidades ? despertaresEntre(na.dormiu, na.acordou) : null });
   }
   let cursor = d.acordou;
   d.sonecas.forEach((sn, i) => {
@@ -104,6 +154,7 @@ export function Sequencia({ d }: { d: DiaV3 }) {
       min: sn.emAndamento ? null : sn.min,
       pedacos: [],
       antes: cursor !== null && sn.a > cursor ? (sn.a - cursor) / 60000 : null,
+      marcas: temNovidades ? ((porInicio.get(sn.a)?.marcas as string[] | undefined) ?? []) : null,
     });
     cursor = sn.b;
   });
@@ -117,6 +168,7 @@ export function Sequencia({ d }: { d: DiaV3 }) {
       min: n.acordou !== null ? n.totalMin : null,
       pedacos: pedacosDe(n.segmentos),
       antes: cursor !== null && n.dormiu > cursor ? (n.dormiu - cursor) / 60000 : null,
+      desp: temNovidades ? despertaresEntre(n.dormiu, n.acordou) : null,
     });
   }
   if (!linhas.length) return <p className="py-6 text-center text-sm text-ninho-cinza">Sem registros de sono neste dia.</p>;
@@ -151,6 +203,31 @@ export function Sequencia({ d }: { d: DiaV3 }) {
                   {l.pedacos.length} pedaços: {l.pedacos.map((x) => `${hora(x.a)}–${x.b !== null ? hora(x.b) : 'agora'} (${dur(x.min)})`).join(' · ')}
                 </span>
               )}
+              {l.marcas && l.marcas.length > 0 && (
+                <span className="mt-1 flex flex-wrap gap-1">
+                  {l.marcas.map((m) => <Etiqueta key={m} txt={MARCA_TXT[m] ?? m} atencao={MARCA_ATENCAO.has(m)} />)}
+                </span>
+              )}
+              {l.marcas && l.marcas.length === 0 && l.ate !== null && (
+                <span className="mt-0.5 block text-[11.5px] text-ninho-cinza">Sem resposta da família</span>
+              )}
+              {l.desp && l.desp.length > 0 && (() => {
+                const mins = l.desp.map((x) => ((x.ate ?? x.de) - x.de) / 60000);
+                const total = mins.reduce((s, m) => s + m, 0);
+                const prolongados = mins.filter((m) => m >= PROLONGADO_MIN).length;
+                return (
+                  <span className="mt-1 block">
+                    <span className="block text-[11.5px] text-ninho-cinza">
+                      {l.desp.length} {l.desp.length === 1 ? 'despertar' : 'despertares'} · {dur(total)} acordado{prolongados > 0 ? ` · ${prolongados} prolongado${prolongados > 1 ? 's' : ''}` : ''}
+                    </span>
+                    <span className="mt-1 flex flex-wrap gap-1">
+                      {l.desp.map((x, j) => (
+                        <Etiqueta key={j} txt={`${hora(x.de)} · ${x.ate !== null ? dur(mins[j]) : 'acordado agora'}${mins[j] >= PROLONGADO_MIN ? ' · prolongado' : ''}`} atencao={mins[j] >= PROLONGADO_MIN} />
+                      ))}
+                    </span>
+                  </span>
+                );
+              })()}
             </span>
           </div>
         </div>
