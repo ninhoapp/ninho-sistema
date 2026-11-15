@@ -789,6 +789,13 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
                     <div className="flex-1">
                       <p className="text-sm font-bold">{x.titulo}</p>
                       <p className="text-xs tabular-nums text-ninho-cinza">{x.detalhe}</p>
+                      {/* Comentário da família (aceite v7; só leitura, sem link clicável). */}
+                      {typeof reg.detalhe?.nota === 'string' && reg.detalhe.nota ? (
+                        <p className="mt-1.5 whitespace-pre-wrap rounded-xl bg-[#F6F2FE] px-2.5 py-1.5 text-[12px] italic leading-snug text-ninho-grafite">
+                          <span className="mb-0.5 block text-[10.5px] font-bold not-italic text-[#7C5CD6]">Comentário da família</span>
+                          {reg.detalhe.nota as string}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="text-right">
                       <p className="text-[13px] font-extrabold tabular-nums">{hora(new Date(reg.inicio).getTime())}</p>

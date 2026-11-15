@@ -126,6 +126,14 @@ export function Sequencia({ d }: { d: DiaV3 }) {
   const sonosReg = d.resumo.registros.filter((r) => r.tipo === 'sleep');
   const porInicio = new Map(sonosReg.map((r) => [new Date(r.inicio).getTime(), r.detalhe]));
   const temNovidades = sonosReg.some((r) => Array.isArray(r.detalhe?.despertares));
+  // Comentário da família (aceite v7): o detalhe.nota de cada sono da linha.
+  const notasEntre = (de: number, ate: number | null): string[] =>
+    sonosReg
+      .filter((r) => {
+        const a = new Date(r.inicio).getTime();
+        return a >= de - 60_000 && (ate === null || a <= ate) && typeof r.detalhe?.nota === 'string' && r.detalhe.nota;
+      })
+      .map((r) => r.detalhe.nota as string);
   const despertaresEntre = (de: number, ate: number | null): Despertar[] => {
     const out: Despertar[] = [];
     for (const r of sonosReg) {
@@ -136,13 +144,13 @@ export function Sequencia({ d }: { d: DiaV3 }) {
     return out.sort((x, y) => x.de - y.de);
   };
   type Pedaco = { a: number; b: number | null; min: number };
-  type Linha = { de: number; ate: number | null; cor: string; titulo: string; min: number | null; pedacos: Pedaco[]; antes: number | null; marcas?: string[] | null; desp?: Despertar[] | null };
+  type Linha = { de: number; ate: number | null; cor: string; titulo: string; min: number | null; pedacos: Pedaco[]; antes: number | null; marcas?: string[] | null; desp?: Despertar[] | null; notas?: string[] };
   const pedacosDe = (segs: { a: number; b: number; emAndamento: boolean }[]): Pedaco[] =>
     segs.length > 1 ? segs.map((x) => ({ a: x.a, b: x.emAndamento ? null : x.b, min: (x.b - x.a) / 60000 })) : [];
   const linhas: Linha[] = [];
   const na = d.resumo.noiteAnterior;
   if (na.dormiu !== null) {
-    linhas.push({ de: na.dormiu, ate: na.acordou, cor: COR.noite, titulo: 'Fim do sono noturno', min: na.acordou !== null ? na.totalMin : null, pedacos: pedacosDe(na.segmentos), antes: null, desp: temNovidades ? despertaresEntre(na.dormiu, na.acordou) : null });
+    linhas.push({ de: na.dormiu, ate: na.acordou, cor: COR.noite, titulo: 'Fim do sono noturno', min: na.acordou !== null ? na.totalMin : null, pedacos: pedacosDe(na.segmentos), antes: null, desp: temNovidades ? despertaresEntre(na.dormiu, na.acordou) : null, notas: notasEntre(na.dormiu, na.acordou) });
   }
   let cursor = d.acordou;
   d.sonecas.forEach((sn, i) => {
@@ -155,6 +163,7 @@ export function Sequencia({ d }: { d: DiaV3 }) {
       pedacos: [],
       antes: cursor !== null && sn.a > cursor ? (sn.a - cursor) / 60000 : null,
       marcas: temNovidades ? ((porInicio.get(sn.a)?.marcas as string[] | undefined) ?? []) : null,
+      notas: typeof porInicio.get(sn.a)?.nota === 'string' ? [porInicio.get(sn.a)!.nota as string] : [],
     });
     cursor = sn.b;
   });
@@ -169,6 +178,7 @@ export function Sequencia({ d }: { d: DiaV3 }) {
       pedacos: pedacosDe(n.segmentos),
       antes: cursor !== null && n.dormiu > cursor ? (n.dormiu - cursor) / 60000 : null,
       desp: temNovidades ? despertaresEntre(n.dormiu, n.acordou) : null,
+      notas: notasEntre(n.dormiu, n.acordou),
     });
   }
   if (!linhas.length) return <p className="py-6 text-center text-sm text-ninho-cinza">Sem registros de sono neste dia.</p>;
@@ -228,6 +238,12 @@ export function Sequencia({ d }: { d: DiaV3 }) {
                   </span>
                 );
               })()}
+              {(l.notas ?? []).map((nota, j) => (
+                <span key={`n${j}`} className="mt-1.5 block whitespace-pre-wrap rounded-xl bg-[#F6F2FE] px-2.5 py-1.5 text-[12px] italic leading-snug text-ninho-grafite">
+                  <span className="mb-0.5 block text-[10.5px] font-bold not-italic text-[#7C5CD6]">Comentário da família</span>
+                  {nota}
+                </span>
+              ))}
             </span>
           </div>
         </div>

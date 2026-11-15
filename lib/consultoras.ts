@@ -738,7 +738,7 @@ export async function rotinaDe(
     if (/sem_acesso/.test(error.message)) return { registros: [], semAcesso: true };
     throw new Error(`_consultora_rotina: ${error.message}`);
   }
-  let registros = await comNovidades(consultoraId, babyId, (data as RegistroRotina[]) ?? []);
+  let registros = await comComentarios(consultoraId, babyId, await comNovidades(consultoraId, babyId, (data as RegistroRotina[]) ?? []));
   if (delta !== 0) {
     registros = registros.map((r) => ({
       ...r,
@@ -796,6 +796,49 @@ async function comNovidades(consultoraId: string, babyId: string, registros: Reg
       },
     };
   });
+}
+
+/**
+ * Comentários da família (00164, aceite v7 + termo v4; parecer do Darck,
+ * 15/11/2026). Mesma regra da consultora_rotina do app, sempre no servidor:
+ * só sono, mamada, fralda e comida, só os registros criados a partir do
+ * aceite v7 que está valendo, e só com a consultora no termo v4
+ * (_consultora_comentarios_desde devolve null se faltar qualquer um). Só para
+ * mostrar: nada é copiado nem guardado. O Relatório IA nunca recebe.
+ */
+const TIPOS_COM_COMENTARIO = ['sleep', 'feeding', 'diaper', 'food'];
+
+async function comComentarios(consultoraId: string, babyId: string, registros: RegistroRotina[]): Promise<RegistroRotina[]> {
+  const ids = registros.filter((r) => TIPOS_COM_COMENTARIO.includes(r.tipo)).map((r) => r.id);
+  if (ids.length === 0) return registros;
+  const { data: desde, error: e1 } = await appDb().rpc('_consultora_comentarios_desde', { p_consultora: consultoraId, p_baby: babyId });
+  if (e1) {
+    // Sem a 00164: sem comentários, como antes.
+    if (!/does not exist|Could not find/i.test(e1.message)) console.error('[consultoras] _consultora_comentarios_desde:', e1.message);
+    return registros;
+  }
+  if (!desde) return registros;
+  const notas = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await appDb()
+      .from('activities')
+      .select('id, notes')
+      .in('id', ids.slice(i, i + 200))
+      .in('type', TIPOS_COM_COMENTARIO)
+      .gte('created_at', desde as string)
+      .is('deleted_at', null)
+      .not('notes', 'is', null);
+    if (error) {
+      console.error('[consultoras] activities (comentários):', error.message);
+      return registros;
+    }
+    for (const a of (data as { id: string; notes: string | null }[]) ?? []) {
+      const t = (a.notes ?? '').trim();
+      if (t) notas.set(a.id, t);
+    }
+  }
+  if (notas.size === 0) return registros;
+  return registros.map((r) => (notas.has(r.id) ? { ...r, detalhe: { ...r.detalhe, nota: notas.get(r.id) } } : r));
 }
 
 // ── Vínculo com aceite dos dois lados (migration 00109) ───
