@@ -3,6 +3,7 @@ import { listarPosts, listarConta, quando, melhoresHoras, type PostInstagram, ty
 import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
 import { GaleriaInstagram } from '@/components/admin/GaleriaInstagram';
+import { BotaoEnviar } from '@/components/admin/BotaoEnviar';
 import { aprovarPost, aprovarSemana, pedirAjuste, recusarPost, mudarHorario, trocarTeste } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -23,10 +24,13 @@ const botao = 'rounded-pill px-3 py-1.5 text-sm font-medium transition';
  * dele; o resto fica nas outras abas.
  */
 const ABAS = {
-  espera: { label: 'Para aprovar', status: ['rascunho', 'erro'] as StatusPost[] },
-  aprovados: { label: 'Aprovados', status: ['aprovado', 'publicando'] as StatusPost[] },
-  publicados: { label: 'Publicados', status: ['publicado'] as StatusPost[] },
-  recusados: { label: 'Recusados', status: ['recusado'] as StatusPost[] },
+  espera: { label: 'Para aprovar', mostra: (p: PostInstagram) => (p.status === 'rascunho' && !p.ajuste) || p.status === 'erro' },
+  // Pediu ajuste: sai de "Para aprovar" até a peça ser refeita. Trocar imagem,
+  // vídeo ou legenda limpa o ajuste no banco (00167) e o post volta para cá.
+  ajuste: { label: 'Ajuste pedido', mostra: (p: PostInstagram) => p.status === 'rascunho' && Boolean(p.ajuste) },
+  aprovados: { label: 'Aprovados', mostra: (p: PostInstagram) => p.status === 'aprovado' || p.status === 'publicando' },
+  publicados: { label: 'Publicados', mostra: (p: PostInstagram) => p.status === 'publicado' },
+  recusados: { label: 'Recusados', mostra: (p: PostInstagram) => p.status === 'recusado' },
 } as const;
 type Aba = keyof typeof ABAS;
 
@@ -59,7 +63,9 @@ function atrasado(p: PostInstagram): boolean {
 }
 
 function CardPost({ p }: { p: PostInstagram }) {
-  const s = STATUS[p.status];
+  const s = p.status === 'rascunho' && p.ajuste
+    ? { label: 'Ajuste pedido · esperando a peça nova', cor: 'bg-amber-100 text-amber-800' }
+    : STATUS[p.status];
   const editavel = ['rascunho', 'aprovado', 'erro', 'recusado'].includes(p.status);
   return (
     <article className={`rounded-2xl border bg-white p-4 ${atrasado(p) ? 'border-red-300' : 'border-ninho-borda'}`}>
@@ -120,34 +126,41 @@ function CardPost({ p }: { p: PostInstagram }) {
           {p.status !== 'aprovado' && (
             <form action={aprovarPost}>
               <input type="hidden" name="id" value={p.id} />
-              <button className={`${botao} bg-ninho-roxo text-white hover:bg-ninho-roxo-escuro`}>Aprovar</button>
+              <BotaoEnviar className={`${botao} bg-ninho-roxo text-white hover:bg-ninho-roxo-escuro`}>Aprovar</BotaoEnviar>
             </form>
           )}
           {p.formato === 'reels' && (
             <form action={trocarTeste}>
               <input type="hidden" name="id" value={p.id} />
               <input type="hidden" name="teste" value={p.teste ? 'false' : 'true'} />
-              <button className={`${botao} border border-ninho-borda hover:border-ninho-roxo`}>
+              <BotaoEnviar className={`${botao} border border-ninho-borda hover:border-ninho-roxo`}>
                 {p.teste ? 'Sair como Reels normal' : 'Mudar para Reels de teste'}
-              </button>
+              </BotaoEnviar>
             </form>
           )}
           <form action={mudarHorario} className="flex items-center gap-1">
             <input type="hidden" name="id" value={p.id} />
-            <input type="datetime-local" name="quando" defaultValue={valorHorario(p.agendado_para)}
+            {/*
+              key com o horário salvo: o campo é não controlado, e sem isso o valor
+              digitado num cartão ficava no campo do cartão que entrava no lugar
+              (bug de 15/11/2026: card de 18/11 mostrando 15/11 15:55). min = agora,
+              para não marcar sem querer um horário que já passou (sairia na hora).
+            */}
+            <input key={`${p.id}-${p.agendado_para}`} type="datetime-local" name="quando" required autoComplete="off"
+              defaultValue={valorHorario(p.agendado_para)} min={valorHorario(new Date().toISOString())}
               className="rounded-lg border border-ninho-borda px-2 py-1 text-sm" />
-            <button className={`${botao} border border-ninho-borda hover:border-ninho-roxo`}>Mudar horário</button>
+            <BotaoEnviar className={`${botao} border border-ninho-borda hover:border-ninho-roxo`}>Mudar horário</BotaoEnviar>
           </form>
           <details className="w-full">
             <summary className="cursor-pointer text-sm text-ninho-cinza">Pedir ajuste ou recusar</summary>
             <form action={pedirAjuste} className="mt-2 flex flex-col gap-2">
               <input type="hidden" name="id" value={p.id} />
               <textarea name="ajuste" rows={2} placeholder="O que mudar?" className="rounded-lg border border-ninho-borda p-2 text-sm" />
-              <button className={`${botao} self-start border border-ninho-borda hover:border-ninho-roxo`}>Pedir ajuste</button>
+              <BotaoEnviar className={`${botao} self-start border border-ninho-borda hover:border-ninho-roxo`}>Pedir ajuste</BotaoEnviar>
             </form>
             <form action={recusarPost} className="mt-2">
               <input type="hidden" name="id" value={p.id} />
-              <button className={`${botao} text-red-600 hover:bg-red-50`}>Recusar este post</button>
+              <BotaoEnviar className={`${botao} text-red-600 hover:bg-red-50`}>Recusar este post</BotaoEnviar>
             </form>
           </details>
         </div>
@@ -161,9 +174,9 @@ export default async function InstagramPage({ searchParams }: { searchParams?: {
   const [todos, conta] = await Promise.all([listarPosts(), listarConta()]);
   const aba: Aba = searchParams?.aba && searchParams.aba in ABAS ? (searchParams.aba as Aba) : 'espera';
   const contagem = Object.fromEntries(
-    (Object.keys(ABAS) as Aba[]).map((k) => [k, todos.filter((p) => ABAS[k].status.includes(p.status)).length]),
+    (Object.keys(ABAS) as Aba[]).map((k) => [k, todos.filter(ABAS[k].mostra).length]),
   ) as Record<Aba, number>;
-  const posts = todos.filter((p) => ABAS[aba].status.includes(p.status));
+  const posts = todos.filter(ABAS[aba].mostra);
 
   const hoje = conta[0];
   const semanaAtras = conta.find((c) => c.dia <= new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10));
@@ -235,9 +248,9 @@ export default async function InstagramPage({ searchParams }: { searchParams?: {
               {aba === 'espera' && rascunhos > 0 && (
                 <form action={aprovarSemana}>
                   <input type="hidden" name="semana" value={semana} />
-                  <button className={`${botao} bg-ninho-roxo text-white hover:bg-ninho-roxo-escuro`}>
+                  <BotaoEnviar className={`${botao} bg-ninho-roxo text-white hover:bg-ninho-roxo-escuro`}>
                     Aprovar os {rascunhos} que faltam
-                  </button>
+                  </BotaoEnviar>
                 </form>
               )}
             </div>
