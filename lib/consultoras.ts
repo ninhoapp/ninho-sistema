@@ -1037,6 +1037,68 @@ export async function orientacoesDoBebe(
   return { lista: ((data as OrientacaoEnviada[] | null) ?? []), indisponivel: false };
 }
 
+// ── Denúncia de orientação (00157 + 00181) ────────────────
+// A família pode denunciar uma orientação no app. A 00157 avisa o dono no
+// celular e mandava "leia em consultora_orientacoes": não existia tela.
+// O painel (service_role) lê a tabela direto, porque já tem select e update.
+
+export interface DenunciaOrientacao {
+  id: string;
+  consultora_id: string;
+  baby_id: string;
+  texto: string;
+  enviada_em: string;
+  lida_em: string | null;
+  denunciada_em: string;
+  denuncia_motivo: string | null;
+  denuncia_vista_em: string | null;
+}
+
+const COLS_DENUNCIA = 'id,consultora_id,baby_id,texto,enviada_em,lida_em,denunciada_em,denuncia_motivo,denuncia_vista_em';
+
+/** Coluna que ainda não existe (migration 00181 não aplicada). */
+function semColuna(error: { code?: string; message?: string }): boolean {
+  return error.code === 'PGRST204' || error.code === '42703' || /denuncia_vista_em/.test(error.message ?? '');
+}
+
+/**
+ * Orientações denunciadas, a mais nova primeiro. `indisponivel` só quando a
+ * leitura falha de verdade; sem a 00181, a lista vem com tudo em aberto
+ * (denuncia_vista_em = null), que é o estado certo.
+ */
+export async function denunciasDeOrientacao(): Promise<{ lista: DenunciaOrientacao[]; indisponivel: boolean; semMarcarVista: boolean }> {
+  const sb = appDb();
+  const buscar = (cols: string) =>
+    sb.from('consultora_orientacoes').select(cols).not('denunciada_em', 'is', null).order('denunciada_em', { ascending: false }).limit(200);
+  const { data, error } = await buscar(COLS_DENUNCIA);
+  if (!error) return { lista: (data as unknown as DenunciaOrientacao[] | null) ?? [], indisponivel: false, semMarcarVista: false };
+  // Qualquer erro na 1ª tentativa vira uma 2ª sem a coluna da 00181: o motivo
+  // mais provável é a migration não aplicada, e a faixa vermelha não pode
+  // sumir por causa do nome de uma coluna.
+  console.error('[consultoras] denúncias (1ª tentativa):', error.message);
+  const r = await buscar('id,consultora_id,baby_id,texto,enviada_em,lida_em,denunciada_em,denuncia_motivo');
+  if (r.error) {
+    console.error('[consultoras] denúncias (sem a 00181):', r.error.message);
+    return { lista: [], indisponivel: true, semMarcarVista: true };
+  }
+  const lista = ((r.data as unknown as Omit<DenunciaOrientacao, 'denuncia_vista_em'>[] | null) ?? []).map((o) => ({ ...o, denuncia_vista_em: null }));
+  return { lista, indisponivel: false, semMarcarVista: true };
+}
+
+/** Marca (ou desmarca) a denúncia como tratada pelo Ninho. */
+export async function marcarDenunciaVista(id: string, quem: string | null, vista: boolean): Promise<'ok' | 'indisponivel' | 'erro'> {
+  const { error } = await appDb()
+    .from('consultora_orientacoes')
+    .update({ denuncia_vista_em: vista ? new Date().toISOString() : null, denuncia_vista_por: vista ? quem : null })
+    .eq('id', id);
+  if (error) {
+    if (semColuna(error)) return 'indisponivel';
+    console.error('[consultoras] marcar denúncia:', error.message);
+    return 'erro';
+  }
+  return 'ok';
+}
+
 /** Estado da família quanto às novidades: 'aceito' libera a orientação. */
 export async function novidadesEstado(consultoraId: string, babyId: string): Promise<string | null> {
   const { data, error } = await appDb().rpc('_consultora_novidades_estado', { p_consultora: consultoraId, p_baby: babyId });

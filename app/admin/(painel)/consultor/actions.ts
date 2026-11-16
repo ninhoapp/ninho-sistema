@@ -25,6 +25,7 @@ import {
   subirFoto,
   fotoValida,
   apagarFoto,
+  marcarDenunciaVista,
 } from '@/lib/consultoras';
 import {
   CODIGO_RE,
@@ -452,6 +453,25 @@ export async function marcarPago(fd: FormData) {
 }
 
 // ── Sugestões das consultoras (00123) ─────────────────────
+/**
+ * Denúncia de orientação (00157 + 00181): o dono marca que já tratou, e a
+ * faixa vermelha do topo some. "Voltar para aberta" desfaz.
+ */
+export async function marcarDenunciaDono(fd: FormData) {
+  const s = requireRole('admin');
+  const id = txt(fd, 'id');
+  if (!/^[0-9a-f-]{36}$/i.test(id)) volta({ aba: 'denuncias', erro: 'Denúncia não encontrada.' });
+  // denuncia_vista_por é uuid; o id do perfil do painel é uuid, mas se um dia
+  // não for, grava null em vez de derrubar a ação.
+  const quem = /^[0-9a-f-]{36}$/i.test(s.sub ?? '') ? s.sub : null;
+  const r = await marcarDenunciaVista(id, quem, txt(fd, 'estado') !== 'aberta');
+  const msg: Record<string, string> = {
+    indisponivel: 'Falta aplicar a migration 00181 para guardar o "já tratei".',
+    erro: 'Não consegui salvar agora.',
+  };
+  volta({ aba: 'denuncias', erro: r === 'ok' ? undefined : msg[r] });
+}
+
 export async function marcarSugestaoDono(fd: FormData) {
   requireRole('admin');
   const id = txt(fd, 'id');

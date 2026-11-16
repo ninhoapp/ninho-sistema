@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { fetchAlertaAtendimento, fetchAlertaResgate, NOME_MOTIVO } from '@/lib/atendimento';
+import { denunciasDeOrientacao } from '@/lib/consultoras';
 
 /**
  * Faixa vermelha no topo de TODAS as páginas do painel enquanto houver
@@ -10,9 +11,48 @@ import { fetchAlertaAtendimento, fetchAlertaResgate, NOME_MOTIVO } from '@/lib/a
 export async function AlertaAtendimento() {
   return (
     <>
+      <FaixaDenuncia />
       <FaixaPendencias />
       <FaixaResgate />
     </>
+  );
+}
+
+/**
+ * Família denunciou uma orientação da consultora (00157). Fica no topo de
+ * todo o painel, em vermelho, até o dono marcar como tratada em
+ * /admin/consultor?aba=denuncias. É o assunto mais sério da área: tem a ver
+ * com o que uma consultora escreveu para uma família.
+ */
+async function FaixaDenuncia() {
+  let abertas: number;
+  let quando: string | null;
+  try {
+    const r = await denunciasDeOrientacao();
+    const sem = r.lista.filter((d) => !d.denuncia_vista_em);
+    abertas = sem.length;
+    quando = sem[0]?.denunciada_em ?? null;
+  } catch {
+    return null;
+  }
+  if (abertas === 0) return null;
+  const horas = quando ? Math.floor((Date.now() - Date.parse(quando)) / 3_600_000) : null;
+  const espera = horas === null ? '' : horas < 1 ? ' · a mais nova há menos de 1 hora' : horas === 1 ? ' · a mais nova há 1 hora' : ` · a mais nova há ${horas} horas`;
+
+  return (
+    <Link
+      href="/admin/consultor?aba=denuncias"
+      className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-red-300 bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700"
+    >
+      <span className="flex items-center gap-2">
+        <span className="relative flex h-3 w-3 shrink-0">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+          <span className="relative inline-flex h-3 w-3 rounded-full bg-white" />
+        </span>
+        {abertas === 1 ? '1 orientação de consultora foi denunciada por uma família' : `${abertas} orientações de consultoras foram denunciadas por famílias`}{espera}
+      </span>
+      <span className="shrink-0 rounded-pill bg-white px-3 py-1 text-xs text-red-700">Ler</span>
+    </Link>
   );
 }
 

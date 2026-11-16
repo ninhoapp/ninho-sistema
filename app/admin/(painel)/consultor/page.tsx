@@ -14,6 +14,7 @@ import {
   listVinculosAtivos,
   pedidosVinculoPendentes,
   eventosDosLinks,
+  denunciasDeOrientacao,
   funilDaConsultora,
   ultimosMesesFunil,
   bebesPorId,
@@ -47,6 +48,7 @@ import {
   decidirPedido,
   liberarConsultora,
   marcarPago,
+  marcarDenunciaDono,
   marcarSugestaoDono,
 } from './actions';
 import { todasSugestoes, type StatusSugestao } from '@/lib/consultoras-sugestoes';
@@ -60,6 +62,7 @@ const ABAS: [string, string][] = [
   ['pedidos', 'Pedidos'],
   ['familias', 'Famílias ligadas'],
   ['dinheiro', 'Dinheiro'],
+  ['denuncias', 'Denúncias'],
   ['sugestoes', 'Sugestões'],
 ];
 
@@ -92,7 +95,7 @@ export default async function ConsultorPage({
   const pedida = searchParams.aba === 'comissoes' || searchParams.aba === 'receita' ? 'dinheiro' : searchParams.aba;
   const aba = ABAS.some(([k]) => k === pedida) ? pedida! : 'geral';
 
-  const [base, pedidos, vinculos, users, pedVinc, eventos, sugestoes] = await Promise.all([
+  const [base, pedidos, vinculos, users, pedVinc, eventos, sugestoes, denuncias] = await Promise.all([
     baseComissoes(),
     listPedidos('pendente'),
     listVinculosAtivos(),
@@ -100,7 +103,10 @@ export default async function ConsultorPage({
     pedidosVinculoPendentes(),
     eventosDosLinks(),
     todasSugestoes(),
+    denunciasDeOrientacao(),
   ]);
+  // Denúncia de orientação (00157): o assunto mais sério da área.
+  const denAbertas = denuncias.lista.filter((d) => !d.denuncia_vista_em);
   const sugNovas = sugestoes.lista.filter((s) => s.status === 'nova').length;
   const mesesFunil = ultimosMesesFunil(6);
   const funilDe = (id: string) => funilDaConsultora(id, base.familias, eventos, mesesFunil);
@@ -151,7 +157,7 @@ export default async function ConsultorPage({
     const semPix = consultoras.filter((c) => (!c.pix_chave || !c.cpf) && aPagar.some((x) => x.quem.some((q) => q.id === c.id)));
     const esperando = consultoras.filter((c) => c.estado === 'esperando');
     const temSug = !sugestoes.indisponivel && sugNovas > 0;
-    const nTarefas = pedidos.length + pendPerfil.length + aPagar.length + semPix.length + esperando.length + (temSug ? 1 : 0);
+    const nTarefas = denAbertas.length + pedidos.length + pendPerfil.length + aPagar.length + semPix.length + esperando.length + (temSug ? 1 : 0);
 
     const ranking = consultoras
       .filter((c) => c.estado !== 'esperando')
@@ -192,6 +198,16 @@ export default async function ConsultorPage({
         <div className="mt-4 grid items-start gap-4 lg:grid-cols-[1.25fr_1fr]">
           <Card titulo="Precisa de você" direita={nTarefas ? <Selo cor="vermelho">{nTarefas}</Selo> : undefined}>
             {nTarefas === 0 && <p className="py-6 text-center text-sm text-ninho-cinza">Tudo em dia. Nada esperando por você.</p>}
+            {denAbertas.length > 0 && (
+              <Tarefa
+                icone="alerta"
+                tom="vermelho"
+                titulo={denAbertas.length === 1 ? 'Uma família denunciou uma orientação' : `${denAbertas.length} orientações denunciadas por famílias`}
+                sub={`${primeiro(porId.get(denAbertas[0].consultora_id)?.nome ?? null)} · ${dataDubai(denAbertas[0].denunciada_em)}${denAbertas[0].denuncia_motivo ? ` · “${denAbertas[0].denuncia_motivo.slice(0, 60)}”` : ''}`}
+              >
+                <Link href={`${BASE}?aba=denuncias`} className={botao.vermelho}>Ler</Link>
+              </Tarefa>
+            )}
             {pedidos.map((p) => (
               <Tarefa
                 key={p.id}
@@ -481,6 +497,64 @@ export default async function ConsultorPage({
             />
       );
     }
+  }
+
+  if (aba === 'denuncias') {
+    const linha = (d: (typeof denuncias.lista)[number]) => {
+      const c = porId.get(d.consultora_id);
+      const aberta = !d.denuncia_vista_em;
+      return (
+        <div key={d.id} className={`mt-2.5 flex flex-wrap items-start gap-3 rounded-2xl px-4 py-3 ${aberta ? 'bg-[#FDEEEE]' : 'bg-[#FAF8FE]'}`}>
+          <Avatar id={d.consultora_id} nome={c?.nome ?? 'Consultora'} foto={c?.foto_url} tamanho={38} />
+          <div className="min-w-[240px] flex-1 text-[13px] leading-snug">
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href={`${BASE}?aba=consultoras&id=${d.consultora_id}`} className="font-bold text-[#24164F]">{c?.nome ?? 'Consultora'}</Link>
+              <span className="text-ninho-cinza">· denunciada em {dataDubai(d.denunciada_em)}</span>
+              <Selo cor={aberta ? 'vermelho' : 'verde'}>{aberta ? 'Esperando você' : 'Tratada'}</Selo>
+            </div>
+            <p className="mt-1.5 text-[12px] font-bold uppercase tracking-wide text-[#9A95AD]">O que a família escreveu na denúncia</p>
+            <p className="text-[13.5px] leading-relaxed">{d.denuncia_motivo ?? <span className="text-ninho-cinza">sem motivo escrito</span>}</p>
+            <p className="mt-2 text-[12px] font-bold uppercase tracking-wide text-[#9A95AD]">A orientação denunciada · enviada em {dataDubai(d.enviada_em)}{d.lida_em ? ' · lida' : ' · não lida'}</p>
+            <p className="whitespace-pre-line rounded-xl bg-white px-3 py-2 text-[13.5px] leading-relaxed">{d.texto}</p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <form action={marcarDenunciaDono}>
+              <input type="hidden" name="id" value={d.id} />
+              <button name="estado" value={aberta ? 'tratada' : 'aberta'} className={aberta ? botao.verde : botao.suave}>
+                {aberta ? 'Já tratei' : 'Voltar para aberta'}
+              </button>
+            </form>
+            <Link href={`${BASE}?aba=consultoras&id=${d.consultora_id}`} className={botao.cinza}>Abrir a consultora</Link>
+          </div>
+        </div>
+      );
+    };
+    const tratadas = denuncias.lista.filter((d) => d.denuncia_vista_em);
+    conteudo = (
+      <Card titulo="Orientações denunciadas" direita={denAbertas.length ? <Selo cor="vermelho">{denAbertas.length} esperando você</Selo> : 'nada em aberto'}>
+        {denuncias.indisponivel && <Aviso tom="ambar">Não consegui ler as denúncias agora.</Aviso>}
+        {denuncias.semMarcarVista && (
+          <Aviso tom="ambar">
+            Falta aplicar a migration <b>00181</b> para guardar o &ldquo;já tratei&rdquo;. Até lá a lista aparece, mas toda denúncia
+            fica como esperando você.
+          </Aviso>
+        )}
+        {!denuncias.indisponivel && denuncias.lista.length === 0 && (
+          <p className="py-4 text-center text-sm text-ninho-cinza">Nenhuma denúncia até hoje.</p>
+        )}
+        {denAbertas.map(linha)}
+        {tratadas.length > 0 && (
+          <>
+            <p className="mt-4 text-[11.5px] font-bold uppercase tracking-wide text-[#9A95AD]">Já tratadas</p>
+            {tratadas.map(linha)}
+          </>
+        )}
+        <Aviso>
+          A família denuncia pela tela <b>Minha consultora</b>, no app. O termo que a consultora aceita já diz que, numa denúncia, a
+          equipe do Ninho pode ler a mensagem e pausar as orientações ou a conta dela. Para pausar, abra a consultora e mude o estado.
+        </Aviso>
+      </Card>
+    );
   }
 
   if (aba === 'sugestoes') {
@@ -881,7 +955,14 @@ const TOM: Record<Tom, string> = {
   vermelho: 'bg-[#FDEEEE] text-[#E85D5D]',
   cinza: 'bg-[#F0EEF4] text-[#6B6F80]',
 };
-const ICONE: Record<'pessoa' | 'texto' | 'pix' | 'relogio' | 'ideia', React.ReactNode> = {
+const ICONE: Record<'pessoa' | 'texto' | 'pix' | 'relogio' | 'ideia' | 'alerta', React.ReactNode> = {
+  // Bandeirinha: denúncia de orientação (00157).
+  alerta: (
+    <>
+      <path d="M6 3v18" />
+      <path d="M6 4h11l-2 4 2 4H6z" />
+    </>
+  ),
   pessoa: (
     <>
       <circle cx="12" cy="8" r="4" />
