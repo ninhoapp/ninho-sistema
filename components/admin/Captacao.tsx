@@ -22,6 +22,7 @@ import {
   ETAPA_LABEL,
   LINHA_DO_CONSOLE,
   ORIGEM_LABEL,
+  RESPOSTAS,
   TEXTOS,
   atrasadoEmDias,
   dataBr,
@@ -30,6 +31,7 @@ import {
   type Comentario,
   type Contato,
   type Etapa,
+  type TextoPronto,
 } from '@/lib/captacao';
 import {
   adicionarContatos,
@@ -82,6 +84,25 @@ function Copiar({ texto, label = 'Copiar' }: { texto: string; label?: string }) 
     >
       {ok ? 'Copiado!' : label}
     </button>
+  );
+}
+
+/** Um texto pronto, com o botão de copiar. */
+function Pronto({ t }: { t: TextoPronto }) {
+  return (
+    <div className="rounded-[18px] bg-[#F7F4FD] p-3">
+      <p className="text-[13px] font-extrabold text-ninho-grafite">{t.titulo}</p>
+      <p className="mb-2 text-[11.5px] text-ninho-cinza">{t.quando}</p>
+      {t.espera112 && (
+        <p className="mb-2 rounded-[12px] bg-[#FFF2D6] px-2 py-1 text-[11px] font-bold leading-snug text-[#7A5A12]">
+          Tire a parte 2 (a orientação chegando à mãe) enquanto a 1.1.2 não chegar às consultoras.
+        </p>
+      )}
+      <p className="whitespace-pre-wrap text-[12.5px] leading-snug">{t.texto}</p>
+      <div className="mt-2">
+        <Copiar texto={t.texto} label="Copiar texto" />
+      </div>
+    </div>
   );
 }
 
@@ -344,6 +365,7 @@ export function Captacao({
   indisponivel,
   erro,
   hoje,
+  video,
 }: {
   contatos: Contato[];
   comentarios: Comentario[];
@@ -351,6 +373,8 @@ export function Captacao({
   indisponivel: boolean;
   erro?: string;
   hoje: string;
+  /** O vídeo da abordagem: só o caminho do arquivo no computador do dono. */
+  video?: { caminho: string } | null;
 }) {
   const [filtro, setFiltro] = useState<string>('');
   const [verArquivados, setVerArquivados] = useState(false);
@@ -514,23 +538,47 @@ export function Captacao({
         )}
       </Card>
 
-      <Card titulo="Textos prontos" direita="troque {nome} e {link} antes de mandar" className="mb-4">
-        <div className="grid gap-3 lg:grid-cols-3">
+      {video && (
+        <Card titulo="Vídeo da abordagem" direita="53 s · 1080×1920 · 4,4 MB" className="mb-4">
+          <p className="text-[13px] leading-relaxed">
+            O vídeo é <strong>anexado na conversa</strong>, nunca mandado como link: ele toca ali mesmo, sem ela sair do
+            Instagram. O arquivo está no seu computador, em:
+          </p>
+          <div className="my-3 flex flex-wrap items-center gap-2 rounded-[14px] bg-[#24164F] px-3 py-2">
+            <code className="flex-1 overflow-x-auto whitespace-nowrap text-[11.5px] text-white">{video.caminho}</code>
+            <Copiar texto={video.caminho} label="Copiar o caminho" />
+          </div>
+          <Aviso tom="ambar">
+            <strong>Ainda não vai para endereço público.</strong> O vídeo mostra a orientação da consultora chegando no
+            celular da família, que só chega às consultoras com o build <strong>1.1.2</strong>. Quem receber hoje não
+            acha essa tela no app. Por isso ele não é servido pelo site: o envio é você anexando o arquivo.
+          </Aviso>
+          <ul className="mt-3 ml-4 list-disc text-[12.5px] leading-relaxed text-ninho-cinza">
+            <li>Não mandar para quem já é consultora cadastrada: este material é para ganhar gente nova.</li>
+            <li>Comissão só entra se ela perguntar, e sempre &ldquo;até 25%&rdquo;, nunca valor fixo.</li>
+            <li>Preços citados nos textos: Básico R$ 12,90 e Premium R$ 17,90, com 7 dias grátis.</li>
+          </ul>
+        </Card>
+      )}
+
+      <Card titulo="Textos de cada etapa" direita="troque {nome} antes de mandar" className="mb-4">
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
           {TEXTOS.map((t) => (
-            <div key={t.k} className="rounded-[18px] bg-[#F7F4FD] p-3">
-              <p className="text-[13px] font-extrabold text-ninho-grafite">{t.titulo}</p>
-              <p className="mb-2 text-[11.5px] text-ninho-cinza">{t.quando}</p>
-              <p className="whitespace-pre-wrap text-[12.5px] leading-snug">{t.texto}</p>
-              <div className="mt-2">
-                <Copiar texto={t.texto} label="Copiar texto" />
-              </div>
-            </div>
+            <Pronto key={t.k} t={t} />
           ))}
         </div>
         <p className="mt-3 text-[11.5px] leading-snug text-ninho-cinza">
           O eixo é a plataforma, não a comissão (decisão de 16/11/2026). Não abra com dinheiro, não cite porcentagem e
           não prometa resultado de sono.
         </p>
+      </Card>
+
+      <Card titulo="Respostas para a reação dela" direita="no meio da conversa" className="mb-4">
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          {RESPOSTAS.map((t) => (
+            <Pronto key={t.k} t={t} />
+          ))}
+        </div>
       </Card>
 
       <Card titulo="Consultora indica consultora" direita="previsto, ainda não construído">

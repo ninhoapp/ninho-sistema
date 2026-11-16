@@ -37,6 +37,15 @@ const ABAS: [string, string][] = [
 ];
 
 /**
+ * O vídeo da abordagem (53 s). Fica NO COMPUTADOR do dono, de propósito: ele
+ * mostra a orientação da consultora chegando à família, que só chega às
+ * consultoras com o build 1.1.2, e o envio é ele anexando o arquivo na
+ * conversa — não é link (decisão do dono e da frente de aquisição,
+ * 16/11/2026). A tela mostra o caminho com botão de copiar.
+ */
+const VIDEO_CAPTACAO = 'C:\\Dev\\Ninho-expo\\marketing\\consultora\\video\\consultora-plataforma.mp4';
+
+/**
  * Parceiros (influenciadores) — visão do dono. Espelha /admin/influenciadores
  * do SOMI: ranking, funil e repasse de cada parceiro, link para mandar a ele
  * e a atribuição manual de contas.
@@ -65,6 +74,7 @@ export default async function ParceirosPage({ searchParams }: { searchParams: { 
           indisponivel={cap.indisponivel}
           erro={cap.erro}
           hoje={hojeDubai()}
+          video={{ caminho: VIDEO_CAPTACAO }}
         />
       </>
     );

@@ -355,11 +355,24 @@ export function lerConvitesColados(txt: string): { linhas: ConviteMarcado[]; err
 // ── Textos prontos (para ele copiar em vez de reescrever) ─
 /**
  * Eixo de 16/11/2026: a plataforma, NUNCA a comissão
- * (Ninho-expo/docs/empresa/aquisicao-consultora.md). O texto de reativação é o
- * de marketing/consultora/mensagem-abordagem.md, versão 2 (direct).
- * Sem emoji, sem porcentagem, sem promessa de sono.
+ * (Ninho-expo/docs/empresa/aquisicao-consultora.md). Os textos vêm de
+ * marketing/consultora/mensagem-abordagem.md e respostas-prontas.md, escritos
+ * pela frente de aquisição. Sem emoji, sem porcentagem no título, sem
+ * promessa de resultado de sono. Quem manda é o dono.
+ *
+ * `espera112` marca o texto que cita a orientação chegando à mãe: ela está
+ * pronta no código e no banco, mas só chega às consultoras com o build 1.1.2.
+ * Até lá a tela avisa para tirar essa linha.
  */
-export const TEXTOS: { k: string; titulo: string; quando: string; texto: string }[] = [
+export interface TextoPronto {
+  k: string;
+  titulo: string;
+  quando: string;
+  texto: string;
+  espera112?: boolean;
+}
+
+export const TEXTOS: TextoPronto[] = [
   {
     k: 'abordagem',
     titulo: '1ª abordagem',
@@ -368,32 +381,91 @@ export const TEXTOS: { k: string; titulo: string; quando: string; texto: string 
 
 Montei uma área para quem atende sono: a rotina de todas as suas famílias num lugar só, no fuso da casa de cada uma, e os números do bebê na mão na hora de atender. Sem print e sem planilha.
 
-Você não paga nada para usar. Posso te mostrar em 45 segundos?`,
+Você não paga nada para usar. Posso te mostrar em 53 segundos?`,
   },
   {
     k: 'proposta',
     titulo: 'Proposta',
-    quando: 'para quem respondeu e quer ver',
-    texto: `Então é assim, {nome}:
+    quando: 'quando ela diz "pode apresentar"',
+    espera112: true,
+    texto: `Que bom, {nome}. Vou direto ao ponto, em três partes.
 
-Eu libero o seu acesso à área da consultora. Você convida a família por link ou por e-mail, ela aprova, e a partir daí você abre a rotina dela todo dia: sonecas com início, fim e duração, a janela de sono, a noite com os despertares, e quem registrou.
+1. Você acompanha. Sua cliente registra sono, mamadas e fraldas no Ninho; você abre e vê o dia inteiro dela — sonecas com início e fim, janelas de sono, a noite e os despertares — no celular e no computador, sempre na hora da casa da família.
+2. Você orienta por dentro do app. O que você escreve chega para a mãe destacado, e fica o histórico de tudo que você já passou.
+3. Você mostra evolução. Em duas semanas dá para comparar como era e como está, com os números dela.
 
-Você também leva o relatório da evolução do sono para a sessão. Quem registra é a família; você lê.
-
-Nada muda no seu método e nada te supervisiona — você é consultora independente, e o Ninho só entrega a informação.
-
-Se fizer sentido, me diz o seu e-mail que eu libero o acesso.`,
+Te mandei o vídeo de 53 segundos com as telas de verdade. Se fizer sentido, eu te libero o acesso hoje mesmo e a gente começa com uma família só, para você sentir.`,
   },
   {
     k: 'reativacao',
     titulo: 'Reativação (sumiu depois da proposta)',
-    quando: 'com o vídeo, e deixando claro que não vai insistir mais',
+    quando: 'mande o arquivo do vídeo junto',
     texto: `Oi, {nome}. Mailson, do Ninho.
 
 Na primeira vez eu te falei da parceria pelo lado errado. O ponto é o seu trabalho: a rotina de todas as suas famílias num lugar, um canal direto com cada mãe e os números do bebê na mão na hora de atender.
 
-45 segundos de vídeo mostrando na tela: {link}
+Te mandei um vídeo de 53 segundos mostrando na tela. É o único pedido. Não te procuro mais; se quiser conhecer, me chama quando quiser.`,
+  },
+  {
+    k: 'toque',
+    titulo: 'Último toque (ela não respondeu)',
+    quando: 'uma vez só, e encerra',
+    texto: `{nome}, só para não deixar sem fim: o vídeo está aí em cima quando você tiver um minuto.
 
-É o único pedido. Não te procuro mais; se quiser conhecer, me chama quando quiser.`,
+Se não for o seu momento, tudo bem — não te procuro mais. E se um dia quiser conhecer, é só me chamar.`,
+  },
+];
+
+/** Respostas para a reação dela, no meio da conversa. */
+export const RESPOSTAS: TextoPronto[] = [
+  {
+    k: 'investimento',
+    titulo: '"Qual o investimento?"',
+    quando: 'ela pergunta quanto custa para ela',
+    texto: `Para você não custa nada. Você não paga nada para usar o Ninho como consultora: acompanhar a rotina das suas famílias, o histórico e o painel no computador são seus, de graça.
+
+Quem assina é a família, se ela quiser continuar depois dos 7 dias grátis. O Básico é R$ 12,90 por mês e o Premium R$ 17,90, e a assinatura cobre o pai, a mãe e os cuidadores do mesmo bebê.`,
+  },
+  {
+    k: 'depois',
+    titulo: '"Vejo depois, agora não dá"',
+    quando: 'sem pressa, deixa a porta aberta',
+    texto: `Claro, {nome}. Sem pressa nenhuma.
+
+Deixo o vídeo aí para quando sobrar um minuto. Se um dia você quiser testar com uma cliente só, me chama que eu te libero na hora.
+
+Boa semana e bom trabalho.`,
+  },
+  {
+    k: 'como_funciona',
+    titulo: '"Como funciona?"',
+    quando: 'o passo a passo, curto',
+    texto: `É simples, {nome}. Eu libero o seu acesso, você manda o seu link para a família, ela cria a conta e aprova compartilhar a rotina com você. A partir daí, tudo que ela registrar aparece para você.
+
+Você não registra nada e não precisa pedir print: abre e lê. No computador são as mesmas telas.`,
+  },
+  {
+    k: 'cliente_paga',
+    titulo: '"Minha cliente vai ter que pagar?"',
+    quando: 'o preço é da família, não dela',
+    texto: `Ela começa com 7 dias grátis, sem cartão. Se quiser continuar, o Básico é R$ 12,90 por mês e o Premium R$ 17,90 — e essa assinatura cobre o pai, a mãe e os cuidadores do mesmo bebê, não é uma por pessoa.
+
+Na prática, o que ela paga por mês é menos que um lanche, e é o que mantém a rotina registrada para você acompanhar.`,
+  },
+  {
+    k: 'outro_app',
+    titulo: '"Já uso planilha / outro app"',
+    quando: 'sem pedir para ela trocar de método',
+    texto: `Entendo, e não precisa trocar nada de uma vez.
+
+A diferença que as consultoras sentem é parar de pedir print e de depender da memória da mãe: o registro é dela, chega na hora, e você abre quando quiser. Se quiser, começamos com uma cliente só e você compara com o seu jeito atual.`,
+  },
+  {
+    k: 'comissao',
+    titulo: '"Vocês pagam comissão?"',
+    quando: 'só quando ELA pergunta; nunca abra com isto',
+    texto: `Pagamos, sim: até 25% da assinatura das famílias que criam a conta pelo seu link ou código, por alguns meses, por Pix. O valor exato fica no seu painel, em Ganhos.
+
+Mas não é por isso que eu te procurei. O que muda o seu dia é ter a rotina das suas famílias num lugar só e falar com elas por dentro do app. A comissão é consequência.`,
   },
 ];
