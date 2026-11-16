@@ -246,6 +246,31 @@ export async function alternarLista(fd: FormData) {
   });
 }
 
+/**
+ * Fixa (ou solta) a consultora no topo de "Encontrar consultora de sono"
+ * (dono, 16/11/2026: "a Nathalia fica fixa como a primeira, porque está me
+ * ajudando bastante"). Quem não está fixa segue a ordem de sempre: mais
+ * assinantes, depois mais famílias vinculadas. Migration 00170.
+ */
+export async function alternarFixaNoTopo(fd: FormData) {
+  requireRole('admin');
+  const c = await getConsultora(txt(fd, 'id'));
+  if (!c) volta({ aba: 'consultoras', erro: 'Consultora não encontrada.' });
+  const fixar = !c.fixa_no_topo;
+  const { error } = await appDb().from('consultoras').update({ fixa_no_topo: fixar, atualizado_em: agora() }).eq('id', c.id);
+  if (error) {
+    const faltaColuna = error.code === 'PGRST204' || error.code === '42703';
+    volta({ aba: 'consultoras', id: c.id, erro: faltaColuna ? 'Falta aplicar a migration 00170 no banco.' : error.message });
+  }
+  volta({
+    aba: 'consultoras',
+    id: c.id,
+    ok: fixar
+      ? `${c.nome?.split(' ')[0]} passa a aparecer em primeiro na lista do app.`
+      : `${c.nome?.split(' ')[0]} volta para a ordem normal (assinantes, depois famílias).`,
+  });
+}
+
 // ── Perfil público: texto e foto ──────────────────────────
 export async function decidirBio(fd: FormData) {
   requireRole('admin');

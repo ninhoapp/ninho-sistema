@@ -17,6 +17,7 @@ import { situacaoTxt, type MesFunil, type Consultora, type FamiliaAtribuida } fr
 import { PCT_DIRETO, PCT_REDE, prazoPix, dataBr, nomeMes } from '@/lib/consultoras-regras';
 import { Avatar, Aviso, Card, Chave, Kpi, Selo, SeloEstado, botao, brl, campo, td, th } from '@/components/consultoras/ui';
 import {
+  alternarFixaNoTopo,
   alternarLista,
   decidirBio,
   decidirFoto,
@@ -190,10 +191,16 @@ export function Detalhe({
         </form>
       </Linha>
       <Linha rotulo="Ela indicou">{filhas.map((x) => x.nome).join(', ') || 'ninguém ainda'}</Linha>
-      <Linha rotulo="Na lista do app" ajuda="aparece em Encontrar consultora (até 10; quem mais traz assinantes vem primeiro)">
+      <Linha rotulo="Na lista do app" ajuda="aparece em Encontrar consultora (até 10; primeiro quem está fixa, depois quem traz mais assinantes e, em seguida, mais famílias)">
         <form action={alternarLista}>
           <input type="hidden" name="id" value={c.id} />
           <Chave ligada={c.na_lista && c.estado !== 'pausada'} desabilitada={c.estado === 'pausada'} />
+        </form>
+      </Linha>
+      <Linha rotulo="Primeira da lista" ajuda="fixa no topo de Encontrar consultora, na frente da ordem por assinantes">
+        <form action={alternarFixaNoTopo}>
+          <input type="hidden" name="id" value={c.id} />
+          <Chave ligada={Boolean(c.fixa_no_topo)} desabilitada={!c.na_lista || c.estado === 'pausada'} />
         </form>
       </Linha>
       <Linha rotulo="Como soube do Ninho" ajuda="o que ela respondeu no pedido ou o que você marcou no cadastro">

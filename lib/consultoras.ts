@@ -68,6 +68,8 @@ export interface Consultora {
   /** Migration 00150 (cadastro do painel igual ao do site): ausentes enquanto ela não for aplicada. */
   como_soube?: string | null;
   nota_interna?: string | null;
+  /** Migration 00170: aparece em primeiro na lista do app. */
+  fixa_no_topo?: boolean | null;
 }
 
 export interface Pedido {
