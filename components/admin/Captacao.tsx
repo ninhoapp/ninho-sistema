@@ -557,6 +557,10 @@ export function Captacao({
             <li>Não mandar para quem já é consultora cadastrada: este material é para ganhar gente nova.</li>
             <li>Comissão só entra se ela perguntar, e sempre &ldquo;até 25%&rdquo;, nunca valor fixo.</li>
             <li>Preços citados nos textos: Básico R$ 12,90 e Premium R$ 17,90, com 7 dias grátis.</li>
+            <li>
+              Quando ela perguntar se a cliente vai pagar: a assinatura cobre o pai, a mãe e os cuidadores do mesmo
+              bebê — não é uma por pessoa. É o que costuma virar a conversa.
+            </li>
           </ul>
         </Card>
       )}
