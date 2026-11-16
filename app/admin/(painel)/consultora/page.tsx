@@ -1501,7 +1501,7 @@ async function Perfil({ c }: { c: Consultora }) {
           {/* key: depois de salvar, os campos voltam com o que está no banco (não o que ficou digitado). */}
           <form action={salvarPerfil} key={c.atualizado_em}>
             <label className={rotuloCampo}>Texto curto (até 160 letras)</label>
-            <textarea name="bio" maxLength={160} defaultValue={c.bio_pendente ?? c.bio ?? ''} rows={3} className={`${campo} h-auto py-2`} />
+            <textarea name="bio" maxLength={600} defaultValue={c.bio_pendente ?? c.bio ?? ''} rows={5} className={`${campo} h-auto py-2`} />
             {c.bio_pendente && <p className="mt-1 text-[11.5px] text-[#7C5CD6]">Texto novo esperando o Ninho aprovar.</p>}
             <div className="grid grid-cols-[1fr_80px] gap-2">
               <div><label className={rotuloCampo}>Cidade</label><input name="cidade" defaultValue={c.cidade ?? ''} maxLength={80} className={campo} /></div>

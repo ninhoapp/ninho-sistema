@@ -59,7 +59,8 @@ export async function salvarPerfil(fd: FormData) {
   const c = await eu();
   if (c.estado !== 'ativa' && c.estado !== 'pausada') volta('perfil', { erro: 'Sua conta ainda não está ativa.' });
 
-  const bio = txt(fd, 'bio').slice(0, 160) || null;
+  // 600, o mesmo do campo no app e do check do banco (migration 00168).
+  const bio = txt(fd, 'bio').slice(0, 600) || null;
   const cidade = txt(fd, 'cidade').slice(0, 80) || null;
   const ufBruto = txt(fd, 'uf').toUpperCase();
   const uf = /^[A-Z]{2}$/.test(ufBruto) ? ufBruto : null;
