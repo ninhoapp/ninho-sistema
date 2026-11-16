@@ -37,10 +37,21 @@ export const PARCELAS_MENSAL = 6;
 export const TEXTO_QUEM_GERA_COMISSAO =
   'Você ganha comissão pelas famílias que criam a conta no Ninho pelo seu link ou código. A comissão para quando a família cancela ou pede reembolso. Só o vínculo (a família compartilhar a rotina com você) não gera comissão, e famílias que encontraram você pela lista "Encontrar consultora" dentro do Ninho também não.';
 
-/** Aceite da CONSULTORA ao aprovar ou convidar uma família (texto do Darck, migration 00109). */
-export const ACEITE_VINCULO_CONSULTORA_VERSAO = 'consultora-vinculo-2026-11-07-v2';
-export const ACEITE_VINCULO_CONSULTORA_TEXTO =
-  'Atendo esta família como profissional independente, e todas as orientações que eu der são de minha responsabilidade exclusiva. O Ninho não presta aconselhamento de saúde nem supervisiona meu atendimento. Uso a rotina do bebê só para atender esta família, sem copiar ou divulgar fora do Ninho. Nas anotações, registro só o necessário para o atendimento, sem diagnóstico nem remédio.';
+/**
+ * Termo da CONSULTORA (texto do Darck). O painel precisa mostrar EXATAMENTE o
+ * texto que está em aceite_textos no banco (o servidor guarda o hash dele),
+ * parágrafos separados por uma linha em branco e o trecho entre ** em negrito.
+ * 16/11/2026: estava parado na v2 de 07/11; com a v4 valendo no banco, aprovar
+ * e convidar não gravavam mais o "aceitou" dela — e sem esse registro ela não
+ * consegue enviar orientação. O mesmo termo vale para a aba Ficha.
+ */
+export const ACEITE_VINCULO_CONSULTORA_VERSAO = 'consultora-vinculo-2026-11-15-v4';
+export const ACEITE_VINCULO_CONSULTORA_TEXTO = [
+  'Atendo as famílias como profissional independente. **Toda orientação que eu der a uma família, pelo Ninho ou fora dele, é de minha total responsabilidade.** O Ninho só entrega a mensagem: não escreve, não revisa e não responde pelo que eu oriento, não presta aconselhamento de saúde e não supervisiona meu atendimento.',
+  'Uso a rotina do bebê, os despertares, as marcas das sonecas e os comentários da família só para atender aquela família, sem copiar ou divulgar fora do Ninho.',
+  'Nas orientações e nas anotações, não escrevo diagnóstico, nome ou dose de remédio, suplemento ou melatonina, posição ou superfície de sono, cama compartilhada nem promessa de resultado, e nunca peço para adiar consulta, exame ou vacina. Diante de sinal de alerta de saúde, oriento procurar o pediatra ou o pronto-socorro.',
+  'Sei que a família vê quando eu envio e se leu, que o Ninho guarda o que eu envio e que, se a família denunciar uma mensagem, a equipe do Ninho pode lê-la e pausar minhas orientações ou minha conta.',
+].join('\n\n');
 
 /** "Como ficou sabendo do Ninho?" no pedido para ser consultora (consultora_pedidos.como_soube). */
 export const COMO_SOUBE_OPCOES = ['Instagram', 'Indicação de outra consultora', 'Google', 'Família/cliente', 'Outro'] as const;

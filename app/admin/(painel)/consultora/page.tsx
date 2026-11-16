@@ -17,6 +17,9 @@ import {
   montarGanhos,
   rotinaDe,
   relogioDaFamilia,
+  orientacoesDoBebe,
+  orientacaoAceiteOk,
+  novidadesEstado,
   type Consultora,
   type FamiliaDaConsultora,
   type Ficha,
@@ -67,7 +70,8 @@ import { Avatar, Aviso, Card, Kpi, Retorno, Selo, botao, brl, campo, rotuloCampo
 import { CodigoConsultora, LinkConsultoria, LinkDivulgacao } from '@/components/consultoras/LinksConsultora';
 import { consultoriaLiberada } from '@/lib/link-consultora';
 import { ConfirmButton } from '@/components/admin/ConfirmButton';
-import { cancelarConviteFamilia, encerrarAcompanhamento, convidarFamilia, enviarFoto, indicarConsultora, mandarSugestao, pedirRelatorio, responderPedidoFamilia, salvarFicha, salvarPerfil } from './actions';
+import { cancelarConviteFamilia, encerrarAcompanhamento, convidarFamilia, enviarFoto, enviarOrientacaoFamilia, indicarConsultora, mandarSugestao, pedirRelatorio, responderPedidoFamilia, salvarFicha, salvarPerfil } from './actions';
+import { OrientacaoFamilia } from '@/components/consultoras/OrientacaoFamilia';
 import { SUGESTAO_MAX, sugestoesDa, type StatusSugestao } from '@/lib/consultoras-sugestoes';
 
 export const dynamic = 'force-dynamic';
@@ -105,6 +109,7 @@ export default async function ConsultoraPage({ searchParams }: { searchParams: B
   else if (aba === 'ajuda') corpo = <Ajuda c={c} />;
   else if (aba === 'manual') corpo = <Manual c={c} />;
   else if (aba === 'sugestoes') corpo = await Sugestoes({ c });
+  else if (aba === 'ficha') corpo = await AbaFicha({ c, sp: searchParams });
   else if (aba === 'familias') corpo = await PedidosEConvites({ c, sp: searchParams });
   else corpo = await Familias({ c, sp: searchParams });
 
@@ -583,6 +588,7 @@ async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
                     <td className={`${td} tabular-nums`}>{desdeTxt(f.vinculado_em)}</td>
                     <td className={td}><SeloAgora f={f} /></td>
                     <td className={td}>
+                      <Link href={`${BASE}?aba=ficha&bebe=${f.baby_id}`} className={`${botao.suave} mr-2`}>Ficha</Link>
                       <ConfirmButton
                         action={encerrarAcompanhamento}
                         hidden={{ baby: f.baby_id }}
@@ -599,6 +605,128 @@ async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
       </Card>
       {acompanha.length > 0 && <Fichas c={c} familias={acompanha} aberta={sp.ficha} />}
     </>
+  );
+}
+
+// ── Aba Ficha (dono, 16/11/2026) ──────────────────────────
+// No app, a aba Ficha do bebê junta as anotações da consultora e a orientação
+// que ela manda para a família. No painel só existiam as anotações, soltas no
+// fim da aba Famílias: aqui ficam as duas coisas, uma família por vez.
+async function AbaFicha({ c, sp }: { c: Consultora; sp: Busca }) {
+  const fams = c.estado === 'ativa' ? await familiasDa(c.id) : [];
+  const f = fams.find((x) => x.baby_id === sp.bebe) ?? fams[0];
+  if (!f) {
+    return (
+      <>
+        <Titulo t="Ficha da família" />
+        <Card>
+          <p className="py-8 text-center text-sm text-ninho-cinza">
+            {c.estado === 'pausada' ? 'Conta pausada: as fichas voltam quando o Ninho reativar.' : 'Nenhuma família ainda.'}
+          </p>
+        </Card>
+      </>
+    );
+  }
+  const [fi, enviadas, aceiteOk, estado] = await Promise.all([
+    fichaDe(c.id, f.baby_id),
+    orientacoesDoBebe(c.id, f.baby_id),
+    orientacaoAceiteOk(c.id),
+    novidadesEstado(c.id, f.baby_id),
+  ]);
+  const seletor = (
+    <form className="flex flex-wrap items-center gap-2">
+      <input type="hidden" name="aba" value="ficha" />
+      <select name="bebe" defaultValue={f.baby_id} className="h-10 rounded-pill bg-white px-4 text-sm font-bold shadow-[inset_0_0_0_1.5px_#ECE6F5]">
+        {fams.map((x) => <option key={x.baby_id} value={x.baby_id}>{x.bebe_nome} · {primeiro(x.mae_nome) || '—'}</option>)}
+      </select>
+      <button className={botao.suave}>Abrir</button>
+    </form>
+  );
+  const sub = `Mãe: ${f.mae_nome ?? '—'} · com você desde ${desdeTxt(f.vinculado_em)}${idadeTxt(f.nascimento) ? ` · ${idadeTxt(f.nascimento)}` : ''}`;
+
+  // Por que o campo pode não abrir. A ordem importa: o motivo mais forte primeiro.
+  const bloqueio = !f.plano_ok
+    ? `A família da ${primeiro(f.mae_nome) || 'mãe'} está sem plano. Sem plano você não vê a rotina nem envia orientação.`
+    : aceiteOk === null || enviadas.indisponivel
+      ? 'As orientações ainda não estão disponíveis. Assim que o Ninho liberar, o campo aparece aqui.'
+      : estado !== 'aceito'
+        ? 'Esta família ainda não aceitou receber orientações pelo Ninho. Ela vê o pedido ao abrir o app; assim que aceitar, o campo abre aqui.'
+        : undefined;
+
+  const quando = (iso: string) =>
+    new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <>
+      <Titulo t={f.bebe_nome} sub={sub} direita={seletor} />
+      <Card
+        titulo="Orientação para a família"
+        direita={<span className="rounded-pill bg-[#E3F4EA] px-3 py-1 text-[11.5px] font-extrabold text-[#2F8A55]">A família vê</span>}
+      >
+        <OrientacaoFamilia
+          babyId={f.baby_id}
+          acao={enviarOrientacaoFamilia}
+          precisaAceite={aceiteOk === false}
+          termo={ACEITE_VINCULO_CONSULTORA_TEXTO}
+          bloqueio={bloqueio}
+        />
+      </Card>
+
+      {enviadas.lista.length > 0 && (
+        <Card className="mt-4" titulo="Já enviadas" direita={`${enviadas.lista.length}`}>
+          {enviadas.lista.map((o) => (
+            <div key={o.id} className="border-b border-[#F3F0F8] py-3 last:border-0">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <b className="text-[12.5px] tabular-nums">{quando(o.enviada_em)}</b>
+                <span className={`text-[11.5px] font-bold ${o.lida_em ? 'text-[#2F8A55]' : 'text-ninho-cinza'}`}>
+                  {o.lida_em ? `lida em ${quando(o.lida_em)}` : 'ainda não lida'}
+                </span>
+              </div>
+              <p className="mt-1 whitespace-pre-wrap text-[13.5px] leading-relaxed">{o.texto}</p>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      <Card className="mt-4" titulo="Suas anotações" direita="Só você vê">
+        {fi.indisponivel ? (
+          <p className="py-4 text-center text-sm text-ninho-cinza">As fichas ainda não estão disponíveis.</p>
+        ) : (
+          <FormDaFicha f={f} fi={fi.ficha} naAbaFicha />
+        )}
+      </Card>
+    </>
+  );
+}
+
+/** O mesmo formulário da ficha nas duas abas: Famílias (lista) e Ficha. */
+function FormDaFicha({ f, fi, naAbaFicha = false }: { f: FamiliaDaConsultora; fi: Ficha | null; naAbaFicha?: boolean }) {
+  return (
+        <form action={salvarFicha} className="mt-3">
+            {naAbaFicha && <input type="hidden" name="volta" value="ficha" />}
+            <input type="hidden" name="baby" value={f.baby_id} />
+            <div className="grid gap-2 sm:grid-cols-3">
+              <div><label className={rotuloCampo}>Início da consultoria</label><input type="date" name="inicio" defaultValue={fi?.inicio ?? ''} className={campo} /></div>
+              <div><label className={rotuloCampo}>Encontros feitos</label><input type="number" min={0} max={999} name="encontros_feitos" defaultValue={fi?.encontros_feitos ?? ''} className={campo} /></div>
+              <div><label className={rotuloCampo}>Encontros combinados</label><input type="number" min={0} max={999} name="encontros_total" defaultValue={fi?.encontros_total ?? ''} className={campo} /></div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div><label className={rotuloCampo}>Nomes dos pais</label><input name="pais_nomes" maxLength={120} defaultValue={fi?.pais_nomes ?? ''} className={campo} /></div>
+              <div><label className={rotuloCampo}>Como você chama o bebê</label><input name="bebe_apelido" maxLength={60} defaultValue={fi?.bebe_apelido ?? ''} className={campo} /></div>
+            </div>
+            <label className={rotuloCampo}>WhatsApp da família</label>
+            <TelefonePais name="whatsapp" valor={fi?.whatsapp} classeSelect={campo} classeInput={campo} />
+            <label className={rotuloCampo}>Observações</label>
+            <textarea name="observacoes" maxLength={2000} rows={3} defaultValue={fi?.observacoes ?? ''} className={`${campo} h-auto py-2`} />
+            <small className="mt-1 block text-[11.5px] text-ninho-cinza">Anote só o que precisa para o atendimento. Não registre diagnóstico, remédio nem dado de saúde.</small>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button className={botao.suave}>Salvar ficha</button>
+              <span className="text-[11.5px] text-ninho-cinza">
+                Só você vê estas anotações. A família não vê, e elas somem se a família tirar o seu acesso.
+                {fi?.atualizado_em ? ` Salva em ${new Date(fi.atualizado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.` : ''}
+              </span>
+            </div>
+          </form>
   );
 }
 
@@ -629,30 +757,7 @@ async function Fichas({ c, familias, aberta }: { c: Consultora; familias: Famili
               {fi?.whatsapp && <span className="text-xs text-ninho-cinza">{telefoneLegivel(fi.whatsapp)}</span>}
               {!fi && <span className="text-xs text-[#9A95AD]">sem ficha ainda</span>}
             </summary>
-            <form action={salvarFicha} className="mt-3">
-              <input type="hidden" name="baby" value={f.baby_id} />
-              <div className="grid gap-2 sm:grid-cols-3">
-                <div><label className={rotuloCampo}>Início da consultoria</label><input type="date" name="inicio" defaultValue={fi?.inicio ?? ''} className={campo} /></div>
-                <div><label className={rotuloCampo}>Encontros feitos</label><input type="number" min={0} max={999} name="encontros_feitos" defaultValue={fi?.encontros_feitos ?? ''} className={campo} /></div>
-                <div><label className={rotuloCampo}>Encontros combinados</label><input type="number" min={0} max={999} name="encontros_total" defaultValue={fi?.encontros_total ?? ''} className={campo} /></div>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div><label className={rotuloCampo}>Nomes dos pais</label><input name="pais_nomes" maxLength={120} defaultValue={fi?.pais_nomes ?? ''} className={campo} /></div>
-                <div><label className={rotuloCampo}>Como você chama o bebê</label><input name="bebe_apelido" maxLength={60} defaultValue={fi?.bebe_apelido ?? ''} className={campo} /></div>
-              </div>
-              <label className={rotuloCampo}>WhatsApp da família</label>
-              <TelefonePais name="whatsapp" valor={fi?.whatsapp} classeSelect={campo} classeInput={campo} />
-              <label className={rotuloCampo}>Observações</label>
-              <textarea name="observacoes" maxLength={2000} rows={3} defaultValue={fi?.observacoes ?? ''} className={`${campo} h-auto py-2`} />
-              <small className="mt-1 block text-[11.5px] text-ninho-cinza">Anote só o que precisa para o atendimento. Não registre diagnóstico, remédio nem dado de saúde.</small>
-              <div className="mt-3 flex flex-wrap items-center gap-3">
-                <button className={botao.suave}>Salvar ficha</button>
-                <span className="text-[11.5px] text-ninho-cinza">
-                  Só você vê estas anotações. A família não vê, e elas somem se a família tirar o seu acesso.
-                  {fi?.atualizado_em ? ` Salva em ${new Date(fi.atualizado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.` : ''}
-                </span>
-              </div>
-            </form>
+            <FormDaFicha f={f} fi={fi} />
           </details>
         );
       })}

@@ -951,6 +951,102 @@ export async function salvarFichaDe(
   return String(data);
 }
 
+// ── Orientação para a família (00157 + 00175) ─────────────
+// Mesmas travas do app, só que a consultora vem da sessão do painel (o painel
+// entra como service_role, sem auth.uid()). Sem a 00175 no banco, tudo aqui
+// devolve "indisponivel" e a aba Ficha só mostra as anotações.
+
+export const ORIENTACAO_MAX = 1000;
+
+export interface OrientacaoEnviada {
+  id: string;
+  texto: string;
+  enviada_em: string;
+  lida_em: string | null;
+}
+
+export type RetornoEnviarOrientacao =
+  | 'ok'
+  | 'sem_acesso'
+  | 'sem_aceite'
+  | 'familia_sem_aceite'
+  | 'vazio'
+  | 'longo'
+  | 'link'
+  | 'indisponivel'
+  | 'erro';
+
+/** Função que ainda não existe no banco (migration não aplicada). */
+function semFuncao(error: { code?: string; message?: string }): boolean {
+  return error.code === 'PGRST202' || error.code === '42883' || /could not find the function/i.test(error.message ?? '');
+}
+
+/** Ela já aceitou o termo v4? null = a 00175 ainda não está no banco. */
+export async function orientacaoAceiteOk(consultoraId: string): Promise<boolean | null> {
+  const { data, error } = await appDb().rpc('_consultora_orientacao_aceite_ok', { p_consultora: consultoraId });
+  if (error) {
+    if (!semFuncao(error)) console.error('[consultoras] _consultora_orientacao_aceite_ok:', error.message);
+    return null;
+  }
+  return data === true;
+}
+
+export async function aceitarTermoOrientacao(consultoraId: string): Promise<'ok' | 'versao_invalida' | 'nao_e_consultora' | 'indisponivel' | 'erro'> {
+  const { data, error } = await appDb().rpc('_consultora_aceitar_orientacao', {
+    p_consultora: consultoraId,
+    p_versao: ACEITE_VINCULO_CONSULTORA_VERSAO,
+    p_idioma: 'pt',
+    p_app_versao: null,
+    p_plataforma: 'painel',
+  });
+  if (error) {
+    if (semFuncao(error)) return 'indisponivel';
+    console.error('[consultoras] _consultora_aceitar_orientacao:', error.message);
+    return 'erro';
+  }
+  const r = String(data);
+  return r === 'ok' || r === 'versao_invalida' || r === 'nao_e_consultora' ? r : 'erro';
+}
+
+export async function enviarOrientacao(consultoraId: string, babyId: string, texto: string): Promise<RetornoEnviarOrientacao> {
+  const { data, error } = await appDb().rpc('_consultora_enviar_orientacao', {
+    p_consultora: consultoraId,
+    p_baby: babyId,
+    p_texto: texto,
+  });
+  if (error) {
+    if (semFuncao(error)) return 'indisponivel';
+    console.error('[consultoras] _consultora_enviar_orientacao:', error.message);
+    return 'erro';
+  }
+  const esperados: RetornoEnviarOrientacao[] = ['ok', 'sem_acesso', 'sem_aceite', 'familia_sem_aceite', 'vazio', 'longo', 'link'];
+  const r = String(data) as RetornoEnviarOrientacao;
+  return esperados.includes(r) ? r : 'erro';
+}
+
+/** As últimas 50 que ela mandou para este bebê, a mais nova primeiro. */
+export async function orientacoesDoBebe(
+  consultoraId: string,
+  babyId: string,
+): Promise<{ lista: OrientacaoEnviada[]; indisponivel: boolean }> {
+  const { data, error } = await appDb().rpc('_consultora_orientacoes_do_bebe', { p_consultora: consultoraId, p_baby: babyId });
+  if (error) {
+    if (!semFuncao(error)) console.error('[consultoras] _consultora_orientacoes_do_bebe:', error.message);
+    return { lista: [], indisponivel: true };
+  }
+  return { lista: ((data as OrientacaoEnviada[] | null) ?? []), indisponivel: false };
+}
+
+/** Estado da família quanto às novidades: 'aceito' libera a orientação. */
+export async function novidadesEstado(consultoraId: string, babyId: string): Promise<string | null> {
+  const { data, error } = await appDb().rpc('_consultora_novidades_estado', { p_consultora: consultoraId, p_baby: babyId });
+  if (error) {
+    console.error('[consultoras] _consultora_novidades_estado:', error.message);
+    return null;
+  }
+  return data === null || data === undefined ? null : String(data);
+}
+
 // ── Funil do link /c/<código> (igual ao do parceiro, por mês) ──
 export interface EventoLink {
   consultora_id: string;

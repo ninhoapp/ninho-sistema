@@ -38,6 +38,8 @@ const PARCEIRO: NavItem[] = [
 const CONSULTORA: NavItem[] = [
   { href: '/admin/consultora', label: 'Início' },
   { href: '/admin/consultora?aba=familias', label: 'Famílias' },
+  // Ficha (dono, 16/11/2026): anotações + a orientação que ela manda para a família.
+  { href: '/admin/consultora?aba=ficha', label: 'Ficha' },
   { href: '/admin/consultora?aba=rotina', label: 'Rotina' },
   { href: '/admin/consultora?aba=semana', label: 'Evolução' },
   { href: '/admin/consultora?aba=relatorio', label: 'Relatório IA' },

@@ -19,6 +19,10 @@ import {
   encerrarFamilia,
   inserirPedido,
   salvarFichaDe,
+  orientacaoAceiteOk,
+  aceitarTermoOrientacao,
+  enviarOrientacao,
+  ORIENTACAO_MAX,
   CONSULTORAS_TAG,
   type Consultora,
 } from '@/lib/consultoras';
@@ -200,8 +204,12 @@ export async function convidarFamilia(fd: FormData) {
 export async function salvarFicha(fd: FormData) {
   const c = await eu();
   const baby = txt(fd, 'baby');
-  if (!/^[0-9a-f-]{36}$/i.test(baby)) volta('familias', { erro: 'Família não encontrada.' });
-  const ancora = { ficha: baby };
+  // A mesma ficha aparece na aba Famílias e na aba Ficha (dono, 16/11/2026):
+  // o formulário diz de onde veio para a página voltar no mesmo lugar.
+  const naAbaFicha = txt(fd, 'volta') === 'ficha';
+  const de = naAbaFicha ? 'ficha' : 'familias';
+  if (!/^[0-9a-f-]{36}$/i.test(baby)) volta(de, { erro: 'Família não encontrada.' });
+  const ancora: Record<string, string> = naAbaFicha ? { bebe: baby } : { ficha: baby };
   const inicioBruto = txt(fd, 'inicio');
   const inicio = /^\d{4}-\d{2}-\d{2}$/.test(inicioBruto) ? inicioBruto : null;
   const num = (k: string) => {
@@ -212,10 +220,10 @@ export async function salvarFicha(fd: FormData) {
   };
   const feitos = num('encontros_feitos');
   const total = num('encontros_total');
-  if (Number.isNaN(feitos) || Number.isNaN(total)) volta('familias', { erro: 'Encontros: use números de 0 a 999.' }, ancora);
+  if (Number.isNaN(feitos) || Number.isNaN(total)) volta(de, { erro: 'Encontros: use números de 0 a 999.' }, ancora);
   const wBruto = txt(fd, 'whatsapp');
   const whatsapp = wBruto ? juntarTelefone(txt(fd, 'whatsapp_pais'), wBruto, 8) : null;
-  if (wBruto && !whatsapp) volta('familias', { erro: 'WhatsApp inválido.' }, ancora);
+  if (wBruto && !whatsapp) volta(de, { erro: 'WhatsApp inválido.' }, ancora);
   const r = await salvarFichaDe(c.id, baby, {
     inicio,
     encontros_feitos: feitos,
@@ -230,8 +238,53 @@ export async function salvarFicha(fd: FormData) {
     invalido: 'Confira os campos da ficha.',
     erro: 'Não consegui salvar a ficha agora. Tente de novo.',
   };
-  if (r !== 'ok') volta('familias', { erro: msg[r] ?? msg.erro }, ancora);
-  volta('familias', { ok: 'Ficha salva.' }, ancora);
+  if (r !== 'ok') volta(de, { erro: msg[r] ?? msg.erro }, ancora);
+  volta(de, { ok: 'Ficha salva.' }, ancora);
+}
+
+// ── Orientação para a família (00157 + 00175) ─────────────
+/**
+ * Envia a orientação que a família lê no app. Mesmas travas do app; quem
+ * decide é o servidor. Na 1ª vez, grava também o termo da consultora (o
+ * mesmo texto que ela marca ao aprovar ou convidar uma família).
+ */
+export async function enviarOrientacaoFamilia(fd: FormData) {
+  const c = await eu();
+  const baby = txt(fd, 'baby');
+  const texto = txt(fd, 'texto');
+  const ancora = { bebe: baby };
+  if (!/^[0-9a-f-]{36}$/i.test(baby)) volta('ficha', { erro: 'Família não encontrada.' });
+  if (c.estado !== 'ativa') volta('ficha', { erro: 'Sua conta não está ativa agora.' }, ancora);
+  if (!texto) volta('ficha', { erro: 'Escreva a orientação antes de enviar.' }, ancora);
+  if (texto.length > ORIENTACAO_MAX) volta('ficha', { erro: `A orientação passa de ${ORIENTACAO_MAX} letras.` }, ancora);
+
+  const jaAceitou = await orientacaoAceiteOk(c.id);
+  if (jaAceitou === null) volta('ficha', { erro: 'As orientações ainda não estão disponíveis. Assim que o Ninho liberar, aparecem aqui.' }, ancora);
+  if (!jaAceitou) {
+    if (fd.get('aceite') !== 'on') volta('ficha', { erro: 'Para enviar a primeira orientação, marque o termo.' }, ancora);
+    const a = await aceitarTermoOrientacao(c.id);
+    const msgA: Record<string, string> = {
+      versao_invalida: 'Versão do termo desatualizada. Recarregue a página.',
+      nao_e_consultora: 'Sua conta não está ativa agora.',
+      indisponivel: 'As orientações ainda não estão disponíveis.',
+      erro: 'Não consegui registrar o termo agora. Tente de novo.',
+    };
+    if (a !== 'ok') volta('ficha', { erro: msgA[a] ?? msgA.erro }, ancora);
+  }
+
+  const r = await enviarOrientacao(c.id, baby, texto);
+  const msg: Record<string, string> = {
+    sem_acesso: 'Essa família não compartilha mais a rotina com você (ou está sem plano).',
+    sem_aceite: 'Para enviar, é preciso confirmar o termo. Recarregue a página.',
+    familia_sem_aceite: 'A família ainda não aceitou receber orientações pelo Ninho. Ela vê o pedido ao abrir o app.',
+    vazio: 'Escreva a orientação antes de enviar.',
+    longo: `A orientação passa de ${ORIENTACAO_MAX} letras.`,
+    link: 'A orientação não pode ter link. Tire o endereço e envie de novo.',
+    indisponivel: 'As orientações ainda não estão disponíveis. Assim que o Ninho liberar, aparecem aqui.',
+    erro: 'Não consegui enviar agora. Tente de novo.',
+  };
+  if (r !== 'ok') volta('ficha', { erro: msg[r] ?? msg.erro }, ancora);
+  volta('ficha', { ok: 'Orientação enviada. A família recebe no sininho e no celular.' }, ancora);
 }
 
 // ── Relatório IA ──────────────────────────────────────────
