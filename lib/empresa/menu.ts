@@ -71,6 +71,8 @@ export const MENU_ADMIN: GrupoMenu[] = [
     abas: [
       { href: '/admin/consultor', label: 'Consultoras de sono' },
       { href: '/admin/parceiros', label: 'Parceiros' },
+      // Aba da própria tela Parceiros (16/11/2026): o dono abre isto de manhã.
+      { href: '/admin/parceiros?aba=captacao', label: 'Captação de parceiro' },
       { href: '/admin/parceiro/guia', label: 'Guia do parceiro' },
     ],
   },

@@ -25,16 +25,51 @@ import { LimparLink } from '@/components/admin/LimparLink';
 import { PedidosParceiros } from '@/components/admin/PedidosParceiros';
 import { listarPedidosParceiro, codigoDoNomeParceiro } from '@/lib/parceiros/pedidos';
 import { AtribuicaoManual, type ContaAtribuivel, type OpcaoParceiro } from '@/components/admin/AtribuicaoManual';
+import { Abas } from '@/components/consultoras/ui';
+import { Captacao } from '@/components/admin/Captacao';
+import { autorizadosSemConta, hojeDubai, listarCaptacao } from '@/lib/captacao';
 
 export const dynamic = 'force-dynamic';
+
+const ABAS: [string, string][] = [
+  ['parceiros', 'Parceiros'],
+  ['captacao', 'Captação de parceiro'],
+];
 
 /**
  * Parceiros (influenciadores) — visão do dono. Espelha /admin/influenciadores
  * do SOMI: ranking, funil e repasse de cada parceiro, link para mandar a ele
  * e a atribuição manual de contas.
+ *
+ * Desde 16/11/2026 a tela tem duas abas: "Parceiros" (esta) e "Captação de
+ * parceiro", onde o dono gerencia quem ele aborda no Instagram para virar
+ * consultora de sono.
  */
-export default async function ParceirosPage() {
+export default async function ParceirosPage({ searchParams }: { searchParams: { aba?: string } }) {
   requireRole('admin');
+  const aba = ABAS.some(([k]) => k === searchParams.aba) ? searchParams.aba! : 'parceiros';
+
+  if (aba === 'captacao') {
+    const [cap, autorizados] = await Promise.all([listarCaptacao(), autorizadosSemConta()]);
+    return (
+      <>
+        <PageHeader
+          title="Captação de parceiro"
+          subtitle="Quem você aborda no Instagram para virar consultora de sono: em que etapa cada uma está, o que ela disse e quem você precisa procurar hoje."
+        />
+        <Abas base="/admin/parceiros" atual={aba} abas={ABAS} />
+        <Captacao
+          contatos={cap.contatos}
+          comentarios={cap.comentarios}
+          autorizados={autorizados}
+          indisponivel={cap.indisponivel}
+          erro={cap.erro}
+          hoje={hojeDubai()}
+        />
+      </>
+    );
+  }
+
   const [perfis, users, cliques, installs, pedidos] = await Promise.all([
     listPerfis(),
     fetchAppUsers(),
@@ -116,6 +151,8 @@ export default async function ParceirosPage() {
           </Link>
         }
       />
+
+      <Abas base="/admin/parceiros" atual={aba} abas={ABAS} />
 
       <PedidosParceiros pedidos={pedidos} sugestoes={sugestoes} />
 
