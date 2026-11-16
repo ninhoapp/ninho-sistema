@@ -26,6 +26,7 @@ import {
   TEXTOS,
   atrasadoEmDias,
   dataBr,
+  textoDaEtapa,
   urlDoPerfil,
   type AutorizadoSemConta,
   type Comentario,
@@ -187,6 +188,38 @@ function Historico({ lista }: { lista: Comentario[] }) {
   );
 }
 
+/**
+ * O texto da vez para ESTA pessoa, escolhido pela etapa em que ela está — ele
+ * não precisa procurar qual é nem editar nada antes de mandar.
+ */
+function ProximoTexto({ c }: { c: Contato }) {
+  const t = textoDaEtapa(c.etapa);
+  if (!t) return null;
+  return (
+    <div className="rounded-[18px] bg-[#EEF8F1] p-3">
+      <p className="text-[11.5px] font-bold text-[#2F8A55]">Texto para mandar agora</p>
+      <p className="mt-0.5 text-[13px] font-extrabold text-ninho-grafite">{t.titulo}</p>
+      {t.espera112 && (
+        <p className="mt-1 rounded-[12px] bg-[#FFF2D6] px-2 py-1 text-[11px] font-bold leading-snug text-[#7A5A12]">
+          Tire a parte da orientação chegando à mãe enquanto a 1.1.2 não chegar às consultoras.
+        </p>
+      )}
+      <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-snug">{t.texto}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Copiar texto={t.texto} label="Copiar e mandar" />
+        <a
+          href={urlDoPerfil(c.arroba)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={botao.suave}
+        >
+          Abrir o perfil dela
+        </a>
+      </div>
+    </div>
+  );
+}
+
 /** Ficha da pessoa: etapa, data, dados públicos, comentar e histórico. */
 function Ficha({ c, hist, hoje }: { c: Contato; hist: Comentario[]; hoje: string }) {
   const [st, action] = useFormState<CaptacaoState, FormData>(salvarContato, {});
@@ -231,6 +264,7 @@ function Ficha({ c, hist, hoje }: { c: Contato; hist: Comentario[]; hoje: string
         </div>
       </form>
       <div className="flex flex-col gap-3">
+        <ProximoTexto c={c} />
         <FormComentario c={c} hoje={hoje} />
         <div className="rounded-[18px] bg-[#F7F4FD] p-3">
           <p className="mb-2 text-[11.5px] font-bold text-[#9A95AD]">Histórico ({hist.length})</p>
@@ -699,7 +733,7 @@ export function Captacao({
         )}
       </Card>
 
-      <Card titulo="Textos de cada etapa" direita="troque {nome} antes de mandar" className="mb-4">
+      <Card titulo="Textos de cada etapa" direita="saem prontos: nada para preencher" className="mb-4">
         <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
           {TEXTOS.map((t) => (
             <Pronto key={t.k} t={t} />

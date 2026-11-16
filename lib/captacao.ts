@@ -377,7 +377,7 @@ export const TEXTOS: TextoPronto[] = [
     k: 'abordagem',
     titulo: '1ª abordagem',
     quando: 'para quem está em "Achei na pesquisa"',
-    texto: `Oi, {nome}. Aqui é o Mailson, do Ninho — um app de rotina do bebê.
+    texto: `Oi! Aqui é o Mailson, do Ninho — um app de rotina do bebê.
 
 Montei uma área para quem atende sono: a rotina de todas as suas famílias num lugar só, no fuso da casa de cada uma, e os números do bebê na mão na hora de atender. Sem print e sem planilha.
 
@@ -388,7 +388,7 @@ Você não paga nada para usar. Posso te mostrar em 53 segundos?`,
     titulo: 'Proposta',
     quando: 'quando ela diz "pode apresentar"',
     espera112: true,
-    texto: `Que bom, {nome}. Vou direto ao ponto, em três partes.
+    texto: `Que bom! Vou direto ao ponto, em três partes.
 
 1. Você acompanha. Sua cliente registra sono, mamadas e fraldas no Ninho; você abre e vê o dia inteiro dela — sonecas com início e fim, janelas de sono, a noite e os despertares — no celular e no computador, sempre na hora da casa da família.
 2. Você orienta por dentro do app. O que você escreve chega para a mãe destacado, e fica o histórico de tudo que você já passou.
@@ -399,22 +399,56 @@ Te mandei o vídeo de 53 segundos com as telas de verdade. Se fizer sentido, eu 
   {
     k: 'reativacao',
     titulo: 'Reativação (sumiu depois da proposta)',
-    quando: 'mande o arquivo do vídeo junto',
-    texto: `Oi, {nome}. Mailson, do Ninho.
+    quando: 'para quem você já tinha procurado antes, falando de comissão',
+    texto: `Oi! Mailson, do Ninho.
 
 Na primeira vez eu te falei da parceria pelo lado errado. O ponto é o seu trabalho: a rotina de todas as suas famílias num lugar, um canal direto com cada mãe e os números do bebê na mão na hora de atender.
 
 Te mandei um vídeo de 53 segundos mostrando na tela. É o único pedido. Não te procuro mais; se quiser conhecer, me chama quando quiser.`,
   },
   {
-    k: 'toque',
-    titulo: 'Último toque (ela não respondeu)',
-    quando: 'uma vez só, e encerra',
-    texto: `{nome}, só para não deixar sem fim: o vídeo está aí em cima quando você tiver um minuto.
+    k: 'retomada_proposta',
+    titulo: 'Retomada (recebeu a proposta e sumiu)',
+    quando: 'uma vez só, com o arquivo do vídeo junto',
+    espera112: true,
+    texto: `Oi! Passando só para fechar o assunto, sem cobrança nenhuma.
 
-Se não for o seu momento, tudo bem — não te procuro mais. E se um dia quiser conhecer, é só me chamar.`,
+Te mandei a proposta do Ninho e sei que semana de consultora é corrida. Em uma linha: a rotina de todas as suas famílias num lugar só, um canal direto com cada mãe e os números do bebê na mão na hora de atender.
+
+Deixo o vídeo aqui de novo, são 53 segundos.
+
+Não insisto mais. Se um dia você quiser começar a usar o Ninho para acompanhar suas clientes, é só me chamar que eu libero o seu acesso na hora.`,
+  },
+  {
+    k: 'retomada_contato',
+    titulo: 'Retomada (não respondeu ao primeiro contato)',
+    quando: 'uma vez só, com o arquivo do vídeo junto',
+    texto: `Oi! Te escrevi uma vez e não quero virar insistência.
+
+Resumo rápido: no Ninho a família registra o sono, as mamadas e as fraldas, e você acompanha a rotina de todas as suas clientes num lugar só, no celular e no computador.
+
+Mando o vídeo junto: 53 segundos.
+
+Essa é a última vez que te escrevo sobre isso. Se um dia quiser usar o Ninho para acompanhar suas clientes, me chama que eu libero na hora.`,
   },
 ];
+
+/**
+ * O texto certo para a etapa em que a pessoa está — a aba sabe em que pé cada
+ * uma parou, então ele não escolhe à mão.
+ */
+export function textoDaEtapa(e: Etapa): TextoPronto | null {
+  const porEtapa: Partial<Record<Etapa, string>> = {
+    novo: 'abordagem',
+    abordado: 'retomada_contato',
+    conversando: 'proposta',
+    proposta: 'retomada_proposta',
+    sumiu: 'retomada_proposta',
+    quente: 'retomada_contato',
+  };
+  const k = porEtapa[e];
+  return k ? TEXTOS.find((t) => t.k === k) ?? null : null;
+}
 
 /** Respostas para a reação dela, no meio da conversa. */
 export const RESPOSTAS: TextoPronto[] = [
@@ -430,7 +464,7 @@ Quem assina é a família, se ela quiser continuar depois dos 7 dias grátis. O 
     k: 'depois',
     titulo: '"Vejo depois, agora não dá"',
     quando: 'sem pressa, deixa a porta aberta',
-    texto: `Claro, {nome}. Sem pressa nenhuma.
+    texto: `Claro, sem pressa nenhuma.
 
 Deixo o vídeo aí para quando sobrar um minuto. Se um dia você quiser testar com uma cliente só, me chama que eu te libero na hora.
 
@@ -440,7 +474,7 @@ Boa semana e bom trabalho.`,
     k: 'como_funciona',
     titulo: '"Como funciona?"',
     quando: 'o passo a passo, curto',
-    texto: `É simples, {nome}. Eu libero o seu acesso, você manda o seu link para a família, ela cria a conta e aprova compartilhar a rotina com você. A partir daí, tudo que ela registrar aparece para você.
+    texto: `É simples: eu libero o seu acesso, você manda o seu link para a família, ela cria a conta e aprova compartilhar a rotina com você. A partir daí, tudo que ela registrar aparece para você.
 
 Você não registra nada e não precisa pedir print: abre e lê. No computador são as mesmas telas.`,
   },
