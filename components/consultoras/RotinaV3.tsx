@@ -312,6 +312,25 @@ export function EvolucaoSono({ linhas, inicioVinculo, href }: { linhas: LinhaEvo
 }
 
 // ── Semana: barras empilhadas ─────────────────────────────
+/** Altura mínima para a hora caber escrita dentro do pedaço da barra. */
+const ALTURA_ROTULO = 16;
+
+/**
+ * Um pedaço da barra do sono por dia com a duração escrita dentro, em branco
+ * (dono, 16/11/2026): antes só havia o total em cima, e não dava para ler
+ * quanto foi de soneca e quanto foi de noite. Pedaço baixo fica sem o número.
+ */
+function Pedaco({ minutos, altura, cor }: { minutos: number; altura: number; cor: string }) {
+  if (minutos <= 0) return null;
+  return (
+    <div className="flex items-center justify-center overflow-hidden" style={{ height: `${altura}px`, background: cor }}>
+      {altura >= ALTURA_ROTULO && (
+        <span className="whitespace-nowrap text-[10px] font-extrabold tabular-nums text-white">{dur(minutos)}</span>
+      )}
+    </div>
+  );
+}
+
 export function BarrasSemana({ s, href }: { s: SemanaV3; href: (dia: string) => string }) {
   const tot = s.dias.map((d) => d.sonecasMin + (d.noiteCompleta ? d.noite.totalMin ?? 0 : 0));
   const mx = Math.max(...tot, 1);
@@ -321,15 +340,21 @@ export function BarrasSemana({ s, href }: { s: SemanaV3; href: (dia: string) => 
         {s.dias.map((d, i) => {
           const melhor = s.melhores.includes(d.dia);
           const noite = d.noiteCompleta ? d.noite.totalMin ?? 0 : 0;
+          // Altura de cada pedaço em pixel (não mais flex): é ela que diz se a
+          // hora cabe escrita dentro do pedaço (dono, 16/11/2026, pedido de
+          // uma consultora — antes só havia o total em cima da barra).
+          const alt = tot[i] > 0 ? (tot[i] / mx) * 150 : 4;
+          const altSon = tot[i] > 0 ? (d.sonecasMin / tot[i]) * alt : 0;
+          const altNoite = tot[i] > 0 ? (noite / tot[i]) * alt : 0;
           return (
             <a key={d.dia} href={href(d.dia)} className="flex flex-1 flex-col items-center gap-1 text-[11px] font-bold text-ninho-cinza">
               <span className="text-[11.5px] font-extrabold tabular-nums text-ninho-grafite">{tot[i] > 0 ? dur(tot[i]) : '—'}</span>
               <div
                 className="flex w-full max-w-[52px] flex-col overflow-hidden rounded-[10px]"
-                style={{ height: tot[i] > 0 ? `${(tot[i] / mx) * 150}px` : 4, background: tot[i] > 0 ? undefined : '#EEE', boxShadow: melhor ? `0 0 0 2.5px ${COR.verde}` : undefined }}
+                style={{ height: `${alt}px`, background: tot[i] > 0 ? undefined : '#EEE', boxShadow: melhor ? `0 0 0 2.5px ${COR.verde}` : undefined }}
               >
-                {d.sonecasMin > 0 && <div style={{ flex: d.sonecasMin, background: COR.soneca }} />}
-                {noite > 0 && <div style={{ flex: noite, background: COR.noite }} />}
+                <Pedaco minutos={d.sonecasMin} altura={altSon} cor={COR.soneca} />
+                <Pedaco minutos={noite} altura={altNoite} cor={COR.noite} />
               </div>
               <span>{diaCurto(d.dia).split(' ')[0]}</span>
               <span className="text-[10.5px] font-semibold text-[#9A95AD]">{diaCurto(d.dia).split(' ')[1]}</span>
