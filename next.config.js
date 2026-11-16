@@ -6,6 +6,9 @@ const nextConfig = {
   // gravam chamam revalidatePath/revalidateTag, que limpam esse cache.
   experimental: {
     staleTimes: { dynamic: 30 },
+    // O vídeo da abordagem (4 a 10 MB) sobe pela aba Captação, por Server
+    // Action. O padrão do Next é 1 MB, que recusaria o arquivo.
+    serverActions: { bodySizeLimit: '20mb' },
   },
   // Termos de Uso e Política de Privacidade: HTML gerado no repo do app
   // (Ninho-expo, scripts/gerar-termos-html.mjs) a partir da mesma fonte que

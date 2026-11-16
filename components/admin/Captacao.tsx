@@ -38,7 +38,9 @@ import {
   arquivarContato,
   comentar,
   importarConvites,
+  registrarContato,
   salvarContato,
+  subirVideoCaptacao,
   type CaptacaoState,
 } from '@/app/admin/(painel)/parceiros/captacao-actions';
 import { Aviso, Card, Kpi, Retorno, Selo, botao, campo, rotuloCampo, td, th } from '@/components/consultoras/ui';
@@ -273,6 +275,90 @@ function Linha({ c, hist, hoje, destaque = false }: { c: Contato; hist: Comentar
   );
 }
 
+/**
+ * O caminho curto, e o primeiro da tela: um @, o que a pessoa disse e o dia
+ * de voltar a falar. É o que ele faz o dia inteiro.
+ */
+function FormRegistrar({ hoje }: { hoje: string }) {
+  const [st, action] = useFormState<CaptacaoState, FormData>(registrarContato, {});
+  return (
+    <form action={action}>
+      <Retorno ok={st.ok} erro={st.error} />
+      <div className="grid gap-3 lg:grid-cols-[220px_1fr]">
+        <div>
+          <label className="text-[11.5px] font-bold text-[#9A95AD]">
+            @ do Instagram
+            <input
+              name="arroba"
+              required
+              placeholder="@maria.sono"
+              className={`${campo} mt-1`}
+            />
+          </label>
+          <label className="mt-2 block text-[11.5px] font-bold text-[#9A95AD]">
+            Em que pé está
+            <select name="etapa" defaultValue="abordado" className={`${campo} mt-1`}>
+              {ETAPAS.map((e) => (
+                <option key={e.k} value={e.k}>{e.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="mt-2 block text-[11.5px] font-bold text-[#9A95AD]">
+            Falar de novo em
+            <input type="date" name="proximo_contato" min={hoje} className={`${campo} mt-1`} />
+          </label>
+        </div>
+        <div>
+          <label className="text-[11.5px] font-bold text-[#9A95AD]">
+            O que ela disse / o que fazer depois
+            <textarea
+              name="texto"
+              rows={5}
+              maxLength={1000}
+              placeholder="ex.: está corrida essa semana por causa do aniversário da filha, semana que vem a gente conversa"
+              className="mt-1 w-full rounded-xl border-[1.5px] border-transparent bg-[#F5F2FB] px-3 py-2 text-[13px] font-medium outline-none focus:border-ninho-roxo"
+            />
+          </label>
+          <p className="mt-1 text-[11px] leading-snug text-ninho-cinza">
+            Com a data preenchida, essa pessoa volta sozinha para a lista &ldquo;Para hoje&rdquo; no dia. O comentário
+            nunca apaga o anterior. Só o que é do trabalho: nada de vida pessoal.
+          </p>
+          <div className="mt-3">
+            <Botao cls={botao.grad}>Salvar contato</Botao>
+          </div>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+/** Sobe (ou troca) o vídeo da abordagem, que fica em lugar fechado. */
+function FormVideo({ tem }: { tem: boolean }) {
+  const [st, action] = useFormState<CaptacaoState, FormData>(subirVideoCaptacao, {});
+  return (
+    <form action={action} className={tem ? 'mt-4' : ''}>
+      <Retorno ok={st.ok} erro={st.error} />
+      <label className="text-[11.5px] font-bold text-[#9A95AD]">
+        {tem ? 'Trocar o vídeo (quando a gente regravar)' : 'Escolha o vídeo no seu computador (.mp4, até 60 MB)'}
+      </label>
+      <div className="mt-1 flex flex-wrap items-center gap-3">
+        <input
+          type="file"
+          name="arquivo"
+          accept="video/mp4,video/quicktime,.mp4,.mov"
+          className="text-[12.5px] file:mr-3 file:rounded-pill file:border-0 file:bg-[#F1EBFC] file:px-3 file:py-2 file:text-[12.5px] file:font-bold file:text-[#7C5CD6]"
+        />
+        <Botao cls={tem ? botao.suave : botao.grad}>{tem ? 'Trocar' : 'Guardar o vídeo'}</Botao>
+      </div>
+      {!tem && (
+        <p className="mt-1 text-[11.5px] text-ninho-cinza">
+          Ele está em <span className="font-mono">Ninho-expo\marketing\consultora\video\consultora-plataforma.mp4</span>.
+        </p>
+      )}
+    </form>
+  );
+}
+
 function FormAdicionar({ hoje }: { hoje: string }) {
   const [st, action] = useFormState<CaptacaoState, FormData>(adicionarContatos, {});
   return (
@@ -332,28 +418,42 @@ function FormImportar() {
   return (
     <form action={action}>
       <Retorno ok={st.ok} erro={st.error} />
-      <ol className="mb-3 ml-4 list-decimal text-[12.5px] leading-relaxed text-ninho-cinza">
-        <li>Abra a sua página de convites (<span className="font-mono">enviar.html</span>) no navegador.</li>
-        <li>Aperte <b>F12</b> e vá na aba <b>Console</b>.</li>
-        <li>Cole a linha abaixo e dê Enter — ela copia o que você já marcou.</li>
-        <li>Cole aqui embaixo e mande.</li>
+      <ol className="mb-3 ml-4 list-decimal text-[13px] leading-relaxed">
+        <li>
+          Abra a sua página de convites (<span className="font-mono">enviar.html</span>) e clique no botão branco{' '}
+          <b>Exportar para o painel</b>, no alto. Ele baixa o arquivo{' '}
+          <span className="font-mono">captacao-ninho.json</span>.
+        </li>
+        <li>Escolha esse arquivo aqui embaixo e mande.</li>
       </ol>
-      <div className="mb-2 flex flex-wrap items-center gap-2 rounded-[14px] bg-[#24164F] px-3 py-2">
-        <code className="flex-1 overflow-x-auto whitespace-nowrap text-[11.5px] text-white">{LINHA_DO_CONSOLE}</code>
-        <Copiar texto={LINHA_DO_CONSOLE} label="Copiar a linha" />
-      </div>
-      <textarea
-        name="colado"
-        rows={3}
-        placeholder='{"estado":{"brendabauth":"enviada", ...},"datas":{...}}'
-        className="w-full rounded-xl border-[1.5px] border-transparent bg-[#F5F2FB] px-3 py-2 text-[12.5px] font-semibold outline-none focus:border-ninho-roxo"
-      />
-      <div className="mt-3 flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          type="file"
+          name="arquivo"
+          accept="application/json,.json"
+          className="text-[12.5px] file:mr-3 file:rounded-pill file:border-0 file:bg-[#F1EBFC] file:px-3 file:py-2 file:text-[12.5px] file:font-bold file:text-[#7C5CD6]"
+        />
         <Botao cls={botao.grad}>Trazer os contatos</Botao>
-        <span className="text-[11.5px] text-ninho-cinza">
-          Pode mandar quantas vezes quiser: @ repetido não duplica, só atualiza a etapa.
-        </span>
       </div>
+      <p className="mt-2 text-[11.5px] text-ninho-cinza">
+        Pode mandar quantas vezes quiser: @ repetido não duplica, só atualiza a etapa. Entram só os que você marcou com
+        alguma situação — os outros perfis da página ficam de fora.
+      </p>
+      <details className="mt-3">
+        <summary className="cursor-pointer text-[11.5px] font-bold text-ninho-cinza">
+          Não achou o botão na sua página? Tem o jeito pelo console
+        </summary>
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-[14px] bg-[#24164F] px-3 py-2">
+          <code className="flex-1 overflow-x-auto whitespace-nowrap text-[11.5px] text-white">{LINHA_DO_CONSOLE}</code>
+          <Copiar texto={LINHA_DO_CONSOLE} label="Copiar a linha" />
+        </div>
+        <textarea
+          name="colado"
+          rows={2}
+          placeholder="cole aqui o que a linha copiou"
+          className="mt-2 w-full rounded-xl border-[1.5px] border-transparent bg-[#F5F2FB] px-3 py-2 text-[12.5px] font-semibold outline-none focus:border-ninho-roxo"
+        />
+      </details>
     </form>
   );
 }
@@ -373,8 +473,8 @@ export function Captacao({
   indisponivel: boolean;
   erro?: string;
   hoje: string;
-  /** O vídeo da abordagem: só o caminho do arquivo no computador do dono. */
-  video?: { caminho: string } | null;
+  /** URL assinada do vídeo da abordagem (1 hora). null = ainda não subiu. */
+  video?: string | null;
 }) {
   const [filtro, setFiltro] = useState<string>('');
   const [verArquivados, setVerArquivados] = useState(false);
@@ -438,6 +538,71 @@ export function Captacao({
         )}
       </Card>
 
+      <Card titulo="Registrar um contato" direita="o @, o que ela disse e quando voltar" className="mb-4">
+        <FormRegistrar hoje={hoje} />
+        <details className="mt-4 border-t border-[#F0ECF6] pt-3">
+          <summary className="cursor-pointer text-[12px] font-bold text-ninho-cinza">
+            Colocar vários @ de uma vez (uma lista colada)
+          </summary>
+          <div className="mt-3">
+            <FormAdicionar hoje={hoje} />
+          </div>
+        </details>
+      </Card>
+
+      <Card titulo="Vídeo da abordagem" direita="53 s · 1080×1920" className="mb-4">
+        <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
+          <div>
+            {video ? (
+              // eslint-disable-next-line jsx-a11y/media-has-caption
+              <video src={video} controls preload="metadata" className="w-full rounded-[18px] bg-black" />
+            ) : (
+              <div className="flex h-[300px] items-center justify-center rounded-[18px] bg-[#F0EEF4] px-4 text-center text-[12.5px] font-semibold text-ninho-cinza">
+                Nenhum vídeo guardado ainda. Escolha o arquivo ao lado.
+              </div>
+            )}
+          </div>
+          <div>
+            {video ? (
+              <>
+                <p className="text-[13px] leading-relaxed">
+                  Assista aqui, baixe e <strong>anexe o arquivo</strong> na conversa do Instagram. O vídeo toca lá
+                  dentro, sem ela sair do direct — por isso o arquivo, nunca um link.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <a href={video} download="ninho-consultora.mp4" className={botao.grad}>
+                    Baixar o vídeo
+                  </a>
+                  <a
+                    href="https://www.instagram.com/direct/inbox/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={botao.suave}
+                  >
+                    Abrir o direct do Instagram
+                  </a>
+                </div>
+              </>
+            ) : null}
+            <FormVideo tem={Boolean(video)} />
+            <Aviso tom="ambar">
+              <strong>Não mande como link, e não publique.</strong> O vídeo mostra a orientação da consultora chegando
+              no celular da família, que só chega às consultoras com o build <strong>1.1.2</strong>: quem receber hoje
+              não acha essa tela no app. Aqui ele fica guardado em lugar fechado, só para você.
+            </Aviso>
+            <ul className="mt-3 ml-4 list-disc text-[12.5px] leading-relaxed text-ninho-cinza">
+              <li>Não mandar para quem já é consultora cadastrada: este material é para ganhar gente nova.</li>
+              <li>Comissão só entra se ela perguntar, e sempre &ldquo;até 25%&rdquo;, nunca valor fixo.</li>
+              <li>
+                Se ela perguntar se a cliente vai pagar: Básico R$ 12,90 e Premium R$ 17,90, com 7 dias grátis, e a
+                assinatura cobre o pai, a mãe e os cuidadores do mesmo bebê — não é uma por pessoa.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </Card>
+
+
       <Card
         titulo="Autorizei e a pessoa ainda não criou a conta"
         direita="direto do banco, sem você registrar nada"
@@ -492,10 +657,6 @@ export function Captacao({
         <FormImportar />
       </Card>
 
-      <Card titulo="Colocar @ na lista" direita="uma linha por pessoa" className="mb-4">
-        <FormAdicionar hoje={hoje} />
-      </Card>
-
       <Card
         titulo={`Todos os contatos (${visiveis.length})`}
         direita={<Copiar texto={todosOsArrobas.join('\n')} label={`Copiar os ${todosOsArrobas.length} @`} />}
@@ -537,33 +698,6 @@ export function Captacao({
           </div>
         )}
       </Card>
-
-      {video && (
-        <Card titulo="Vídeo da abordagem" direita="53 s · 1080×1920 · 4,4 MB" className="mb-4">
-          <p className="text-[13px] leading-relaxed">
-            O vídeo é <strong>anexado na conversa</strong>, nunca mandado como link: ele toca ali mesmo, sem ela sair do
-            Instagram. O arquivo está no seu computador, em:
-          </p>
-          <div className="my-3 flex flex-wrap items-center gap-2 rounded-[14px] bg-[#24164F] px-3 py-2">
-            <code className="flex-1 overflow-x-auto whitespace-nowrap text-[11.5px] text-white">{video.caminho}</code>
-            <Copiar texto={video.caminho} label="Copiar o caminho" />
-          </div>
-          <Aviso tom="ambar">
-            <strong>Ainda não vai para endereço público.</strong> O vídeo mostra a orientação da consultora chegando no
-            celular da família, que só chega às consultoras com o build <strong>1.1.2</strong>. Quem receber hoje não
-            acha essa tela no app. Por isso ele não é servido pelo site: o envio é você anexando o arquivo.
-          </Aviso>
-          <ul className="mt-3 ml-4 list-disc text-[12.5px] leading-relaxed text-ninho-cinza">
-            <li>Não mandar para quem já é consultora cadastrada: este material é para ganhar gente nova.</li>
-            <li>Comissão só entra se ela perguntar, e sempre &ldquo;até 25%&rdquo;, nunca valor fixo.</li>
-            <li>Preços citados nos textos: Básico R$ 12,90 e Premium R$ 17,90, com 7 dias grátis.</li>
-            <li>
-              Quando ela perguntar se a cliente vai pagar: a assinatura cobre o pai, a mãe e os cuidadores do mesmo
-              bebê — não é uma por pessoa. É o que costuma virar a conversa.
-            </li>
-          </ul>
-        </Card>
-      )}
 
       <Card titulo="Textos de cada etapa" direita="troque {nome} antes de mandar" className="mb-4">
         <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">

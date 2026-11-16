@@ -28,6 +28,7 @@ import { AtribuicaoManual, type ContaAtribuivel, type OpcaoParceiro } from '@/co
 import { Abas } from '@/components/consultoras/ui';
 import { Captacao } from '@/components/admin/Captacao';
 import { autorizadosSemConta, hojeDubai, listarCaptacao } from '@/lib/captacao';
+import { urlDoVideo } from '@/lib/captacao-video';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,15 +36,6 @@ const ABAS: [string, string][] = [
   ['parceiros', 'Parceiros'],
   ['captacao', 'Captação de parceiro'],
 ];
-
-/**
- * O vídeo da abordagem (53 s). Fica NO COMPUTADOR do dono, de propósito: ele
- * mostra a orientação da consultora chegando à família, que só chega às
- * consultoras com o build 1.1.2, e o envio é ele anexando o arquivo na
- * conversa — não é link (decisão do dono e da frente de aquisição,
- * 16/11/2026). A tela mostra o caminho com botão de copiar.
- */
-const VIDEO_CAPTACAO = 'C:\\Dev\\Ninho-expo\\marketing\\consultora\\video\\consultora-plataforma.mp4';
 
 /**
  * Parceiros (influenciadores) — visão do dono. Espelha /admin/influenciadores
@@ -59,7 +51,7 @@ export default async function ParceirosPage({ searchParams }: { searchParams: { 
   const aba = ABAS.some(([k]) => k === searchParams.aba) ? searchParams.aba! : 'parceiros';
 
   if (aba === 'captacao') {
-    const [cap, autorizados] = await Promise.all([listarCaptacao(), autorizadosSemConta()]);
+    const [cap, autorizados, video] = await Promise.all([listarCaptacao(), autorizadosSemConta(), urlDoVideo()]);
     return (
       <>
         <PageHeader
@@ -74,7 +66,7 @@ export default async function ParceirosPage({ searchParams }: { searchParams: { 
           indisponivel={cap.indisponivel}
           erro={cap.erro}
           hoje={hojeDubai()}
-          video={{ caminho: VIDEO_CAPTACAO }}
+          video={video}
         />
       </>
     );

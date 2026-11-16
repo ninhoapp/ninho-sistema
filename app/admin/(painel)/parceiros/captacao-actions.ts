@@ -21,6 +21,7 @@ import {
   type Etapa,
   type Origem,
 } from '@/lib/captacao';
+import { subirVideo } from '@/lib/captacao-video';
 
 export interface CaptacaoState {
   ok?: string;
@@ -48,6 +49,67 @@ function aviso(msg?: string): string {
   return faltaTabela(msg)
     ? 'As tabelas da captação ainda não existem no banco: aplique a migration 00176 (Ninho-expo/supabase/migrations/00176_painel_captacao_parceiro.sql).'
     : msg || 'Não consegui gravar.';
+}
+
+/**
+ * O caminho curto, que é o que ele faz o dia inteiro: um @, o que a pessoa
+ * disse e o dia de voltar a falar. Cria o contato (ou acha o que já existe) e
+ * já escreve o comentário no histórico.
+ */
+export async function registrarContato(_prev: CaptacaoState, fd: FormData): Promise<CaptacaoState> {
+  requireRole('admin');
+  const arroba = normalizarArroba(String(fd.get('arroba') ?? ''));
+  if (!arroba) return { error: 'Escreva o @ do Instagram (ex.: @maria.sono).' };
+
+  const etapaBruta = String(fd.get('etapa') ?? 'abordado');
+  const etapa: Etapa = etapaValida(etapaBruta) ? etapaBruta : 'abordado';
+  const prox = data(fd, 'proximo_contato');
+  const comentario = texto(fd, 'texto', 1000);
+  const sb = painelDb();
+
+  const achado = await sb.from('captacao_contatos').select('id').eq('arroba', arroba).maybeSingle();
+  if (achado.error && !/row/i.test(achado.error.message)) return { error: aviso(achado.error.message) };
+
+  let id = (achado.data as { id: string } | null)?.id ?? null;
+  const campos: Record<string, unknown> = { etapa, atualizado_em: new Date().toISOString() };
+  if (prox) campos.proximo_contato = prox;
+  const nome = texto(fd, 'nome', 80);
+  if (nome) campos.nome = nome;
+
+  if (id) {
+    const up = await sb.from('captacao_contatos').update(campos).eq('id', id);
+    if (up.error) return { error: aviso(up.error.message) };
+  } else {
+    const ins = await sb
+      .from('captacao_contatos')
+      .insert({ arroba, origem: 'pesquisa', ...campos })
+      .select('id')
+      .single();
+    if (ins.error) return { error: aviso(ins.error.message) };
+    id = (ins.data as { id: string }).id;
+  }
+
+  if (comentario) {
+    const c = await sb
+      .from('captacao_comentarios')
+      .insert({ contato_id: id, texto: comentario, etapa_depois: etapa, proximo_contato: prox });
+    if (c.error) return { error: aviso(c.error.message) };
+  }
+
+  revalidatePath('/admin/parceiros');
+  const quando = prox ? ` Volta para a sua lista em ${dataBr(prox)}.` : '';
+  return { ok: `@${arroba} ${achado.data ? 'atualizado' : 'registrado'}.${quando}` };
+}
+
+/** Sobe (ou troca) o vídeo da abordagem, para ele ver e baixar na própria aba. */
+export async function subirVideoCaptacao(_prev: CaptacaoState, fd: FormData): Promise<CaptacaoState> {
+  requireRole('admin');
+  const arquivo = fd.get('arquivo');
+  if (!(arquivo instanceof File)) return { error: 'Escolha o arquivo do vídeo.' };
+  const erro = await subirVideo(arquivo);
+  if (erro) return { error: erro };
+  revalidatePath('/admin/parceiros');
+  return { ok: 'Vídeo guardado. Ele toca aqui e você baixa quando precisar.' };
 }
 
 /**
@@ -110,7 +172,11 @@ export async function adicionarContatos(_prev: CaptacaoState, fd: FormData): Pro
  */
 export async function importarConvites(_prev: CaptacaoState, fd: FormData): Promise<CaptacaoState> {
   requireRole('admin');
-  const { linhas: todas, erro } = lerConvitesColados(String(fd.get('colado') ?? ''));
+  // Dois caminhos: o arquivo que o botão "Exportar para o painel" da página de
+  // convites baixa (o normal) ou o texto colado do console (o antigo).
+  const arquivo = fd.get('arquivo');
+  const doArquivo = arquivo instanceof File && arquivo.size > 0 ? await arquivo.text() : '';
+  const { linhas: todas, erro } = lerConvitesColados(doArquivo || String(fd.get('colado') ?? ''));
   if (erro) return { error: erro };
   // A página tem 180 cartões, a maioria de outras áreas (amamentação, doula,
   // fotógrafa). Só entra quem ele marcou com alguma situação.
