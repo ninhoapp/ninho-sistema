@@ -98,13 +98,14 @@ export interface DiaGrupo {
 export interface TestePaywall {
   /** sorteios = quantas contas já entraram pelo rodízio (00088). Quem
    *  entrou antes dele foi pelo sorteio aleatório da 00083. */
-  config: { ativo: boolean; fracao_b: number; sorteios: number; modo: 'AB' | 'ABC' | 'AC' } | null;
+  config: { ativo: boolean; fracao_b: number; sorteios: number; modo: 'AB' | 'ABC' | 'AC' | 'C' } | null;
   resumo: Record<Grupo, ResumoGrupo>;
   diario: DiaGrupo[];
   foraDoSorteio: number;
   /** null = a view ainda não existe (migration 00089 não aplicada). */
   liberados: Liberado[] | null;
   cartoes: Cartao[];
+  fluxoNovo: FluxoNovo;
 }
 
 function vazio(grupo: Grupo): ResumoGrupo {
@@ -136,11 +137,13 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
     // '*': a coluna modo só existe depois da 00100.
     sb.from('teste_paywall_config').select('*').limit(1).maybeSingle(),
     sb.from('teste_paywall_resumo').select('*'),
+    // Todo mundo com grupo (sorteado ou não): o diário filtra os sorteados
+    // abaixo, e o "Fluxo novo" precisa também de quem entrou fora do sorteio
+    // (desde 14/11 todo iOS novo vai para o C com sorteado = false, 00151).
     lerTudo<ParticipanteDia>('teste_paywall_participantes', (de, ate) =>
       sb
         .from('teste_paywall_participantes')
-        .select('profile_id,grupo,entrou_em,comecou_teste_loja,pagou')
-        .eq('sorteado', true)
+        .select('profile_id,grupo,entrou_em,sorteado,comecou_teste_loja,cancelou_no_teste,pagou,decidido')
         .order('profile_id')
         .range(de, ate),
     ),
@@ -180,7 +183,7 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
   const porDia = new Map<string, DiaGrupo>();
   for (const r of dia.data) {
     const g: unknown = r.grupo;
-    if (!ehGrupo(g)) continue;
+    if (!ehGrupo(g) || !r.sorteado) continue;
     const d = diaDubai(new Date(r.entrou_em));
     const chave = `${d}|${g}`;
     const linha = porDia.get(chave) ?? { dia: d, grupo: g, cadastros: 0, comecaram_teste_loja: 0, pagaram: 0 };
@@ -216,7 +219,7 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
           ativo: !!cfg.data.ativo,
           fracao_b: n(cfg.data.fracao_b),
           sorteios: n(cfg.data.sorteios),
-          modo: cfg.data.modo === 'ABC' || cfg.data.modo === 'AC' ? cfg.data.modo : 'AB',
+          modo: cfg.data.modo === 'ABC' || cfg.data.modo === 'AC' || cfg.data.modo === 'C' ? cfg.data.modo : 'AB',
         }
       : null,
     resumo,
@@ -224,6 +227,148 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
     foraDoSorteio: fora.count ?? 0,
     liberados,
     cartoes,
+    fluxoNovo: montarFluxoNovo(dia.data, resumo),
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Fluxo novo (14/11/2026): todo iOS novo no C (00151 do Ninho-expo)   */
+/* ------------------------------------------------------------------ */
+
+/** Dia da mudança (fuso de Dubai): a partir dele todo iOS novo cai no C. */
+export const DIA_MUDANCA = '2026-11-14';
+/** Tamanho de cada lado da comparação antes × depois. */
+export const DIAS_JANELA = 14;
+/** Abaixo disso a amostra de "decididos" é pequena demais para concluir. */
+export const MINIMO_DECIDIDOS = 100;
+
+/** As mesmas contas de teste_paywall_resumo, mais as do funil do cartão. */
+export interface Taxas {
+  cadastros: number;
+  /** Já pagou ou o período grátis acabou (00090). */
+  decididos: number;
+  pagaram: number;
+  /** Puseram o cartão = começaram os 7 dias grátis da loja. */
+  cartao: number;
+  /** Puseram o cartão e desligaram a renovação antes da 1ª cobrança. */
+  cancelaram: number;
+  /** Puseram o cartão e os 7 dias da loja (+1 dia de folga) já acabaram. */
+  cartaoDecididos: number;
+  /** Puseram o cartão e pagaram a 1ª cobrança. */
+  cartaoPagaram: number;
+}
+
+export interface FluxoNovo {
+  /** Desde o início do teste, só sorteados (igual ao teste_paywall_resumo). */
+  geral: Record<Grupo, Taxas>;
+  /** Fluxo novo: C sem sorteio que entrou depois do corte (todo iPhone
+   *  novo, 00151). Não entra no teste_paywall_resumo. */
+  cSemSorteio: Taxas;
+  /** Diferenças entre a conta daqui e o teste_paywall_resumo; vazio = confere. */
+  divergencias: string[];
+  /** Hora da mudança (ISO): o último sorteado. A 00151 entrou no meio de
+   *  14/11; cortar pelo dia jogava no "depois" iPhones do fluxo antigo. */
+  corte: string;
+  /** true = não achou sorteado em 13–15/11 e usou 14/11 00:00 de Dubai. */
+  corteAproximado: boolean;
+  antes: { de: string; ate: string; grupos: Partial<Record<Grupo, Taxas>>; total: Taxas };
+  depois: { de: string; ate: string; diasCorridos: number; grupos: Partial<Record<Grupo, Taxas>>; total: Taxas };
+}
+
+function taxasVazias(): Taxas {
+  return { cadastros: 0, decididos: 0, pagaram: 0, cartao: 0, cancelaram: 0, cartaoDecididos: 0, cartaoPagaram: 0 };
+}
+
+function somar(t: Taxas, r: ParticipanteDia) {
+  t.cadastros += 1;
+  if (r.decidido) t.decididos += 1;
+  if (r.pagou) t.pagaram += 1;
+  if (r.comecou_teste_loja) {
+    t.cartao += 1;
+    if (r.cancelou_no_teste) t.cancelaram += 1;
+    if (r.decidido) t.cartaoDecididos += 1;
+    if (r.pagou) t.cartaoPagaram += 1;
+  }
+}
+
+const DIA_MS = 86400000;
+
+/** Meia-noite de Dubai (UTC+4, sem horário de verão) do dia yyyy-mm-dd. */
+function meiaNoiteDubai(dia: string): number {
+  return new Date(`${dia}T00:00:00+04:00`).getTime();
+}
+
+function montarFluxoNovo(linhas: ParticipanteDia[], resumo: Record<Grupo, ResumoGrupo>): FluxoNovo {
+  const geral = Object.fromEntries(GRUPOS.map((g) => [g, taxasVazias()])) as Record<Grupo, Taxas>;
+  const cSemSorteio = taxasVazias();
+
+  // Corte = o último sorteado entre 13 e 15/11: depois dele a 00151 já
+  // estava no ar e ninguém do iPhone foi mais sorteado.
+  const mudanca = meiaNoiteDubai(DIA_MUDANCA);
+  let ultimoSorteado = 0;
+  for (const r of linhas) {
+    if (!r.sorteado || !r.entrou_em) continue;
+    const t = new Date(r.entrou_em).getTime();
+    if (t >= mudanca - DIA_MS && t < mudanca + 2 * DIA_MS && t > ultimoSorteado) ultimoSorteado = t;
+  }
+  const corteAproximado = ultimoSorteado === 0;
+  const corte = corteAproximado ? mudanca : ultimoSorteado;
+  const antesDe = corte - DIAS_JANELA * DIA_MS;
+  const depoisAte = corte + DIAS_JANELA * DIA_MS;
+
+  const antes: Partial<Record<Grupo, Taxas>> = {};
+  const depois: Partial<Record<Grupo, Taxas>> = {};
+  const totalAntes = taxasVazias();
+  const totalDepois = taxasVazias();
+
+  for (const r of linhas) {
+    const g: unknown = r.grupo;
+    if (!ehGrupo(g)) continue;
+    if (r.sorteado) somar(geral[g], r);
+    if (!r.entrou_em) continue;
+    const t = new Date(r.entrou_em).getTime();
+    // Só o fluxo novo: antes da 00151 o link de parceiro ou consultora já
+    // entrava no C sem sorteio (00124), e isso não é a mudança.
+    if (!r.sorteado && g === 'C' && t > corte) somar(cSemSorteio, r);
+    // Antes × depois: todo mundo que entrou no teste no período, sorteado
+    // ou não — depois da mudança ninguém do iPhone é sorteado.
+    if (t >= antesDe && t <= corte) {
+      somar((antes[g] ??= taxasVazias()), r);
+      somar(totalAntes, r);
+    } else if (t > corte && t < depoisAte) {
+      somar((depois[g] ??= taxasVazias()), r);
+      somar(totalDepois, r);
+    }
+  }
+
+  // Conferência contra a view do banco: a mesma pessoa, a mesma conta.
+  const divergencias: string[] = [];
+  for (const g of GRUPOS) {
+    const v = resumo[g];
+    const a = geral[g];
+    const pares: [string, number, number | null][] = [
+      ['cadastros', a.cadastros, v.cadastros],
+      ['pagaram', a.pagaram, v.pagaram],
+      ['decididos', a.decididos, v.decididos],
+      ['puseram o cartão', a.cartao, v.comecaram_teste_loja],
+      ['cancelaram no teste', a.cancelaram, v.cancelaram_no_teste],
+    ];
+    for (const [nome, aqui, view] of pares) {
+      if (view != null && aqui !== view) divergencias.push(`Grupo ${g}, ${nome}: ${aqui} aqui × ${view} na view`);
+    }
+  }
+
+  const agora = Date.now();
+  const diasCorridos = agora <= corte ? 0 : Math.min(DIAS_JANELA, Math.ceil((agora - corte) / DIA_MS));
+
+  return {
+    geral,
+    cSemSorteio,
+    divergencias,
+    corte: new Date(corte).toISOString(),
+    corteAproximado,
+    antes: { de: new Date(antesDe).toISOString(), ate: new Date(corte).toISOString(), grupos: antes, total: totalAntes },
+    depois: { de: new Date(corte).toISOString(), ate: new Date(depoisAte).toISOString(), diasCorridos, grupos: depois, total: totalDepois },
   };
 }
 
@@ -282,8 +427,11 @@ interface ParticipanteDia {
   profile_id: string;
   grupo: string;
   entrou_em: string;
+  sorteado: boolean | null;
   comecou_teste_loja: boolean | null;
+  cancelou_no_teste: boolean | null;
   pagou: boolean | null;
+  decidido: boolean | null;
 }
 
 /** Data (yyyy-mm-dd) no fuso de Dubai. */

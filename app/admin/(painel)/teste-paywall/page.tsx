@@ -10,6 +10,7 @@ import {
   type Grupo,
   type Liberado,
   type ResumoGrupo,
+  DIA_MUDANCA,
 } from '@/lib/teste-paywall';
 import { brl } from '@/lib/precos';
 import { valorCartao } from '@/lib/teste-paywall-formato';
@@ -17,6 +18,7 @@ import { TabelaCartoes, TabelaLiberados } from '@/components/admin/TabelasTesteP
 import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
 import { Notice } from '@/components/admin/Notice';
+import { FluxoNovoSecao, dataBR } from '@/components/admin/FluxoNovo';
 import { GroupedBarChart } from '@/components/admin/GroupedBarChart';
 
 export const dynamic = 'force-dynamic';
@@ -303,7 +305,9 @@ export default async function TestePaywallPage() {
   const status = !t.config
     ? 'Configuração do teste não encontrada'
     : t.config.ativo
-    ? `Rodízio ligado · ${t.config.modo === 'AC' ? '1 para o A, 1 para o C (B fora desde 12/11)' : t.config.modo === 'ABC' ? '1 para cada grupo (A, B, C)' : proporcao(t.config.fracao_b)}`
+    ? t.config.modo === 'C'
+      ? `Todo iPhone novo no C desde ${dataBR(DIA_MUDANCA)} · Android no A`
+      : `Rodízio ligado · ${t.config.modo === 'AC' ? '1 para o A, 1 para o C (B fora desde 12/11)' : t.config.modo === 'ABC' ? '1 para cada grupo (A, B, C)' : proporcao(t.config.fracao_b)}`
     : 'Rodízio desligado';
   // Quem entrou antes da 00088 foi pelo sorteio aleatório (1 em 3 para o B),
   // não pelo rodízio: sem este aviso, "3 para o A, 1 para o B" no selo e
@@ -333,6 +337,8 @@ export default async function TestePaywallPage() {
         entra na conta; depois, a receita por cadastro aos 60 dias) — nunca &ldquo;puseram o
         cartão&rdquo;.
       </Notice>
+
+      {total > 0 && <FluxoNovoSecao f={t.fluxoNovo} />}
 
       {antesDoRodizio > 0 && (
         <Notice tone="info">

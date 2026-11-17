@@ -1,6 +1,10 @@
 // Espelho de Ninho-expo/src/features/sleep/periodoDoSono.ts (mesma regra;
 // mude os dois juntos). Sono noturno ou soneca: o que a família marcou vale;
-// sem marca, regra básica (19h–6h) + horário de acordar de costume do bebê.
+// sem marca, regra básica (19h–6h) + horário de acordar de costume do bebê
+// + soneca do fim do dia (dono, 13/11/2026: o 1º sono da noite que começou
+// 19h–22h, durou até 3 h e foi seguido de mais tempo acordado que um
+// despertar do bebê, até 5 h, antes do próximo sono é soneca; sem o próximo
+// sono ainda, vale o hábito do bebê: 3+ dessas sonecas em 7 dias, ±1 h).
 
 export type PeriodoSono = 'noite' | 'soneca';
 
@@ -21,6 +25,9 @@ export interface PerfilDoSono {
   despertarMaxMin: number;
   /** Quantas manhãs entraram no cálculo (0 = regra básica). */
   manhas: number;
+  /** Hábito: horário de costume (minutos do dia) da soneca do fim do dia,
+   *  quando ela aconteceu 3+ vezes nos últimos 7 dias. Ausente = sem hábito. */
+  sonecaFimDoDiaMin?: number;
 }
 
 const MIN = 60_000;
@@ -67,12 +74,66 @@ export function perfilDoSono(sonos: SonoParaPeriodo[], agora: number, minDia: (m
     if (m >= 4 * 60 && m < 12 * 60 && acordado >= ACORDADO_DE_MANHA_MIN) acordares.push(m);
     else if (prox && noite(prox) && acordado >= 0 && acordado < 3 * 60) despertares.push(acordado);
   }
-  if (acordares.length < MANHAS_MINIMAS) {
-    return { acordaMin: ACORDA_PADRAO_MIN, despertarMaxMin: DESPERTAR_PADRAO_MIN, manhas: acordares.length };
+  const base: PerfilDoSono =
+    acordares.length < MANHAS_MINIMAS
+      ? { acordaMin: ACORDA_PADRAO_MIN, despertarMaxMin: DESPERTAR_PADRAO_MIN, manhas: acordares.length }
+      : {
+          acordaMin: Math.round(mediana(acordares)),
+          despertarMaxMin:
+            despertares.length >= MANHAS_MINIMAS
+              ? Math.round(Math.min(60, Math.max(20, mediana(despertares) * 1.5)))
+              : DESPERTAR_PADRAO_MIN,
+          manhas: acordares.length,
+        };
+  const habito = habitoSonecaFimDoDia(lista, agora, base.despertarMaxMin, minDia);
+  return habito === null ? base : { ...base, sonecaFimDoDiaMin: habito };
+}
+
+const SONECAS_FIM_DO_DIA_MINIMAS = 3;
+const HABITO_JANELA_MIN = 60;
+
+/** O 1º sono da noite que começou 19h–22h, durou até 3 h e teve depois mais
+ *  que um despertar acordado (até 5 h) antes do próximo sono. */
+function ehSonecaFimDoDiaPelosFatos(
+  s: SonoParaPeriodo,
+  anteriorNoturno: boolean,
+  anterior: SonoParaPeriodo | null,
+  prox: SonoParaPeriodo | undefined,
+  despertarMaxMin: number,
+  minDia: (ms: number) => number,
+): boolean {
+  const m = minDia(s.a);
+  if (m < 19 * 60 || m >= 22 * 60) return false;
+  if (s.b === null || s.b - s.a > 3 * 60 * MIN) return false;
+  if (anterior && anteriorNoturno && anterior.b !== null && s.a - anterior.b < 3 * 60 * MIN) return false;
+  if (!prox || prox.periodo === 'soneca') return false;
+  const acordado = (prox.a - s.b) / MIN;
+  // Até 5 h acordado: mais que isso é registro faltando, não soneca.
+  return acordado > despertarMaxMin && acordado <= 5 * 60;
+}
+
+/** Horário de costume da soneca do fim do dia, se ela é hábito (3+ nos últimos 7 dias). */
+function habitoSonecaFimDoDia(
+  lista: SonoParaPeriodo[],
+  agora: number,
+  despertarMaxMin: number,
+  minDia: (ms: number) => number,
+): number | null {
+  const inicios: number[] = [];
+  for (let i = 0; i < lista.length; i++) {
+    const s = lista[i];
+    if (s.a < agora - 7 * DIA || s.a > agora) continue;
+    const m = minDia(s.a);
+    if (m < 19 * 60 || m >= 22 * 60) continue;
+    if (s.periodo === 'soneca') inicios.push(m);
+    else if (s.periodo === 'noite') continue;
+    else {
+      const ant = i > 0 ? lista[i - 1] : null;
+      const antNoturno = ant ? (ant.periodo ? ant.periodo === 'noite' : comecouDeNoite(ant.a, minDia)) : false;
+      if (ehSonecaFimDoDiaPelosFatos(s, antNoturno, ant, lista[i + 1], despertarMaxMin, minDia)) inicios.push(m);
+    }
   }
-  const despertarMax =
-    despertares.length >= MANHAS_MINIMAS ? Math.round(Math.min(60, Math.max(20, mediana(despertares) * 1.5))) : DESPERTAR_PADRAO_MIN;
-  return { acordaMin: Math.round(mediana(acordares)), despertarMaxMin: despertarMax, manhas: acordares.length };
+  return inicios.length >= SONECAS_FIM_DO_DIA_MINIMAS ? Math.round(mediana(inicios)) : null;
 }
 
 /** Sono noturno ou soneca de cada sono (por id). */
@@ -82,11 +143,13 @@ export function classificarSonos(
   minDia: (ms: number) => number = minutosLocais,
 ): Map<string, PeriodoSono> {
   const out = new Map<string, PeriodoSono>();
+  const lista = ordenar(sonos);
   let anterior: SonoParaPeriodo | null = null;
-  for (const s of ordenar(sonos)) {
+  for (let i = 0; i < lista.length; i++) {
+    const s = lista[i];
     let p: PeriodoSono;
     if (s.periodo) p = s.periodo;
-    else if (comecouDeNoite(s.a, minDia)) p = 'noite';
+    else if (comecouDeNoite(s.a, minDia)) p = sonecaDoFimDoDia(s, anterior, lista[i + 1], out, perfil, minDia) ? 'soneca' : 'noite';
     else if (anterior && out.get(anterior.id) === 'noite' && anterior.b !== null) {
       const acordou = minDia(anterior.b);
       const acordado = (s.a - anterior.b) / MIN;
@@ -97,6 +160,31 @@ export function classificarSonos(
     anterior = s;
   }
   return out;
+}
+
+/**
+ * Regra 4: o 1º sono da noite (começou 19h–22h, até 3 h, o sono anterior não
+ * é noturno) seguido de mais tempo acordado que um despertar do bebê antes do
+ * próximo sono é soneca do fim do dia. Sem próximo sono ainda: vale o hábito
+ * do bebê (perfil.sonecaFimDoDiaMin, ±1 h); sem hábito, noite.
+ */
+function sonecaDoFimDoDia(
+  s: SonoParaPeriodo,
+  anterior: SonoParaPeriodo | null,
+  prox: SonoParaPeriodo | undefined,
+  out: Map<string, PeriodoSono>,
+  perfil: PerfilDoSono,
+  minDia: (ms: number) => number,
+): boolean {
+  const anteriorNoturno = anterior ? out.get(anterior.id) === 'noite' : false;
+  if (prox) return ehSonecaFimDoDiaPelosFatos(s, anteriorNoturno, anterior, prox, perfil.despertarMaxMin, minDia);
+  const habito = perfil.sonecaFimDoDiaMin;
+  if (habito === undefined) return false;
+  const m = minDia(s.a);
+  if (m < 19 * 60 || m >= 22 * 60 || Math.abs(m - habito) > HABITO_JANELA_MIN) return false;
+  if (s.b !== null && s.b - s.a > 3 * 60 * MIN) return false;
+  if (anterior && anteriorNoturno && anterior.b !== null && s.a - anterior.b < 3 * 60 * MIN) return false;
+  return true;
 }
 
 /** Tudo de uma vez: aprende o perfil e classifica. */
