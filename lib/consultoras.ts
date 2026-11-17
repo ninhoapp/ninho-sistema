@@ -688,21 +688,35 @@ export interface RegistroRotina {
 /** Fuso da família (o do responsável principal, profiles.timezone), igual à
  *  consultora_fuso() do app. null = sem fuso: fica o de Brasília. */
 export async function fusoDaFamilia(babyId: string): Promise<string | null> {
-  const { data, error } = await appDb()
+  // SEM embed: `caregivers` tem TRÊS chaves estrangeiras para `profiles`
+  // (profile_id, created_by, updated_by), então `profiles!inner(...)` é
+  // ambíguo e o PostgREST responde PGRST201. O erro ia para o console, a
+  // função devolvia null e TODO o painel caía para Brasília — o dono viu a
+  // noite de uma família de Dubai com a hora de São Paulo (17/11/2026).
+  // Duas leituras simples não dependem de quantas chaves a tabela tem.
+  const { data: cuidador, error: e1 } = await appDb()
     .from('caregivers')
-    .select('created_at, profiles!inner(timezone)')
+    .select('profile_id')
     .eq('baby_id', babyId)
     .eq('role', 'owner')
     .is('deleted_at', null)
     .order('created_at', { ascending: true })
-    .limit(1);
-  if (error) {
-    console.error('[consultoras] fusoDaFamilia:', error.message);
+    .limit(1)
+    .maybeSingle();
+  if (e1 || !cuidador?.profile_id) {
+    if (e1) console.error('[consultoras] fusoDaFamilia (responsável):', e1.message);
     return null;
   }
-  const linha = (data as unknown as { profiles: { timezone: string | null } | { timezone: string | null }[] }[] | null)?.[0];
-  const p = Array.isArray(linha?.profiles) ? linha?.profiles[0] : linha?.profiles;
-  return fusoValido(p?.timezone) ? (p!.timezone as string) : null;
+  const { data: perfil, error: e2 } = await appDb()
+    .from('profiles')
+    .select('timezone')
+    .eq('id', cuidador.profile_id)
+    .maybeSingle();
+  if (e2) {
+    console.error('[consultoras] fusoDaFamilia (fuso):', e2.message);
+    return null;
+  }
+  return fusoValido(perfil?.timezone) ? (perfil!.timezone as string) : null;
 }
 
 /** O relógio da família do bebê (fuso, delta e "agora" deslocado). */

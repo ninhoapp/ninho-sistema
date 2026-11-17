@@ -674,6 +674,8 @@ async function AbaFicha({ c, sp }: { c: Consultora; sp: Busca }) {
       </>
     );
   }
+  // A hora das orientações é a da FAMÍLIA, como no resto da área (17/11/2026).
+  const rel = await relogioDaFamilia(f.baby_id);
   const [fi, enviadas, aceiteOk, estado] = await Promise.all([
     fichaDe(c.id, f.baby_id),
     orientacoesDoBebe(c.id, f.baby_id),
@@ -701,7 +703,13 @@ async function AbaFicha({ c, sp }: { c: Consultora; sp: Busca }) {
         : undefined;
 
   const quando = (iso: string) =>
-    new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    new Date(new Date(iso).getTime() + rel.delta).toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
   return (
     <>
