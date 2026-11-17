@@ -83,6 +83,51 @@ export interface Noite {
   despertares: number | null;
   totalMin: number | null;
   segmentos: Sono[];
+  /**
+   * Os segmentos QUEBRADOS nos despertares anotados dentro de cada sono
+   * (00157). É o que a faixa da noite desenha, para o despertar virar brecha
+   * (dono, 17/11/2026). `segmentos` continua sendo um item por registro.
+   */
+  trechos: Sono[];
+  /** As brechas de acordado dentro de um mesmo registro de sono. */
+  brechas: { a: number; b: number | null }[];
+}
+
+/** Despertares anotados dentro de um sono, lidos sem confiar no formato. */
+export function despertaresDoSono(r: RegistroRotina): { a: number; b: number | null }[] {
+  const v = r.detalhe?.despertares;
+  if (!Array.isArray(v)) return [];
+  const out: { a: number; b: number | null }[] = [];
+  for (const item of v.slice(0, 40)) {
+    const d = item as { de?: string; ate?: string | null };
+    const a = d?.de ? new Date(d.de).getTime() : NaN;
+    if (!Number.isFinite(a)) continue;
+    const b = d?.ate ? new Date(d.ate).getTime() : null;
+    if (b !== null && (!Number.isFinite(b) || b < a || b - a > 16 * H)) continue;
+    out.push({ a, b });
+  }
+  return out.sort((x, y) => x.a - y.a);
+}
+
+/** Quebra cada segmento nas brechas que caem dentro dele. */
+export function quebrarNosDespertares(
+  seg: Sono[],
+  porInicio: Map<number, { a: number; b: number | null }[]>,
+): { trechos: Sono[]; brechas: { a: number; b: number | null }[] } {
+  const trechos: Sono[] = [];
+  const brechas: { a: number; b: number | null }[] = [];
+  for (const s of seg) {
+    const dentro = (porInicio.get(s.a) ?? []).filter((d) => d.a > s.a && d.a < s.b);
+    let cursor = s.a;
+    for (const d of dentro) {
+      if (d.a > cursor) trechos.push({ a: cursor, b: d.a, emAndamento: false });
+      brechas.push(d);
+      const volta = d.b ?? s.b;
+      if (volta > cursor) cursor = volta;
+    }
+    if (s.b > cursor) trechos.push({ a: cursor, b: s.b, emAndamento: s.emAndamento });
+  }
+  return { trechos, brechas };
 }
 
 /** Sono noturno ou soneca de cada sono (chave: início em ms), pela regra única. */
@@ -118,7 +163,7 @@ export function noiteDe(regs: RegistroRotina[], dia: string, agora: number): Noi
   const todos = lista.filter((s) => s.a >= janelaA && s.a < janelaB && periodos.get(s.a) !== 'soneca');
   const iDormiu = todos.findIndex((s) => s.b - s.a >= 90 * 60 * 1000 || s.emAndamento);
   if (iDormiu < 0) {
-    return { dia, dormiu: null, acordou: null, primeiroTrechoMin: null, despertares: null, totalMin: null, segmentos: [] };
+    return { dia, dormiu: null, acordou: null, primeiroTrechoMin: null, despertares: null, totalMin: null, segmentos: [], trechos: [], brechas: [] };
   }
   const seg = todos.slice(iDormiu);
   // Voltou a dormir depois das 06:00 e a regra diz sono noturno (acordou
@@ -132,14 +177,26 @@ export function noiteDe(regs: RegistroRotina[], dia: string, agora: number): Noi
   }
   const ultimo = seg[seg.length - 1];
   const acordou = !ultimo.emAndamento && ultimo.b < ini + 35 * H ? ultimo.b : null;
+  // Despertares anotados dentro de cada sono (00157): quebram o desenho e
+  // entram na conta, como já acontece no app.
+  const porInicio = new Map<number, { a: number; b: number | null }[]>();
+  for (const r of regs) {
+    if (r.tipo !== 'sleep') continue;
+    const d = despertaresDoSono(r);
+    if (d.length) porInicio.set(new Date(r.inicio).getTime(), d);
+  }
+  const { trechos, brechas } = quebrarNosDespertares(seg, porInicio);
+  const primeiro = trechos[0] ?? seg[0];
   return {
     dia,
     dormiu: seg[0].a,
     acordou,
-    primeiroTrechoMin: seg[0].emAndamento ? null : (seg[0].b - seg[0].a) / 60000,
-    despertares: seg.length - 1,
+    primeiroTrechoMin: primeiro.emAndamento ? null : (primeiro.b - primeiro.a) / 60000,
+    despertares: Math.max(seg.length - 1, trechos.length - 1),
     totalMin: seg.reduce((s, x) => s + (x.b - x.a), 0) / 60000,
     segmentos: seg,
+    trechos,
+    brechas,
   };
 }
 

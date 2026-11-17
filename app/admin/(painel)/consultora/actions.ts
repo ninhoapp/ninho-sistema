@@ -19,6 +19,7 @@ import {
   encerrarFamilia,
   inserirPedido,
   salvarFichaDe,
+  marcarContinuarTratado,
   orientacaoAceiteOk,
   aceitarTermoOrientacao,
   enviarOrientacao,
@@ -210,8 +211,15 @@ export async function salvarFicha(fd: FormData) {
   const de = naAbaFicha ? 'ficha' : 'familias';
   if (!/^[0-9a-f-]{36}$/i.test(baby)) volta(de, { erro: 'Família não encontrada.' });
   const ancora: Record<string, string> = naAbaFicha ? { bebe: baby } : { ficha: baby };
-  const inicioBruto = txt(fd, 'inicio');
-  const inicio = /^\d{4}-\d{2}-\d{2}$/.test(inicioBruto) ? inicioBruto : null;
+  const data = (k: string) => {
+    const v = txt(fd, k);
+    return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+  };
+  const inicio = data('inicio');
+  const termino = data('termino');
+  // Término antes do início o servidor também barra; aqui a consultora vê o
+  // porquê sem perder o resto do que digitou.
+  if (inicio && termino && termino < inicio) volta(de, { erro: 'O término não pode ser antes do início.' }, ancora);
   const num = (k: string) => {
     const v = txt(fd, k);
     if (!v) return null;
@@ -226,6 +234,7 @@ export async function salvarFicha(fd: FormData) {
   if (wBruto && !whatsapp) volta(de, { erro: 'WhatsApp inválido.' }, ancora);
   const r = await salvarFichaDe(c.id, baby, {
     inicio,
+    termino,
     encontros_feitos: feitos,
     encontros_total: total,
     pais_nomes: txt(fd, 'pais_nomes').slice(0, 120) || null,
@@ -236,10 +245,28 @@ export async function salvarFicha(fd: FormData) {
   const msg: Record<string, string> = {
     sem_acesso: 'Essa família não compartilha mais a rotina com você.',
     invalido: 'Confira os campos da ficha.',
+    data_invalida: 'O término não pode ser antes do início.',
     erro: 'Não consegui salvar a ficha agora. Tente de novo.',
   };
   if (r !== 'ok') volta(de, { erro: msg[r] ?? msg.erro }, ancora);
   volta(de, { ok: 'Ficha salva.' }, ancora);
+}
+
+// ── "Quero continuar" (00186) ─────────────────────────────
+/**
+ * A consultora diz que já falou com a família. O pedido some da lista; não
+ * renova nem cobra nada — o combinado é entre ela e a família.
+ */
+export async function marcarContinuarFalei(fd: FormData) {
+  const c = await eu();
+  const s = await requireSessionAtiva('consultora');
+  const pedido = txt(fd, 'pedido');
+  if (!/^[0-9a-f-]{36}$/i.test(pedido)) volta('familias', { erro: 'Pedido não encontrado.' });
+  const quem = /^[0-9a-f-]{36}$/i.test(s.sub ?? '') ? s.sub : null;
+  const r = await marcarContinuarTratado(c.id, pedido, quem);
+  if (r === 'indisponivel') volta('familias', { erro: 'Os pedidos ainda não estão disponíveis.' });
+  if (r !== 'ok') volta('familias', { erro: 'Não consegui marcar agora. Tente de novo.' });
+  volta('familias', { ok: 'Pedido marcado como tratado.' });
 }
 
 // ── Orientação para a família (00157 + 00175) ─────────────

@@ -20,11 +20,14 @@ import {
   orientacoesDoBebe,
   orientacaoAceiteOk,
   novidadesEstado,
+  pedidosDeContinuar,
+  diasAteTermino,
   type Consultora,
   type FamiliaDaConsultora,
   type Ficha,
 } from '@/lib/consultoras';
 import { TelefonePais } from '@/components/TelefonePais';
+import { BarraDoPrazo } from '@/components/consultoras/BarraDoPrazo';
 import { FunilTabela } from '@/components/consultoras/Funil';
 import { mesNoPainel } from '@/lib/dashboard-charts';
 import { telefoneLegivel } from '@/lib/telefone';
@@ -70,7 +73,7 @@ import { Avatar, Aviso, Card, Kpi, Retorno, Selo, botao, brl, campo, rotuloCampo
 import { CodigoConsultora, LinkConsultoria, LinkDivulgacao } from '@/components/consultoras/LinksConsultora';
 import { consultoriaLiberada } from '@/lib/link-consultora';
 import { ConfirmButton } from '@/components/admin/ConfirmButton';
-import { cancelarConviteFamilia, encerrarAcompanhamento, convidarFamilia, enviarFoto, enviarOrientacaoFamilia, indicarConsultora, mandarSugestao, pedirRelatorio, responderPedidoFamilia, salvarFicha, salvarPerfil } from './actions';
+import { cancelarConviteFamilia, encerrarAcompanhamento, convidarFamilia, enviarFoto, enviarOrientacaoFamilia, indicarConsultora, mandarSugestao, marcarContinuarFalei, pedirRelatorio, responderPedidoFamilia, salvarFicha, salvarPerfil } from './actions';
 import { OrientacaoFamilia } from '@/components/consultoras/OrientacaoFamilia';
 import { SUGESTAO_MAX, sugestoesDa, type StatusSugestao } from '@/lib/consultoras-sugestoes';
 
@@ -474,10 +477,11 @@ const ROTULO_CONVITE: Record<ConviteEnviado['status'], { t: string; cor: 'ambar'
 
 async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
   const ativa = c.estado === 'ativa';
-  const [fams, pv, convites] = await Promise.all([
+  const [fams, pv, convites, continuar] = await Promise.all([
     ativa ? familiasDa(c.id) : Promise.resolve([] as FamiliaDaConsultora[]),
     ativa ? pedidosVinculoDa(c.id) : Promise.resolve({ pedidos: [], indisponivel: false }),
     convitesEnviados(c.id),
+    ativa ? pedidosDeContinuar(c.id) : Promise.resolve({ lista: [], indisponivel: true }),
   ]);
   const filtroConv = sp.filtro && ['aguardando', 'aceito', 'encerrado', 'cancelado'].includes(sp.filtro) ? sp.filtro : 'todos';
   const conv = (convites ?? []).filter((x) => filtroConv === 'todos' || x.status === filtroConv);
@@ -485,6 +489,10 @@ async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
   const acompanha = [...fams]
     .filter((f) => !q || `${f.bebe_nome ?? ''} ${f.mae_nome ?? ''}`.toLowerCase().includes(q))
     .sort((a, b) => (a.bebe_nome ?? '').localeCompare(b.bebe_nome ?? ''));
+  // Uma leitura só das fichas: serve à barra do prazo na lista e aos blocos
+  // de anotação logo abaixo (00186).
+  const fichasDaLista = await Promise.all(acompanha.slice(0, 60).map((f) => fichaDe(c.id, f.baby_id)));
+  const fichaDaLinha = new Map(acompanha.slice(0, 60).map((f, i) => [f.baby_id, fichasDaLista[i].ficha]));
   const chip = (k: string, t: string, n: number) => (
     <Link key={k} href={`${BASE}?aba=familias&filtro=${k}`} className={`rounded-pill px-3 py-1.5 text-xs font-bold ${filtroConv === k ? 'bg-[#24164F] text-white' : 'bg-white text-ninho-cinza shadow-[inset_0_0_0_1.5px_#ECE6F5]'}`}>{t} · {n}</Link>
   );
@@ -492,6 +500,32 @@ async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
   return (
     <>
       <Titulo t="Famílias" sub="Pedidos para aprovar, convites que você mandou e as famílias que você acompanha." direita={<Link href={`${BASE}?aba=convidar`} className={botao.grad}>Convidar família</Link>} />
+
+      {continuar.lista.length > 0 && (
+        <Card
+          className="mb-4 ring-2 ring-[#4CAF74]"
+          titulo="Querem continuar com você"
+          direita={<span className="rounded-pill bg-[#E3F4EA] px-3 py-1 text-[11.5px] font-extrabold text-[#2F8A55]">{continuar.lista.length} pedido{continuar.lista.length > 1 ? 's' : ''}</span>}
+        >
+          <p className="text-[12.5px] text-ninho-cinza">A família tocou em “Quero continuar” no app. O Ninho não combina valor nem prazo: é com você.</p>
+          {continuar.lista.map((p) => (
+            <div key={p.id} className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl bg-[#F2FAF5] px-4 py-3">
+              <div className="min-w-[220px] flex-1">
+                <b className="text-[13.5px]">A família {p.bebe_nome ? `de ${p.bebe_nome}` : ''} quer continuar</b>
+                <small className="block text-[11.5px] text-ninho-cinza">
+                  pedido {desdeTxt(p.pedido_em)}
+                  {p.termino ? ` · a consultoria termina em ${dataBr(p.termino)}` : ''}
+                </small>
+              </div>
+              <Link href={`${BASE}?aba=ficha&bebe=${p.baby_id}`} className={botao.suave}>Abrir ficha</Link>
+              <form action={marcarContinuarFalei}>
+                <input type="hidden" name="pedido" value={p.id} />
+                <button className={botao.verde}>Já falei com ela</button>
+              </form>
+            </div>
+          ))}
+        </Card>
+      )}
 
       <Card titulo="1 · Pedidos para você aprovar" direita={pv.pedidos.length ? `${pv.pedidos.length} esperando você` : undefined}>
         {pv.pedidos.length === 0 && <p className="py-4 text-center text-sm text-ninho-cinza">{pv.indisponivel ? 'Os pedidos aparecem aqui assim que o Ninho liberar.' : 'Nenhum pedido esperando você.'}</p>}
@@ -574,7 +608,7 @@ async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr><th className={th}>Bebê</th><th className={th}>Mãe</th><th className={th}>Com você desde</th><th className={th}>Agora</th><th className={th} /></tr></thead>
+              <thead><tr><th className={th}>Bebê</th><th className={th}>Mãe</th><th className={th}>Consultoria</th><th className={th}>Agora</th><th className={th} /></tr></thead>
               <tbody>
                 {acompanha.map((f) => (
                   <tr key={f.baby_id} className="hover:bg-[#FAF8FE]">
@@ -585,10 +619,23 @@ async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
                       </Link>
                     </td>
                     <td className={td}>{f.mae_nome ?? '—'}</td>
-                    <td className={`${td} tabular-nums`}>{desdeTxt(f.vinculado_em)}</td>
+                    <td className={td}>
+                      {/* 00186: a barra já diz quando começou, então ela
+                          substitui o antigo "com você desde". */}
+                      {fichaDaLinha.get(f.baby_id)?.termino ? (
+                        <BarraDoPrazo inicio={fichaDaLinha.get(f.baby_id)?.inicio ?? null} termino={fichaDaLinha.get(f.baby_id)?.termino ?? null} compacta />
+                      ) : (
+                        <>
+                          <Selo cor="lilas">Com você desde {desdeTxt(f.vinculado_em)}</Selo>
+                          <small className="mt-0.5 block text-[11.5px] text-[#9A95AD]">sem datas na ficha</small>
+                        </>
+                      )}
+                    </td>
                     <td className={td}><SeloAgora f={f} /></td>
                     <td className={td}>
-                      <Link href={`${BASE}?aba=ficha&bebe=${f.baby_id}`} className={`${botao.suave} mr-2`}>Ficha</Link>
+                      <Link href={`${BASE}?aba=ficha&bebe=${f.baby_id}`} className={`${botao.suave} mr-2`}>
+                        {fichaDaLinha.get(f.baby_id)?.termino ? 'Ficha' : 'Preencher ficha'}
+                      </Link>
                       <ConfirmButton
                         action={encerrarAcompanhamento}
                         hidden={{ baby: f.baby_id }}
@@ -603,7 +650,7 @@ async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
           </div>
         )}
       </Card>
-      {acompanha.length > 0 && <Fichas c={c} familias={acompanha} aberta={sp.ficha} />}
+      {acompanha.length > 0 && <Fichas familias={acompanha} fichas={fichasDaLista} aberta={sp.ficha} />}
     </>
   );
 }
@@ -688,7 +735,7 @@ async function AbaFicha({ c, sp }: { c: Consultora; sp: Busca }) {
         </Card>
       )}
 
-      <Card className="mt-4" titulo="Suas anotações" direita="Só você vê">
+      <Card className="mt-4" titulo="Ficha da consultoria" direita="Datas e encontros a família vê">
         {fi.indisponivel ? (
           <p className="py-4 text-center text-sm text-ninho-cinza">As fichas ainda não estão disponíveis.</p>
         ) : (
@@ -705,16 +752,37 @@ function FormDaFicha({ f, fi, naAbaFicha = false }: { f: FamiliaDaConsultora; fi
         <form action={salvarFicha} className="mt-3">
             {naAbaFicha && <input type="hidden" name="volta" value="ficha" />}
             <input type="hidden" name="baby" value={f.baby_id} />
-            <div className="grid gap-2 sm:grid-cols-3">
-              <div><label className={rotuloCampo}>Início da consultoria</label><input type="date" name="inicio" defaultValue={fi?.inicio ?? ''} className={campo} /></div>
-              <div><label className={rotuloCampo}>Encontros feitos</label><input type="number" min={0} max={999} name="encontros_feitos" defaultValue={fi?.encontros_feitos ?? ''} className={campo} /></div>
-              <div><label className={rotuloCampo}>Encontros combinados</label><input type="number" min={0} max={999} name="encontros_total" defaultValue={fi?.encontros_total ?? ''} className={campo} /></div>
+            {/* 00186: um bloco por assunto. Data e encontros não ficam mais
+                misturados na mesma linha, e a família passa a ver as duas
+                datas e a contagem de encontros na tela dela. */}
+            <div className="rounded-2xl border border-[#ECE6F5] px-4 py-3">
+              <p className="mb-2 text-[11.5px] font-extrabold uppercase tracking-wide text-[#9A95AD]">Datas <span className="ml-1 rounded-pill bg-[#E3F4EA] px-2 py-0.5 text-[10.5px] text-[#2F8A55]">a família vê</span></p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div><label className={rotuloCampo}>Início da consultoria</label><input type="date" name="inicio" defaultValue={fi?.inicio ?? ''} className={campo} /></div>
+                <div><label className={rotuloCampo}>Término da consultoria</label><input type="date" name="termino" defaultValue={fi?.termino ?? ''} className={campo} /></div>
+              </div>
+              {fi?.termino && (
+                <div className="mt-3 max-w-[320px]"><BarraDoPrazo inicio={fi.inicio} termino={fi.termino} /></div>
+              )}
+              <small className="mt-2 block text-[11.5px] text-ninho-cinza">
+                Sem o término, a família não recebe os avisos de “está acabando” e a barra não aparece.
+              </small>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div><label className={rotuloCampo}>Nomes dos pais</label><input name="pais_nomes" maxLength={120} defaultValue={fi?.pais_nomes ?? ''} className={campo} /></div>
-              <div><label className={rotuloCampo}>Como você chama o bebê</label><input name="bebe_apelido" maxLength={60} defaultValue={fi?.bebe_apelido ?? ''} className={campo} /></div>
+            <div className="mt-3 rounded-2xl border border-[#ECE6F5] px-4 py-3">
+              <p className="mb-2 text-[11.5px] font-extrabold uppercase tracking-wide text-[#9A95AD]">Encontros <span className="ml-1 rounded-pill bg-[#E3F4EA] px-2 py-0.5 text-[10.5px] text-[#2F8A55]">a família vê</span></p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div><label className={rotuloCampo}>Encontros combinados</label><input type="number" min={0} max={999} name="encontros_total" defaultValue={fi?.encontros_total ?? ''} className={campo} /></div>
+                <div><label className={rotuloCampo}>Encontros já feitos</label><input type="number" min={0} max={999} name="encontros_feitos" defaultValue={fi?.encontros_feitos ?? ''} className={campo} /></div>
+              </div>
             </div>
-            <label className={rotuloCampo}>WhatsApp da família</label>
+            <div className="mt-3 rounded-2xl border border-[#ECE6F5] px-4 py-3">
+              <p className="mb-2 text-[11.5px] font-extrabold uppercase tracking-wide text-[#9A95AD]">Nomes</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div><label className={rotuloCampo}>Nomes dos pais</label><input name="pais_nomes" maxLength={120} defaultValue={fi?.pais_nomes ?? ''} className={campo} /></div>
+                <div><label className={rotuloCampo}>Como você chama o bebê</label><input name="bebe_apelido" maxLength={60} defaultValue={fi?.bebe_apelido ?? ''} className={campo} /></div>
+              </div>
+            </div>
+            <label className={`${rotuloCampo} mt-3`}>WhatsApp da família</label>
             <TelefonePais name="whatsapp" valor={fi?.whatsapp} classeSelect={campo} classeInput={campo} />
             <label className={rotuloCampo}>Observações</label>
             <textarea name="observacoes" maxLength={2000} rows={3} defaultValue={fi?.observacoes ?? ''} className={`${campo} h-auto py-2`} />
@@ -722,7 +790,7 @@ function FormDaFicha({ f, fi, naAbaFicha = false }: { f: FamiliaDaConsultora; fi
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <button className={botao.suave}>Salvar ficha</button>
               <span className="text-[11.5px] text-ninho-cinza">
-                Só você vê estas anotações. A família não vê, e elas somem se a família tirar o seu acesso.
+                A família vê as datas e os encontros na tela dela; o WhatsApp e as observações são só seus. Tudo some se a família tirar o seu acesso.
                 {fi?.atualizado_em ? ` Salva em ${new Date(fi.atualizado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.` : ''}
               </span>
             </div>
@@ -731,9 +799,8 @@ function FormDaFicha({ f, fi, naAbaFicha = false }: { f: FamiliaDaConsultora; fi
 }
 
 // ── Fichas (anotações da consultora sobre cada família, 00111) ──
-async function Fichas({ c, familias, aberta }: { c: Consultora; familias: FamiliaDaConsultora[]; aberta?: string }) {
+function Fichas({ familias, fichas, aberta }: { familias: FamiliaDaConsultora[]; fichas: { ficha: Ficha | null; indisponivel: boolean }[]; aberta?: string }) {
   const lista = familias.slice(0, 60);
-  const fichas = await Promise.all(lista.map((f) => fichaDe(c.id, f.baby_id)));
   if (fichas.some((x) => x.indisponivel)) {
     return (
       <Card titulo="Fichas das famílias" className="mt-4">
@@ -743,7 +810,7 @@ async function Fichas({ c, familias, aberta }: { c: Consultora; familias: Famili
   }
   const dataBrOuVazio = (d: string | null) => (d ? dataBr(d) : null);
   return (
-    <Card titulo="Fichas das famílias" direita="Só você vê estas anotações." className="mt-4">
+    <Card titulo="Fichas das famílias" direita="Datas e encontros a família vê." className="mt-4">
       {lista.map((f, i) => {
         const fi: Ficha | null = fichas[i].ficha;
         const encontros = fi?.encontros_total ? `${fi.encontros_feitos ?? 0} de ${fi.encontros_total} encontros` : fi?.encontros_feitos ? `${fi.encontros_feitos} encontros feitos` : null;
@@ -753,6 +820,7 @@ async function Fichas({ c, familias, aberta }: { c: Consultora; familias: Famili
               <b>{f.bebe_nome}{fi?.bebe_apelido ? ` (${fi.bebe_apelido})` : ''}</b>
               <span className="text-ninho-cinza">{fi?.pais_nomes || f.mae_nome || '—'}</span>
               {fi?.inicio && <Selo cor="lilas">desde {dataBrOuVazio(fi.inicio)}</Selo>}
+              {fi?.termino && <Selo cor={(diasAteTermino(fi.termino) ?? 99) <= 14 ? 'ambar' : 'lilas'}>até {dataBrOuVazio(fi.termino)}</Selo>}
               {encontros && <Selo cor="verde">{encontros}</Selo>}
               {fi?.whatsapp && <span className="text-xs text-ninho-cinza">{telefoneLegivel(fi.whatsapp)}</span>}
               {!fi && <span className="text-xs text-[#9A95AD]">sem ficha ainda</span>}

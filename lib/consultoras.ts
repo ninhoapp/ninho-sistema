@@ -909,6 +909,8 @@ export async function pedidosVinculoPendentes(): Promise<{ consultora_id: string
 // O p_consultora vem SEMPRE da sessão. Só ela vê; some quando o vínculo sai.
 export interface Ficha {
   inicio: string | null;
+  /** Último dia combinado (00186). Sem a migration no banco, fica null. */
+  termino: string | null;
   encontros_feitos: number | null;
   encontros_total: number | null;
   pais_nomes: string | null;
@@ -925,7 +927,9 @@ export async function fichaDe(consultoraId: string, babyId: string): Promise<{ f
     return { ficha: null, indisponivel: true };
   }
   const linhas = (data as Ficha[] | null) ?? [];
-  return { ficha: linhas[0] ?? null, indisponivel: false };
+  const f = linhas[0];
+  // Antes da 00186 a função não devolve a coluna: o campo some do objeto.
+  return { ficha: f ? { ...f, termino: f.termino ?? null } : null, indisponivel: false };
 }
 
 export async function salvarFichaDe(
@@ -933,7 +937,7 @@ export async function salvarFichaDe(
   babyId: string,
   f: Omit<Ficha, 'atualizado_em'>,
 ): Promise<string> {
-  const { data, error } = await appDb().rpc('_consultora_salvar_ficha', {
+  const base = {
     p_consultora: consultoraId,
     p_baby: babyId,
     p_inicio: f.inicio,
@@ -943,12 +947,101 @@ export async function salvarFichaDe(
     p_bebe_apelido: f.bebe_apelido,
     p_whatsapp: f.whatsapp,
     p_observacoes: f.observacoes,
-  });
-  if (error) {
+  };
+  const { data, error } = await appDb().rpc('_consultora_salvar_ficha', { ...base, p_termino: f.termino });
+  if (!error) return String(data);
+  // Sem a 00186 no banco a função não tem p_termino: salva o resto, para a
+  // consultora nunca perder o que escreveu por causa de um campo novo.
+  if (!semFuncao(error)) {
     console.error('[consultoras] _consultora_salvar_ficha:', error.message);
     return 'erro';
   }
-  return String(data);
+  const r = await appDb().rpc('_consultora_salvar_ficha', base);
+  if (r.error) {
+    console.error('[consultoras] _consultora_salvar_ficha (sem a 00186):', r.error.message);
+    return 'erro';
+  }
+  return String(r.data);
+}
+
+// ── Prazo da consultoria: "quero continuar" (00186) ───────
+// A família tocou no botão em Minha consultora. O painel só lista e marca
+// como tratado; nada aqui renova ou cobra nada.
+export interface PedidoContinuar {
+  id: string;
+  baby_id: string;
+  bebe_nome: string | null;
+  pedido_em: string;
+  termino: string | null;
+}
+
+export async function pedidosDeContinuar(consultoraId: string): Promise<{ lista: PedidoContinuar[]; indisponivel: boolean }> {
+  const { data, error } = await appDb().rpc('_consultora_continuar_abertos', { p_consultora: consultoraId });
+  if (error) {
+    if (!semFuncao(error)) console.error('[consultoras] _consultora_continuar_abertos:', error.message);
+    return { lista: [], indisponivel: true };
+  }
+  return { lista: (data as PedidoContinuar[] | null) ?? [], indisponivel: false };
+}
+
+export async function marcarContinuarTratado(consultoraId: string, id: string, quem: string | null): Promise<'ok' | 'indisponivel' | 'erro'> {
+  const { data, error } = await appDb().rpc('_consultora_continuar_tratado', { p_consultora: consultoraId, p_id: id, p_quem: quem });
+  if (error) {
+    if (semFuncao(error)) return 'indisponivel';
+    console.error('[consultoras] _consultora_continuar_tratado:', error.message);
+    return 'erro';
+  }
+  return data === 'ok' ? 'ok' : 'erro';
+}
+
+/** Meia-noite (em UTC) do dia de uma data 'aaaa-mm-dd'. */
+function diaUTC(iso: string): number {
+  const [a, m, d] = iso.split('-').map(Number);
+  return Date.UTC(a, (m ?? 1) - 1, d ?? 1);
+}
+
+/** Hoje em São Paulo, o mesmo fuso que o banco usa na régua dos avisos. */
+function hojeSP(agora: Date): number {
+  const [d, m, a] = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').map(Number);
+  return Date.UTC(a, (m ?? 1) - 1, d ?? 1);
+}
+
+/** Quantos dias faltam até o término (negativo = já acabou). */
+export function diasAteTermino(termino: string | null, hoje: Date = new Date()): number | null {
+  if (!termino) return null;
+  return Math.round((diaUTC(termino) - hojeSP(hoje)) / 86_400_000);
+}
+
+/** "Faltam 3 semanas", "Faltam 9 dias", "Acaba amanhã", "Terminou em 26/11". */
+export function textoDoPrazo(termino: string | null, hoje: Date = new Date()): string | null {
+  const dias = diasAteTermino(termino, hoje);
+  if (dias === null) return null;
+  if (dias < 0) return 'Terminou';
+  if (dias === 0) return 'Termina hoje';
+  if (dias === 1) return 'Acaba amanhã';
+  if (dias < 14) return `Faltam ${dias} dias`;
+  const semanas = Math.round(dias / 7);
+  return `Faltam ${semanas} semanas`;
+}
+
+/** Quanto da consultoria já passou, de 0 a 1. Null sem as duas datas. */
+export function andamentoDoPrazo(inicio: string | null, termino: string | null, hoje: Date = new Date()): number | null {
+  if (!inicio || !termino) return null;
+  const total = Math.round((diaUTC(termino) - diaUTC(inicio)) / 86_400_000);
+  const faltam = diasAteTermino(termino, hoje) ?? 0;
+  if (total <= 0) return faltam <= 0 ? 1 : 0;
+  return Math.min(1, Math.max(0, (total - faltam) / total));
+}
+
+/** Quantas semanas a consultoria tem e em qual ela está ("semana 5 de 8"). */
+export function semanaDoPrazo(inicio: string | null, termino: string | null, hoje: Date = new Date()): { atual: number; total: number } | null {
+  if (!inicio || !termino) return null;
+  const dias = Math.round((diaUTC(termino) - diaUTC(inicio)) / 86_400_000);
+  if (dias < 7) return null;
+  const total = Math.max(1, Math.round(dias / 7));
+  const passados = Math.round((hojeSP(hoje) - diaUTC(inicio)) / 86_400_000);
+  const atual = Math.min(total, Math.max(1, Math.floor(passados / 7) + 1));
+  return { atual, total };
 }
 
 // ── Orientação para a família (00157 + 00175) ─────────────

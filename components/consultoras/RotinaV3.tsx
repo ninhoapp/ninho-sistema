@@ -62,8 +62,12 @@ export function DiaStrip({ d, maiorJanela, agora }: { d: DiaV3; maiorJanela: num
         {d.sonecas.map((s, i) => (
           <i key={`s${i}`} className="absolute bottom-0 top-0 rounded-md" style={{ left: pos(s.a), width: larg(s.a, s.b), background: COR.soneca }} />
         ))}
-        {d.noite.segmentos.map((s, i) => (
+        {d.noite.trechos.map((s, i) => (
           <i key={`n${i}`} className="absolute bottom-0 top-0 rounded-md" style={{ left: pos(s.a), width: larg(s.a, s.b), background: i === 0 ? COR.bloco1 : COR.noite }} />
+        ))}
+        {/* Despertar anotado dentro do sono: brecha na barra do dia também. */}
+        {d.noite.brechas.map((b, i) => (
+          <i key={`nb${i}`} className="absolute bottom-0 top-0 min-w-[3px]" style={{ left: pos(b.a), width: b.b ? larg(b.a, b.b) : '0.8%', background: COR.acordado }} />
         ))}
         {[...d.mamadasDia, ...d.mamadasMadrugada].map((t, i) => (
           <i key={`m${i}`} className="absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white" style={{ left: pos(t), background: COR.mamada }} />
@@ -150,7 +154,7 @@ export function Sequencia({ d }: { d: DiaV3 }) {
   const linhas: Linha[] = [];
   const na = d.resumo.noiteAnterior;
   if (na.dormiu !== null) {
-    linhas.push({ de: na.dormiu, ate: na.acordou, cor: COR.noite, titulo: 'Fim do sono noturno', min: na.acordou !== null ? na.totalMin : null, pedacos: pedacosDe(na.segmentos), antes: null, desp: temNovidades ? despertaresEntre(na.dormiu, na.acordou) : null, notas: notasEntre(na.dormiu, na.acordou) });
+    linhas.push({ de: na.dormiu, ate: na.acordou, cor: COR.noite, titulo: 'Fim do sono noturno', min: na.acordou !== null ? na.totalMin : null, pedacos: pedacosDe(na.trechos), antes: null, desp: temNovidades ? despertaresEntre(na.dormiu, na.acordou) : null, notas: notasEntre(na.dormiu, na.acordou) });
   }
   let cursor = d.acordou;
   d.sonecas.forEach((sn, i) => {
@@ -175,7 +179,7 @@ export function Sequencia({ d }: { d: DiaV3 }) {
       cor: COR.noite,
       titulo: 'Sono noturno',
       min: n.acordou !== null ? n.totalMin : null,
-      pedacos: pedacosDe(n.segmentos),
+      pedacos: pedacosDe(n.trechos),
       antes: cursor !== null && n.dormiu > cursor ? (n.dormiu - cursor) / 60000 : null,
       desp: temNovidades ? despertaresEntre(n.dormiu, n.acordou) : null,
       notas: notasEntre(n.dormiu, n.acordou),
@@ -386,10 +390,18 @@ export function FaixasNoites({ s }: { s: SemanaV3 }) {
               <span className={`w-[74px] shrink-0 font-bold ${melhor ? 'text-[#2F8A55]' : ''}`}>{diaCurto(d.dia)}</span>
               <span className="w-10 shrink-0 tabular-nums text-ninho-cinza">{d.dormiu !== null ? hora(d.dormiu) : ''}</span>
               <div className="relative h-5 flex-1 overflow-hidden rounded-md" style={{ background: d.dormiu !== null ? COR.acordado : COR.trilho }}>
-                {d.noite.segmentos.map((sg, i) => (
+                {/* Trechos = segmentos quebrados nos despertares anotados
+                    dentro do sono (dono, 17/11/2026: o despertar tem que
+                    abrir brecha, como no app). */}
+                {d.noite.trechos.map((sg, i) => (
                   <i key={i} className="absolute bottom-0 top-0 flex items-center justify-center overflow-hidden rounded-[4px] text-[10px] font-bold not-italic text-white" style={{ left: pos(sg.a), width: larg(sg.a, sg.b), background: i === 0 ? COR.bloco1 : COR.noite }}>
                     {i === 0 && sg.b - sg.a >= 110 * 60000 ? dur((sg.b - sg.a) / 60000) : ''}
                   </i>
+                ))}
+                {/* A brecha, por cima, com largura mínima para um despertar
+                    curto não sumir. */}
+                {d.noite.brechas.map((b, i) => (
+                  <i key={`b${i}`} className="absolute bottom-0 top-0 min-w-[3px] not-italic" style={{ left: pos(b.a), width: b.b ? larg(b.a, b.b) : '1%', background: COR.acordado }} />
                 ))}
                 {d.mamadasMadrugada.map((t, i) => (
                   <i key={`m${i}`} className="absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white" style={{ left: pos(t), background: COR.mamada }} />
