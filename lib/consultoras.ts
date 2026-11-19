@@ -11,7 +11,7 @@
  * Contrato: Ninho-expo/docs/empresa/pedidos/consultoras-contrato.md.
  */
 import { randomUUID } from 'crypto';
-import { unstable_cache } from 'next/cache';
+import { cacheCompacto } from '@/lib/cache-compacto';
 import { appDb, painelDb } from '@/lib/supabase/server';
 import { fusoValido, moverIso, relogio, type RelogioFamilia } from '@/lib/consultoras-fuso';
 import { mesNoPainel } from '@/lib/dashboard-charts';
@@ -435,7 +435,7 @@ export const CONSULTORAS_TAG = 'consultoras';
  * como exceção, então não guarda vazio. Para gravar valor (Marcar como pago),
  * use `baseComissoesAgora`.
  */
-export const baseComissoes = unstable_cache(async () => baseComissoesAgora(), ['consultoras-base-v1'], {
+export const baseComissoes = cacheCompacto(async () => baseComissoesAgora(), ['consultoras-base-v2'], {
   revalidate: 600, // 10 min; ação de consultora invalida a tag na hora
   tags: [CONSULTORAS_TAG],
 });

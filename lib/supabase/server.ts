@@ -13,6 +13,12 @@
  * O schema `painel` existe pra que a anon key do app nunca enxergue comissão,
  * PIX ou desfecho de lead: a migration revoga `usage` dele para `anon` e
  * `authenticated`, então só o service_role daqui lê.
+ *
+ * Região: o banco fica em us-east-1 (Virgínia). Por isso o vercel.json fixa
+ * as funções em `iad1`, ao lado dele. Com as funções em São Paulo (gru1), cada
+ * consulta atravessava o continente (~130 ms ida e volta) e uma tela do painel
+ * faz dezenas delas em sequência (19/11/2026). Mudou o banco de lugar? Mude
+ * o vercel.json junto.
  */
 import { createClient } from '@supabase/supabase-js';
 

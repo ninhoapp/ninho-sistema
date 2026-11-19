@@ -1,6 +1,6 @@
 import { requireRole } from '@/lib/auth/guard';
 import { listCosts, listPerfis, listOutcomes } from '@/lib/painel/store';
-import { fetchAppUsers } from '@/lib/app-users';
+import { fetchAppUsersAoVivo } from '@/lib/app-users';
 import {
   buildOverview,
   buildPnL,
@@ -26,7 +26,7 @@ import { Notice } from '@/components/admin/Notice';
 import { BarChart } from '@/components/admin/BarChart';
 import { MonthFilter } from '@/components/admin/MonthFilter';
 import { VerticalBarChart } from '@/components/admin/VerticalBarChart';
-import { bucketByMonth, ultimosMeses } from '@/lib/dashboard-charts';
+import { bucketByMonth, mesNoPainel, ultimosMeses } from '@/lib/dashboard-charts';
 import { repasseConfirmado } from '@/lib/parceiros';
 import { IconCash, IconCard, IconServer, IconScale } from '@/components/admin/icons';
 import { ORIGENS, ORIGEM_COR, ORIGEM_LABEL } from '@/lib/origem';
@@ -59,15 +59,21 @@ export default async function FaturamentoPage({
   const mes = mesValido(searchParams.mes);
 
   const [users, custos, perfis, outcomes] = await Promise.all([
-    fetchAppUsers(),
+    fetchAppUsersAoVivo(),
     listCosts(),
     listPerfis(),
     listOutcomes(),
   ]);
 
   const m = buildOverview(users);
+  // Despesas fixas ficam lançadas para os meses seguintes (Resend e Supabase
+  // até 2027). No "todo o período" só entra o que já aconteceu: até o mês
+  // atual. Sem esse corte o acumulado somava 12 meses futuros (11/2026: R$ 8,4
+  // mil em vez de R$ 3,6 mil).
+  const mesAtual = mesNoPainel(new Date());
+  const custosAteHoje = custos.filter((c) => c.ref_month.slice(0, 7) <= mesAtual);
   const cacMes = custoAquisicao(custos, users, mes);
-  const cacTodo = custoAquisicao(custos, users);
+  const cacTodo = custoAquisicao(custosAteHoje, users);
   const conversao = taxaConversaoNascidos(users);
   const repasses = buildRepasses(perfis, users, outcomes);
 
@@ -87,11 +93,11 @@ export default async function FaturamentoPage({
   const repassesAcum = repasses.concat(parceirosConf.map((x) => comoRepasse(x.perfil, x.conf.total)));
   const pnl = buildPnL(receitaLiquida, custos, repassesMes, mes);
 
-  // Acumulado desde a primeira cobrança. `buildPnL` e `custosDoMes` sem mês
-  // somam tudo — é a mesma conta do bloco mensal, só sem o recorte.
+  // Acumulado desde a primeira cobrança até hoje. `buildPnL` sem mês soma
+  // todas as despesas que recebe — por isso recebe só as até o mês atual.
   const receitaBrutaAcum = receitaBrutaTotal(users);
   const receitaLiquidaAcum = liquido(receitaBrutaAcum);
-  const pnlAcum = buildPnL(receitaLiquidaAcum, custos, repassesAcum);
+  const pnlAcum = buildPnL(receitaLiquidaAcum, custosAteHoje, repassesAcum);
   const desdeMes = primeiroMesComReceita(users);
 
   // MRR continua existindo ao lado, como leitura de recorrência: é o que se

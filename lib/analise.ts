@@ -25,7 +25,7 @@
  * 1.000 linhas) — ver `todas()`.
  */
 import { cache } from 'react';
-import { unstable_cache } from 'next/cache';
+import { cacheCompacto } from '@/lib/cache-compacto';
 import { appDb } from '@/lib/supabase/server';
 import { appDbConfigured } from '@/lib/status-conta';
 
@@ -631,5 +631,5 @@ async function montarAnaliseRaw(): Promise<Analise | null> {
 /** Cache de 10 min, igual ao resto do painel: navegar não refaz as ~10
  *  consultas, e um envio novo aparece em até 10 minutos. */
 export const montarAnalise = cache(
-  unstable_cache(montarAnaliseRaw, ['analise-acoes-v1'], { revalidate: 600 }), // 10 min: poupa a cota do Supabase (11/2026)
+  cacheCompacto(montarAnaliseRaw, ['analise-acoes-v2'], { revalidate: 600 }), // 10 min: poupa a cota do Supabase (11/2026)
 );

@@ -6,7 +6,7 @@
  * regra de quem é pagante mudar, muda no SQL e o painel acompanha sozinho.
  */
 import { cache } from 'react';
-import { unstable_cache } from 'next/cache';
+import { cacheCompacto } from '@/lib/cache-compacto';
 import { appDb } from '@/lib/supabase/server';
 import { lerTudo } from '@/lib/supabase/paginar';
 import { resolverOrigem, appleAdsValido, type Origem } from '@/lib/origem';
@@ -437,7 +437,8 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
 export const fetchAppUsersTodos = cache(
   // 10 min (era 60 s): a lista inteira de usuários é a leitura mais pesada do
   // painel no Supabase. Ação do admin continua aparecendo na hora (revalidateTag).
-  unstable_cache(fetchAppUsersRaw, ['app-users-v8'], { revalidate: 600, tags: [APP_USERS_TAG] })
+  // Comprimido: em JSON a lista passou de 2 MB e a Vercel parou de guardar (19/11/2026).
+  cacheCompacto(fetchAppUsersRaw, ['app-users-v9'], { revalidate: 600, tags: [APP_USERS_TAG] })
 );
 
 /**
@@ -641,7 +642,7 @@ interface UsoRow {
  * Guarda o array (não o Map: o cache serializa em JSON). Erro sobe como
  * exceção para não ficar 60s em cache uma tabela vazia.
  */
-const lerUsoRows = unstable_cache(
+const lerUsoRows = cacheCompacto(
   async (): Promise<UsoRow[]> => {
     // RPC que devolve tabela também para em 1.000 linhas: pagina igual às outras.
     const { data, error } = await lerTudo<UsoRow>('get_uso_por_usuario', (de, ate) =>
@@ -650,7 +651,7 @@ const lerUsoRows = unstable_cache(
     if (error) throw new Error(error.message);
     return data;
   },
-  ['uso-por-usuario-v1'],
+  ['uso-por-usuario-v2'],
   { revalidate: 600 },
 );
 

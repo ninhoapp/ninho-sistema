@@ -2,6 +2,7 @@ import { requireRole } from '@/lib/auth/guard';
 import { listCosts, listCartoes, listCartaoPorCanal } from '@/lib/painel/store';
 import { custosDoMes } from '@/lib/metrics';
 import { formatAED } from '@/lib/cambio';
+import { mesNoPainel } from '@/lib/dashboard-charts';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
 import { CostsManager } from '@/components/admin/CostsManager';
@@ -27,7 +28,11 @@ export default async function DespesasPage({
   const [custos, cartoes, historico] = await Promise.all([listCosts(), listCartoes(), listCartaoPorCanal()]);
 
   const doMes = custosDoMes(custos, mes);
-  const tudo = custosDoMes(custos);
+  // Fixos ficam lançados para os meses seguintes: separa o que já aconteceu
+  // (até o mês atual) do que está só programado.
+  const mesAtual = mesNoPainel(new Date());
+  const tudo = custosDoMes(custos.filter((c) => c.ref_month.slice(0, 7) <= mesAtual));
+  const programado = custosDoMes(custos.filter((c) => c.ref_month.slice(0, 7) > mesAtual));
   const marketing = custos
     .filter((c) => c.category === 'marketing' && c.ref_month.slice(0, 7) === mes)
     .reduce((s, c) => s + Number(c.amount), 0);
@@ -51,7 +56,10 @@ export default async function DespesasPage({
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-ninho-cinza">
-          Acumulado de todos os meses lançados: <strong>{formatAED(tudo.total)}</strong>
+          Acumulado até {mesAtual}: <strong>{formatAED(tudo.total)}</strong>
+          {programado.total > 0 && (
+            <> · programado para os próximos meses: {formatAED(programado.total)}</>
+          )}
         </p>
         {doMesLista.length > 0 && (
           <ConfirmButton

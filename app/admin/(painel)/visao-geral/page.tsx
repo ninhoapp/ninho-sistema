@@ -1,5 +1,5 @@
 import { requireRole } from '@/lib/auth/guard';
-import { fetchAppUsers, appDbConfigured } from '@/lib/app-users';
+import { fetchAppUsersAoVivo, appDbConfigured } from '@/lib/app-users';
 import { listCosts } from '@/lib/painel/store';
 import { aedParaBrl, formatAED } from '@/lib/cambio';
 import {
@@ -35,7 +35,7 @@ export default async function VisaoGeralPage() {
   const agora = Date.now();
   const cutoff = agora - PERIODO_MS;
 
-  const [users, custos] = await Promise.all([fetchAppUsers(), listCosts()]);
+  const [users, custos] = await Promise.all([fetchAppUsersAoVivo(), listCosts()]);
 
   const m = buildOverview(users);
   const mAntes = buildOverviewAt(users, cutoff);
@@ -44,14 +44,28 @@ export default async function VisaoGeralPage() {
   const c = custosDoMes(custos, mes);
   const receitaLiquida = liquido(m.receitaMensalEstimada);
 
-  // Cadastros por dia nos últimos 7 dias — mostra ritmo de crescimento.
-  const porDia: { label: string; value: number }[] = [];
+  // Cadastros e novos assinantes por dia nos últimos 7 dias — ritmo de crescimento.
+  // Novo assinante = dia da 1ª cobrança (assinouEm). Conta mesmo quem cancelou
+  // depois: naquele dia ele assinou. Cuidador coberto pelo plano de outro não
+  // tem assinouEm, então não entra (não é assinatura nova).
+  const porDia: { label: string; value: number; highlight?: boolean }[] = [];
+  const assinantesPorDia: { label: string; value: number; color: string; highlight?: boolean }[] = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(agora - i * 86400000);
     const dia = d.toISOString().slice(0, 10);
+    const label = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
     porDia.push({
-      label: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      label,
       value: users.filter((u) => u.created_at.slice(0, 10) === dia).length,
+      highlight: i === 0,
+    });
+    assinantesPorDia.push({
+      label,
+      value: users.filter(
+        (u) => u.assinouEm && new Date(u.assinouEm).toISOString().slice(0, 10) === dia
+      ).length,
+      color: '#59B287',
+      highlight: i === 0,
     });
   }
 
@@ -151,8 +165,22 @@ export default async function VisaoGeralPage() {
         </div>
       </div>
 
-      <h2 className="mb-3 text-base font-bold text-ninho-grafite">Cadastros nos últimos 7 dias</h2>
-      <VerticalBarChart data={porDia} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div>
+          <h2 className="mb-3 text-base font-bold text-ninho-grafite">Cadastros nos últimos 7 dias</h2>
+          <VerticalBarChart data={porDia} />
+        </div>
+        <div>
+          <h2 className="mb-3 text-base font-bold text-ninho-grafite">
+            Novos assinantes nos últimos 7 dias
+          </h2>
+          <VerticalBarChart data={assinantesPorDia} />
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-ninho-cinza">
+        Novo assinante conta no dia da primeira cobrança (depois do teste da loja). Hoje está
+        tracejado porque o dia ainda não acabou.
+      </p>
     </>
   );
 }
