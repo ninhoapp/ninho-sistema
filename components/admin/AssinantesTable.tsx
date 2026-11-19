@@ -55,7 +55,9 @@ const COLUNAS_NUMERICAS: Set<Col> = new Set(['cobrado', 'entrou']);
  */
 export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string }) {
   const { larguras, iniciarArraste } = useLargurasColunas(LARGURAS);
-  const [sort, setSort] = useState<SortState<Col> | null>(null);
+  // Pedido do dono (19/11/2026): a tela abre sempre com quem assinou mais
+  // recente em cima. Sem ordenação escolhida, volta a esta, não à da consulta.
+  const [sort, setSort] = useState<SortState<Col> | null>({ key: 'assinou', dir: 'desc' });
   const [colFilters, setColFilters] = useState<Record<Col, Set<string> | null>>(
     () => Object.fromEntries(COLUNAS.map((c) => [c, null])) as Record<Col, Set<string> | null>
   );
@@ -115,17 +117,16 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
   const filtradas = useMemo(() => {
     let r = applyColumnFilters([...rows], colFilters, colValue);
 
-    if (sort) {
-      r.sort((a, b) => {
-        const va = sortValue(a, sort.key);
-        const vb = sortValue(b, sort.key);
-        const cmp =
-          typeof va === 'number' && typeof vb === 'number'
-            ? va - vb
-            : String(va).localeCompare(String(vb), 'pt-BR');
-        return sort.dir === 'asc' ? cmp : -cmp;
-      });
-    }
+    const ordem: SortState<Col> = sort ?? { key: 'assinou', dir: 'desc' };
+    r.sort((a, b) => {
+      const va = sortValue(a, ordem.key);
+      const vb = sortValue(b, ordem.key);
+      const cmp =
+        typeof va === 'number' && typeof vb === 'number'
+          ? va - vb
+          : String(va).localeCompare(String(vb), 'pt-BR');
+      return ordem.dir === 'asc' ? cmp : -cmp;
+    });
     return r;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, colFilters, sort, mes]);
