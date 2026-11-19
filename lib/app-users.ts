@@ -450,6 +450,14 @@ export const fetchAppUsersAoVivo = cache(async (): Promise<AppUser[]> =>
   (await fetchAppUsersRaw()).filter((u) => !u.contaDoDono),
 );
 
+/**
+ * Todas as contas (inclusive as de teste do dono) lidas agora, sem o cache de
+ * 10 min. Para as telas de parceiros e consultoras: cliques e downloads são
+ * lidos na hora, e o cadastro vinha da lista guardada, então ficava em 0 por
+ * até 10 min depois de a pessoa criar a conta (teste do dono, 19/11/2026).
+ */
+export const fetchAppUsersTodosAoVivo = cache(async (): Promise<AppUser[]> => fetchAppUsersRaw());
+
 /** Usuários reais: sem as contas de teste do dono (dono, 09/11/2026). */
 export const fetchAppUsers = cache(async (): Promise<AppUser[]> =>
   (await fetchAppUsersTodos()).filter((u) => !u.contaDoDono),

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireSessionAtiva } from '@/lib/auth/guard';
 import { getPerfil, clickStatsPorCodigo, installsPorCodigo, statsDe } from '@/lib/painel/store';
-import { fetchAppUsersTodos as fetchAppUsers } from '@/lib/app-users';
+import { fetchAppUsersTodosAoVivo as fetchAppUsers } from '@/lib/app-users';
 import {
   commissionLabel,
   commissionPerPlan,
