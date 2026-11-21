@@ -108,6 +108,10 @@ export async function cliqueAproximado(
     .gte('clicked_at', desde);
   if (geo_regiao) q = q.eq('geo_regiao', geo_regiao);
   q = opcoes.convite ? q.eq('landed', 'convite') : q.neq('landed', 'convite');
+  // ENG-010: o toque em Baixar da /landing (promo_code 'LANDING') não entra
+  // no aproximado: ele esconderia um link de parceiro, consultora ou amiga
+  // logo atrás, e a landing só casa por IP ou click_id (menor prioridade).
+  q = q.neq('promo_code', 'LANDING');
   const { data, error } = await q.order('clicked_at', { ascending: false }).limit(10);
   if (error) {
     console.warn('[atribuicao] aproximado falhou:', error.message);
@@ -138,7 +142,15 @@ export async function ultimoToqueAproximado(
   const { geo_pais, geo_regiao } = geoDe(headers);
   if (!plataforma || !geo_pais) return null;
   const desde = new Date(Date.now() - JANELA_APROXIMADA_MIN * 60_000).toISOString();
-  let q = sb.from('link_clicks').select('id, landed, promo_code').eq('device', plataforma).eq('geo_pais', geo_pais).gte('clicked_at', desde);
+  // ENG-010: toque na /landing não conta como "último toque": quem recebeu
+  // um convite e depois passou pela landing continua com o convite.
+  let q = sb
+    .from('link_clicks')
+    .select('id, landed, promo_code')
+    .eq('device', plataforma)
+    .eq('geo_pais', geo_pais)
+    .neq('promo_code', 'LANDING')
+    .gte('clicked_at', desde);
   if (geo_regiao) q = q.eq('geo_regiao', geo_regiao);
   const { data, error } = await q.order('clicked_at', { ascending: false }).limit(1).maybeSingle();
   if (error) {

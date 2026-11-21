@@ -112,18 +112,37 @@ export function SiteFooter() {
   );
 }
 
-export function StoreButtons({ claro = false }: { claro?: boolean }) {
+/**
+ * Botões das lojas. `origem="landing"` só na página /landing (ENG-010): os
+ * links levam ?de=landing (+ &origem=tiktok) e o /get/* grava o toque como
+ * tráfego orgânico. No topo, no rodapé, no guia e no suporte, sem a prop,
+ * nada é gravado. São <a> simples (não next/link) para não haver prefetch
+ * batendo na rota e gravando clique que ninguém deu.
+ */
+export function StoreButtons({
+  claro = false,
+  origem,
+  fonte = 'organico',
+}: {
+  claro?: boolean;
+  origem?: 'landing';
+  /** Fonte do orgânico lida do ?origem= da /landing (lib/landing-clique.ts › fonteDaLanding). */
+  fonte?: 'tiktok' | 'organico';
+}) {
   const cls = claro ? 'n-loja n-loja-clara' : 'n-loja';
+  const q = origem === 'landing' ? (fonte === 'tiktok' ? '?de=landing&origem=tiktok' : '?de=landing') : '';
+  // nofollow: robô de busca não segue o botão que grava clique.
+  const rel = origem === 'landing' ? 'nofollow' : undefined;
   return (
     <div className="n-lojas">
-      <a href="/get/ios" className={cls} aria-label="Baixar o Ninho na App Store">
+      <a href={`/get/ios${q}`} rel={rel} className={cls} aria-label="Baixar o Ninho na App Store">
         <AppleIcon size={26} />
         <span>
           <small>Baixar na</small>
           <strong>App Store</strong>
         </span>
       </a>
-      <a href="/get/android" className={cls} aria-label="Baixar o Ninho no Google Play">
+      <a href={`/get/android${q}`} rel={rel} className={cls} aria-label="Baixar o Ninho no Google Play">
         <PlayIcon size={24} />
         <span>
           <small>Disponível no</small>

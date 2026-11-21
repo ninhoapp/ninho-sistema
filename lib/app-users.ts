@@ -64,8 +64,9 @@ export interface AppUser {
   /** Conta de teste do dono/consultora de teste: fora das métricas, mas conta
    *  nos funis de link (é com elas que o dono testa o rastreio). */
   contaDoDono: boolean;
-  /** De onde a conta veio: Apple Ads (confirmado pela Apple) > resposta do
-   *  onboarding > sem informação. Ver lib/origem.ts. */
+  /** De onde a conta veio: Apple Ads (confirmado pela Apple) > /landing
+   *  (tráfego orgânico, 00194) > resposta do onboarding > sem informação.
+   *  Ver lib/origem.ts. */
   origem: Origem;
   /** Id da campanha do Apple Ads, quando `origem === 'apple_ads'`. O nome
    *  da campanha está no painel do Apple Ads — a Apple só devolve o id. */
@@ -271,6 +272,22 @@ async function fetchAppleAds(): Promise<Map<string, AppleAdsRow>> {
   return out;
 }
 
+/** Quem veio pela /landing (public.origem_landing, migration 00194): conta →
+ *  fonte ('organico' | 'tiktok'). Sem a 00194 a tabela não existe: loga e
+ *  ninguém aparece como tráfego orgânico, sem derrubar o painel. */
+async function fetchOrigemLanding(): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const { data, error } = await lerTudo<{ profile_id: string; fonte: string | null }>('origem_landing', (de, ate) =>
+    appDb().from('origem_landing').select('profile_id,fonte').order('profile_id').range(de, ate),
+  );
+  if (error) {
+    console.error('[painel] origem_landing falhou:', error.message);
+    return out;
+  }
+  for (const r of data ?? []) out.set(r.profile_id, r.fonte || 'organico');
+  return out;
+}
+
 interface IndicacaoRow {
   profile_id: string;
   promo_code: string;
@@ -328,7 +345,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
 
   // profiles e a view não têm FK declarada entre si, então PostgREST não faz o
   // embed — busca separado e junta aqui.
-  const [profilesRes, estadosRes, efetivosRes, nascimentos, assinouEm, appleAds, indicacoes, consultoraEm] = await Promise.all([
+  const [profilesRes, estadosRes, efetivosRes, nascimentos, assinouEm, appleAds, indicacoes, consultoraEm, landing] = await Promise.all([
     lerTudo<ProfileRow>('profiles', (de, ate) =>
       sb
         .from('profiles')
@@ -351,6 +368,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
     fetchAppleAds(),
     fetchIndicacoes(),
     fetchAtribuicaoConsultora(),
+    fetchOrigemLanding(),
   ]);
 
   // O e-mail vem de `usuarios_admin` (que lê auth.users). A API admin de auth
@@ -406,7 +424,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
       cancelouTesteLoja: teste.cancelouTesteLoja === true && !ef?.coberto_por,
       testeLojaAte: e?.teste_loja_ate ?? null,
       contaDoDono: CONTAS_DO_DONO.has((emails.get(p.id) || '').toLowerCase()),
-      origem: resolverOrigem(apple?.atribuido === true, p.como_conheceu, apple?.campaign_id ?? null),
+      origem: resolverOrigem(apple?.atribuido === true, p.como_conheceu, apple?.campaign_id ?? null, landing.get(p.id) ?? null),
       // Só expõe a campanha quando ela é real — o id de TestFlight não é campanha.
       appleAdsCampaignId: appleAdsValido(apple?.atribuido === true, apple?.campaign_id ?? null)
         ? apple!.campaign_id

@@ -22,6 +22,13 @@
  *       ignora o campo (vira só comissão, como o link de divulgação).
  *   { ref: '<CÓDIGO>', click_id: '<uuid>', tipo: 'amiga' }      → registrar_indicacao_amiga(ref, click_id)
  *     (tipo 'amiga' só sai com versao_atribuicao >= 3; migration 00130)
+ *   { ref: 'LANDING', click_id: '<uuid>', tipo: 'landing' }    → registrar_origem_landing(click_id)
+ *     (ENG-010, 00194: toque em Baixar na página /landing = tráfego
+ *     orgânico. MENOR prioridade: só quando nenhum link de parceiro,
+ *     consultora ou amiga casou por nenhum caminho. Casa pelo click_id ou
+ *     pelo IP em até 24 h; nunca pelo aproximado. Só sai com
+ *     versao_atribuicao >= 4: para o app antigo a resposta é { ref: null },
+ *     mas a instalação entra em install_events do mesmo jeito.)
  *
  * Achou → grava a instalação em painel.install_events (uma por clique, então
  * repetir a chamada não infla "Downloads"). Público (o app ainda não tem
@@ -30,6 +37,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { painelDb } from '@/lib/supabase/server';
 import { cliqueAproximado, familiaDoIp, geoDe, ipDe, ipHash, ipHashesParaLeitura, JANELA_DIAS } from '@/lib/atribuicao';
+import { CODIGO_LANDING } from '@/lib/landing-clique';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,6 +94,9 @@ type Filtro = { tipo: 'id'; id: string } | { tipo: 'ip'; hashes: string[] };
  */
 const JANELA_CONSULTORA_IP_HORAS = 24;
 
+/** Clique da /landing casado só pelo IP: 24 h, como a consultora (ENG-010). */
+const JANELA_LANDING_IP_HORAS = 24;
+
 export async function POST(req: NextRequest) {
   try {
     const ip = ipDe(req.headers);
@@ -138,7 +149,35 @@ export async function POST(req: NextRequest) {
       return [par, con, ami].filter((x): x is Clique & { clicked_at: string } => !!x).sort((a, b) => (a.clicked_at < b.clicked_at ? 1 : -1))[0] ?? null;
     }
 
+    /**
+     * Clique da /landing (ENG-010): promo_code 'LANDING' e nenhum dono
+     * (perfil_id, consultora_id e amiga_profile_id nulos). Pelo click_id,
+     * na janela normal; pelo IP, só nas últimas 24 h.
+     */
+    async function buscarLanding(f: Filtro): Promise<Clique | null> {
+      const desdeAqui =
+        f.tipo === 'ip' ? new Date(Date.now() - JANELA_LANDING_IP_HORAS * 3_600_000).toISOString() : desde;
+      const base = sb
+        .from('link_clicks')
+        .select('*')
+        .eq('promo_code', CODIGO_LANDING)
+        .filter('perfil_id', 'is', 'null')
+        .filter('consultora_id', 'is', 'null')
+        .filter('amiga_profile_id', 'is', 'null')
+        .gte('clicked_at', desdeAqui);
+      const r =
+        f.tipo === 'id'
+          ? await base.eq('id', f.id).limit(1).maybeSingle()
+          : await base.in('ip_hash', f.hashes).order('clicked_at', { ascending: false }).limit(1).maybeSingle();
+      if (r.error) {
+        console.warn('[track/match] busca da landing falhou:', r.error.message);
+        return null;
+      }
+      return (r.data as unknown as Clique | null) ?? null;
+    }
+
     let data: Clique | null = null;
+    let landing = false;
     let via = 'ip';
     if (clickCopiado) {
       data = await buscar({ tipo: 'id', id: clickCopiado });
@@ -163,6 +202,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ENG-010: por último, e só se nada acima casou, o clique da /landing.
+    if (!data) {
+      if (clickCopiado) {
+        data = await buscarLanding({ tipo: 'id', id: clickCopiado });
+        via = 'copiado';
+      }
+      if (!data) {
+        const hashes = ipHashesParaLeitura(ip);
+        if (hashes.length > 0) {
+          data = await buscarLanding({ tipo: 'ip', hashes });
+          via = 'ip';
+        }
+      }
+      landing = !!data;
+    }
+
     if (!data?.promo_code) {
       console.log(
         clickCopiado ? '[track/match] link copiado inválido e nenhum clique desse IP' : '[track/match] nenhum clique desse IP',
@@ -170,7 +225,13 @@ export async function POST(req: NextRequest) {
       );
       return NextResponse.json({ ref: null }, { headers: CORS });
     }
-    const tipo: 'parceiro' | 'consultora' | 'amiga' = data.perfil_id ? 'parceiro' : data.amiga_profile_id ? 'amiga' : 'consultora';
+    const tipo: 'parceiro' | 'consultora' | 'amiga' | 'landing' = landing
+      ? 'landing'
+      : data.perfil_id
+        ? 'parceiro'
+        : data.amiga_profile_id
+          ? 'amiga'
+          : 'consultora';
     console.log('[track/match] casou', JSON.stringify({ ...diag, via, tipo, versao, codigo: data.promo_code, click: data.id }));
 
     const platform = /android|okhttp/i.test(ua) ? 'android' : /iphone|ipad|ios|darwin|cfnetwork/i.test(ua) ? 'ios' : null;
@@ -186,6 +247,13 @@ export async function POST(req: NextRequest) {
         { onConflict: 'click_id', ignoreDuplicates: true },
       );
     if (error) console.warn('[track/match] install_events:', error.message);
+
+    // App antigo (versao_atribuicao < 4) não sabe gravar a origem da landing:
+    // a instalação já entrou em install_events acima, mas ele recebe "não
+    // casou" (senão chamaria registrar_indicacao_parceiro com 'LANDING').
+    if (tipo === 'landing' && versao < 4) {
+      return NextResponse.json({ ref: null }, { headers: CORS });
+    }
 
     const vincular = tipo === 'consultora' && data.vinculo === true;
     return NextResponse.json({ ref: data.promo_code, click_id: data.id, tipo, ...(vincular ? { vincular: true } : {}) }, { headers: CORS });

@@ -18,6 +18,7 @@ import { GUIAS } from '@/lib/guias';
 import { SitePage, StoreButtons, Phone, JsonLd } from '@/components/site/SiteChrome';
 import { Planos } from '@/components/site/Planos';
 import { AvisoNavegadorInsta } from '@/components/site/AvisoNavegadorInsta';
+import { fonteDaLanding } from '@/lib/landing-clique';
 
 const TITULO = 'Ninho: app de rotina do bebê — mamada, sono e fralda';
 const DESCRICAO =
@@ -88,7 +89,12 @@ const GUIAS_DESTAQUE = [
   'como-funciona-o-app-ninho',
 ];
 
-export default function LandingPage() {
+// ENG-010: os botões de Baixar desta página gravam o toque como tráfego
+// orgânico. ?origem=tiktok (link do TikTok) vira "TikTok (orgânico)"; sem
+// parâmetro, ou com qualquer outro valor, é "Tráfego orgânico" (Instagram e
+// Facebook). Ler o searchParams deixa a página dinâmica.
+export default async function LandingPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const fonte = fonteDaLanding((await props.searchParams).origem);
   const jsonLd = [
     {
       '@context': 'https://schema.org',
@@ -162,7 +168,7 @@ export default function LandingPage() {
               Registre mamada, sono e fralda com um toque, veja quando costuma vir a próxima
               soneca e a próxima mamada, e divida o dia com todo mundo que cuida junto.
             </p>
-            <StoreButtons />
+            <StoreButtons origem="landing" fonte={fonte} />
             <div className="n-hero-nota">
               <span><Check /> Tudo liberado no teste</span>
               <span><Check /> Cancele quando quiser</span>
@@ -470,7 +476,7 @@ export default function LandingPage() {
           <div className="n-final-box">
             <h2>Menos coisa para lembrar.<br />Mais tempo com o bebê.</h2>
             <p>Baixe o Ninho e use {DIAS_TRIAL} dias grátis, com tudo liberado.</p>
-            <StoreButtons claro />
+            <StoreButtons claro origem="landing" fonte={fonte} />
           </div>
         </div>
       </section>

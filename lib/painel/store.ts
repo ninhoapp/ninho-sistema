@@ -605,10 +605,11 @@ export function statsDe(mapa: Map<string, ClickStats>, code: string | null): Cli
   return (code && mapa.get(code.toUpperCase())) || statsVazio();
 }
 
-/** Instalações atribuídas (métrica "Downloads") por código. */
+/** Instalações atribuídas (métrica "Downloads") por código. Fora as da
+ *  /landing (promo_code 'LANDING', ENG-010): tráfego orgânico não é parceiro. */
 export async function installsPorCodigo(): Promise<Map<string, number>> {
   const { data } = await lerTudo<{ promo_code: string }>('install_events', (de, ate) =>
-    painelDb().from('install_events').select('promo_code').order('id').range(de, ate),
+    painelDb().from('install_events').select('promo_code').neq('promo_code', 'LANDING').order('id').range(de, ate),
   );
   const out = new Map<string, number>();
   for (const r of data) {

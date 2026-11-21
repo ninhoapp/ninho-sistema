@@ -43,6 +43,8 @@ export async function POST(req: NextRequest) {
         .from('link_clicks')
         .select('landed, promo_code, clicked_at')
         .in('ip_hash', hashes)
+        // ENG-010: o toque em Baixar da /landing não tira o convite.
+        .neq('promo_code', 'LANDING')
         .gte('clicked_at', desde)
         .order('clicked_at', { ascending: false })
         .limit(1)
