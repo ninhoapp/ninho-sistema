@@ -169,8 +169,9 @@ function CardPost({ p }: { p: PostInstagram }) {
   );
 }
 
-export default async function InstagramPage({ searchParams }: { searchParams?: { aba?: string } }) {
-  requireRole('admin');
+export default async function InstagramPage(props: { searchParams: Promise<{ aba?: string }> }) {
+  const searchParams = await props.searchParams;
+  await requireRole('admin');
   const [todos, conta] = await Promise.all([listarPosts(), listarConta()]);
   const aba: Aba = searchParams?.aba && searchParams.aba in ABAS ? (searchParams.aba as Aba) : 'espera';
   const contagem = Object.fromEntries(

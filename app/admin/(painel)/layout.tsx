@@ -20,7 +20,7 @@ export default async function PainelLayout({ children }: { children: React.React
   // Parceiro e conversor são gente de fora: confere no banco se o perfil
   // ainda existe e está ativo (desativar corta o acesso na hora). O admin
   // fica só no cookie, para o painel não travar se o banco piscar.
-  const cookie = requireSession();
+  const cookie = await requireSession();
   const session = cookie.role === 'admin' ? cookie : await requireSessionAtiva();
   // Admin: se a senha mudou depois do login, o cookie antigo não entra mais.
   // Banco fora do ar não derruba (auditoria, 10/11/2026).

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useMemo, useRef, useCallback } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import {
   excluirUsuarios,
   alterarFimTrial,
@@ -458,11 +459,11 @@ export function UsuariosTable({
 
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [confirmando, setConfirmando] = useState(false);
-  const [state, action] = useFormState<ExclusaoState, FormData>(excluirUsuarios, {});
+  const [state, action] = useActionState<ExclusaoState, FormData>(excluirUsuarios, {});
 
   // Edição do fim do trial pela célula "Dias".
   const [editandoTrial, setEditandoTrial] = useState<UsuarioRow | null>(null);
-  const [trialState, trialAction] = useFormState<TrialState, FormData>(alterarFimTrial, {});
+  const [trialState, trialAction] = useActionState<TrialState, FormData>(alterarFimTrial, {});
 
   function setColFilter(col: FilterCol, next: Set<string> | null) {
     setColFilters((prev) => ({ ...prev, [col]: next }));

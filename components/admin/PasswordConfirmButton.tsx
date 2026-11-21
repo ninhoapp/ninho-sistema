@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 
 export interface PasswordConfirmState {
   error?: string;
@@ -37,7 +38,7 @@ export function PasswordConfirmButton({
   message: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [state, formAction] = useFormState<PasswordConfirmState, FormData>(action, {});
+  const [state, formAction] = useActionState<PasswordConfirmState, FormData>(action, {});
 
   useEffect(() => {
     if (state.ok) setOpen(false);

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { excluirConsultora, type ExcluirState } from '@/app/admin/(painel)/consultor/actions';
 
 function Confirmar() {
@@ -21,7 +22,7 @@ function Confirmar() {
 export function ExcluirConsultora({ id, nome }: { id: string; nome: string }) {
   const [aberto, setAberto] = useState(false);
   const [campo] = useState(() => `k${Math.random().toString(36).slice(2, 12)}`);
-  const [state, action] = useFormState<ExcluirState, FormData>(excluirConsultora, {});
+  const [state, action] = useActionState<ExcluirState, FormData>(excluirConsultora, {});
 
   if (!aberto) {
     return (

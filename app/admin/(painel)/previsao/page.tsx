@@ -24,8 +24,9 @@ function mesAnterior(mes: string): string {
   return d.toISOString().slice(0, 7);
 }
 
-export default async function PrevisaoPage({ searchParams }: { searchParams: { cad?: string } }) {
-  requireRole('admin');
+export default async function PrevisaoPage(props: { searchParams: Promise<{ cad?: string }> }) {
+  const searchParams = await props.searchParams;
+  await requireRole('admin');
   const [users, uso, custos] = await Promise.all([fetchAppUsers(), fetchUsoPorUsuario(), listCosts()]);
   const cadParam = searchParams.cad != null && searchParams.cad !== '' ? Number(searchParams.cad) : null;
   const prev = preverAssinantes(users, uso, {

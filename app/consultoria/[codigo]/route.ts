@@ -96,7 +96,8 @@ h1{font-size:25px;line-height:1.2;font-weight:800;letter-spacing:-.4px;color:#24
 </html>`;
 }
 
-export async function GET(req: NextRequest, { params }: { params: { codigo: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ codigo: string }> }) {
+  const params = await props.params;
   const ua = req.headers.get('user-agent') || '';
   const clique = await registrarCliqueConsultora(req, params.codigo, { vinculo: true, rotulo: 'consultoria' });
   if (!clique) return semCache(NextResponse.redirect(lojaSemRastreio(ua), 302));

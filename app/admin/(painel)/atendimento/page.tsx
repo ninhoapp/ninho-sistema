@@ -147,7 +147,7 @@ function LinhaResgate({ r }: { r: Resgate }) {
 }
 
 export default async function AtendimentoPage() {
-  requireRole('admin');
+  await requireRole('admin');
 
   let dados;
   try {

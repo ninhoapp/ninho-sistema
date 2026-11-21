@@ -32,10 +32,11 @@ async function idiomaDe(token: string, valido: boolean): Promise<'pt' | 'en'> {
       // sem banco (ex.: máquina sem .env.local): cai no navegador
     }
   }
-  return (headers().get('accept-language') ?? '').toLowerCase().startsWith('en') ? 'en' : 'pt';
+  return ((await headers()).get('accept-language') ?? '').toLowerCase().startsWith('en') ? 'en' : 'pt';
 }
 
-export default async function MotivoPage({ searchParams }: { searchParams: { t?: string; r?: string; sair?: string } }) {
+export default async function MotivoPage(props: { searchParams: Promise<{ t?: string; r?: string; sair?: string }> }) {
+  const searchParams = await props.searchParams;
   const token = searchParams.t ?? '';
   const valido = UUID.test(token);
   const idioma = await idiomaDe(token, valido);

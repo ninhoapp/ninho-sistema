@@ -11,8 +11,8 @@ import { detectDevice, STORE_IOS_URL, STORE_ANDROID_URL } from '@/lib/config';
 
 export const dynamic = 'force-dynamic';
 
-export default function Home() {
-  const ua = headers().get('user-agent') || '';
+export default async function Home() {
+  const ua = (await headers()).get('user-agent') || '';
   const device = detectDevice(ua);
 
   if (device === 'ios' && STORE_IOS_URL) redirect(STORE_IOS_URL);

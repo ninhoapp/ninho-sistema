@@ -17,7 +17,7 @@ const STATUS_MURAL: Record<string, string> = { aprovado: 'aprovou', feito: 'fez'
  * mural (painel.aprovacoes). O componente faz router.refresh() a cada 15s.
  */
 export default async function EmpresaPage() {
-  requireRole('admin');
+  await requireRole('admin');
 
   let atividade: Atividade[] = [];
   let aprovacoes: Aprovacao[] = [];

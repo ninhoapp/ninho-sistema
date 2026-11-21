@@ -23,6 +23,7 @@ import { linkDeDivulgacao } from '@/lib/link-consultora';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest, { params }: { params: { codigo: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ codigo: string }> }) {
+  const params = await props.params;
   return linkDeDivulgacao(req, params.codigo, 'c');
 }

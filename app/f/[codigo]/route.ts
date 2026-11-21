@@ -73,7 +73,8 @@ h1{font-size:23px;line-height:1.25;margin-bottom:10px;letter-spacing:-.3px}
 </html>`;
 }
 
-export async function GET(request: NextRequest, { params }: { params: { codigo: string } }) {
+export async function GET(request: NextRequest, props: { params: Promise<{ codigo: string }> }) {
+  const params = await props.params;
   const ua = request.headers.get('user-agent') || '';
   let codigo = '';
   try {

@@ -72,7 +72,7 @@ function CartaoEsperando({ a }: { a: AvaliacaoLoja }) {
 }
 
 export default async function AvaliacoesPage() {
-  requireRole('admin');
+  await requireRole('admin');
 
   let dados;
   try {

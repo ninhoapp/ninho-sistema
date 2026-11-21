@@ -19,7 +19,7 @@ export const metadata = {
  * precisa trocar volta para a própria home.
  */
 export default async function TrocarSenhaPage() {
-  const s = requireSession();
+  const s = await requireSession();
   const perfil = await getPerfil(s.sub);
   if (!perfil || !perfil.active) redirect('/admin/login?erro=sessao');
   if (!perfil.trocar_senha) redirect(homeForRole(perfil.role));

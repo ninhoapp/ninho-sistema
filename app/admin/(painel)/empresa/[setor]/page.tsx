@@ -11,8 +11,9 @@ import { andarDe, COR_SETOR } from '@/lib/empresa/menu';
 export const dynamic = 'force-dynamic';
 
 /** A página de um setor: a equipe e o estado de cada um, o que fizeram em 30 dias e o mural do setor. As abas do setor ficam na faixa do topo (SetorTabs). */
-export default async function SetorPage({ params }: { params: { setor: string } }) {
-  requireRole('admin');
+export default async function SetorPage(props: { params: Promise<{ setor: string }> }) {
+  const params = await props.params;
+  await requireRole('admin');
   const setor = SETORES.find((s) => s.id === params.setor);
   if (!setor) notFound();
 

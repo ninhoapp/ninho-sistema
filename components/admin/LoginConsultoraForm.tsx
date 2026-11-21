@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { signInConsultora, type ActionState } from '@/app/admin/actions';
 import { LoginForm } from '@/components/admin/LoginForm';
 
@@ -19,7 +20,7 @@ function Entrar() {
 }
 
 function FormConsultora() {
-  const [state, formAction] = useFormState<ActionState, FormData>(signInConsultora, {});
+  const [state, formAction] = useActionState<ActionState, FormData>(signInConsultora, {});
   return (
     <form action={formAction} className="flex flex-col gap-3">
       {state.error && <div className="rounded-2xl bg-red-50 p-3 text-sm text-red-600">{state.error}</div>}

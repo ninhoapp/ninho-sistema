@@ -138,8 +138,9 @@ function Linha({ r, conversa }: { r: Resgate; conversa: MensagemConversa[] }) {
   );
 }
 
-export default async function ResgatesPage({ searchParams }: { searchParams: Params }) {
-  requireRole('admin');
+export default async function ResgatesPage(props: { searchParams: Promise<Params> }) {
+  const searchParams = await props.searchParams;
+  await requireRole('admin');
   const filtro = lerFiltro(searchParams);
   const linhas = await fetchResgatesFiltrados(filtro);
   const conversas = await fetchConversasDosResgates(linhas);

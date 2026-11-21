@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath, revalidateTag } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { requireRole, requireSessionAtiva } from '@/lib/auth/guard';
 import { senhaAleatoria, verifyPassword } from '@/lib/auth/password';
 import { erroSenhaFraca } from '@/lib/auth/senha-forte';
@@ -63,7 +63,7 @@ function num(v: FormDataEntryValue | null): number {
 
 // ── Perfis ────────────────────────────────────────────────
 export async function criarPerfil(_prev: ActionState, fd: FormData): Promise<ActionState> {
-  requireRole('admin');
+  await requireRole('admin');
 
   const username = String(fd.get('username') || '').trim();
   const display_name = String(fd.get('display_name') || '').trim();
@@ -110,7 +110,7 @@ export async function criarPerfil(_prev: ActionState, fd: FormData): Promise<Act
 }
 
 export async function salvarPerfil(_prev: ActionState, fd: FormData): Promise<ActionState> {
-  requireRole('admin');
+  await requireRole('admin');
   const id = String(fd.get('id') || '');
   if (!id) return { error: 'Perfil não informado.' };
 
@@ -145,7 +145,7 @@ export async function salvarPerfil(_prev: ActionState, fd: FormData): Promise<Ac
 }
 
 export async function resetarSenha(_prev: ActionState, fd: FormData): Promise<ActionState> {
-  requireRole('admin');
+  await requireRole('admin');
   const id = String(fd.get('id') || '');
   const digitada = String(fd.get('nova') || '');
   const alvo = await getPerfil(id);
@@ -162,7 +162,7 @@ export async function resetarSenha(_prev: ActionState, fd: FormData): Promise<Ac
 }
 
 export async function removerPerfil(fd: FormData) {
-  const session = requireRole('admin');
+  const session = await requireRole('admin');
   const id = String(fd.get('id') || '');
   // Guarda contra o admin se auto-excluir e ninguém mais conseguir entrar.
   if (id === session.sub) return;
@@ -191,7 +191,7 @@ async function mesDoLancamento(fd: FormData): Promise<{ ref?: string; data?: str
 }
 
 export async function criarCusto(_prev: ActionState, fd: FormData): Promise<ActionState> {
-  requireRole('admin');
+  await requireRole('admin');
 
   const label = String(fd.get('label') || '').trim();
   const amount = num(fd.get('amount'));
@@ -222,7 +222,7 @@ export async function criarCusto(_prev: ActionState, fd: FormData): Promise<Acti
 }
 
 export async function salvarCusto(_prev: ActionState, fd: FormData): Promise<ActionState> {
-  requireRole('admin');
+  await requireRole('admin');
   const id = String(fd.get('id') || '');
   const label = String(fd.get('label') || '').trim();
   const amount = num(fd.get('amount'));
@@ -252,7 +252,7 @@ export async function salvarCusto(_prev: ActionState, fd: FormData): Promise<Act
 // ── Cartões (00128) ───────────────────────────────────────
 /** "A partir de tal dia, o canal paga no cartão X." A Meta se refaz na hora. */
 export async function trocarCartao(_prev: ActionState, fd: FormData): Promise<ActionState> {
-  requireRole('admin');
+  await requireRole('admin');
   const canal = String(fd.get('canal') || '') as Canal;
   const cartao = String(fd.get('cartao_id') || '');
   const desde = String(fd.get('desde') || '');
@@ -267,7 +267,7 @@ export async function trocarCartao(_prev: ActionState, fd: FormData): Promise<Ac
 }
 
 export async function criarCartao(_prev: ActionState, fd: FormData): Promise<ActionState> {
-  requireRole('admin');
+  await requireRole('admin');
   const nome = String(fd.get('nome') || '').trim();
   const final4 = String(fd.get('final4') || '').trim() || null;
   const fecha = Math.round(num(fd.get('dia_fechamento')));
@@ -290,7 +290,7 @@ export async function criarCartao(_prev: ActionState, fd: FormData): Promise<Act
 }
 
 export async function removerCusto(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const id = String(fd.get('id') || '');
   const serie = String(fd.get('series_id') || '');
   // "Remover série" apaga todas as parcelas do custo fixo de uma vez.
@@ -313,7 +313,7 @@ export interface TrialState extends ActionState {
  * pode virar isso num clique.
  */
 export async function alterarFimTrial(_prev: TrialState, fd: FormData): Promise<TrialState> {
-  const session = requireRole('admin');
+  const session = await requireRole('admin');
 
   const id = String(fd.get('id') || '').trim();
   const data = String(fd.get('data') || '').trim();
@@ -332,7 +332,7 @@ export async function alterarFimTrial(_prev: TrialState, fd: FormData): Promise<
   const res = await atualizarFimTrial(id, data);
   if (!res.ok) return { error: res.error || 'Falha ao salvar.' };
 
-  revalidateTag(APP_USERS_TAG);
+  updateTag(APP_USERS_TAG);
   revalidatePath('/admin/usuarios');
   revalidatePath('/admin/visao-geral');
   return { ok: true, novaData: data };
@@ -345,7 +345,7 @@ export async function alterarFimTrial(_prev: TrialState, fd: FormData): Promise<
  * da tela — uma RPC por usuário — e era o que deixava a tela lenta.
  */
 export async function previaDosSelecionados(ids: string[]): Promise<PreviaExclusao> {
-  requireRole('admin');
+  await requireRole('admin');
   const previas = await Promise.all(ids.slice(0, 500).map((id) => previaExclusao(id)));
   return previas.reduce(
     (acc, p) => ({
@@ -374,7 +374,7 @@ export async function excluirUsuarios(
   _prev: ExclusaoState,
   fd: FormData
 ): Promise<ExclusaoState> {
-  const session = requireRole('admin');
+  const session = await requireRole('admin');
 
   const ids = String(fd.get('ids') || '')
     .split(',')
@@ -405,7 +405,7 @@ export async function excluirUsuarios(
     bebesTransferidos += r.bebes_transferidos ?? 0;
   }
 
-  revalidateTag(APP_USERS_TAG);
+  updateTag(APP_USERS_TAG);
   revalidatePath('/admin/usuarios');
   revalidatePath('/admin/visao-geral');
   revalidatePath('/admin/leads');
@@ -424,14 +424,14 @@ export async function excluirUsuarios(
 
 // ── Resets por escopo (testes) ────────────────────────────
 export async function zerarCustosDoMes(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   await resetCostsMonth(String(fd.get('mes') || ''));
   revalidatePath('/admin/despesas');
   revalidatePath('/admin/faturamento');
 }
 
 export async function zerarConversor(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   await resetConversorStats(String(fd.get('perfil_id') || ''));
   revalidatePath('/admin/conversores');
   revalidatePath('/admin/conversoes');
@@ -440,7 +440,7 @@ export async function zerarConversor(fd: FormData) {
 
 // Recebe FormData (ignorado) para casar com a assinatura do ConfirmButton.
 export async function zerarLeadsOcultos(_fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   await resetLeadsOcultos();
   revalidatePath('/admin/leads');
   revalidatePath('/admin/conversor');
@@ -490,7 +490,7 @@ export async function reexibirLead(fd: FormData) {
  * pede a senha do admin (regra do painel para ação que altera dado).
  */
 export async function atribuirParceiroAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
-  const session = requireRole('admin');
+  const session = await requireRole('admin');
   const profileId = String(fd.get('profile_id') || '');
   const code = normalizarCodigo(String(fd.get('promo_code') || ''));
   const senha = String(fd.get('senha') || '');
@@ -505,7 +505,7 @@ export async function atribuirParceiroAction(_prev: ActionState, fd: FormData): 
   const res = await atribuirParceiro(profileId, code);
   if (!res.ok) return { error: res.error || 'Falha ao salvar.' };
 
-  revalidateTag(APP_USERS_TAG);
+  updateTag(APP_USERS_TAG);
   revalidatePath('/admin/parceiros');
   revalidatePath('/admin/repasses');
   return { ok: true };

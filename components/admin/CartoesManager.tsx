@@ -1,6 +1,7 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { criarCartao, trocarCartao, type ActionState } from '@/app/admin/(painel)/admin-actions';
 import { CANAIS, cartaoDoCanal, nomeCartao, type Canal, type Cartao, type CartaoCanal } from '@/lib/painel/cartoes';
 
@@ -35,8 +36,8 @@ function dataBr(d: string): string {
  * mês da fatura (a Meta se refaz na hora).
  */
 export function CartoesManager({ cartoes, historico }: { cartoes: Cartao[]; historico: CartaoCanal[] }) {
-  const [troca, acaoTroca] = useFormState<ActionState, FormData>(trocarCartao, {});
-  const [novo, acaoNovo] = useFormState<ActionState, FormData>(criarCartao, {});
+  const [troca, acaoTroca] = useActionState<ActionState, FormData>(trocarCartao, {});
+  const [novo, acaoNovo] = useActionState<ActionState, FormData>(criarCartao, {});
   const nome = (id: string | null) => {
     const c = cartoes.find((x) => x.id === id);
     return c ? nomeCartao(c) : '—';

@@ -16,7 +16,8 @@
  * conversa de trabalho. O aviso em cima do campo de comentário diz isso.
  */
 import { useMemo, useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import {
   ETAPAS,
   ETAPA_LABEL,
@@ -132,7 +133,7 @@ function milhar(n: number): string {
 
 /** O formulário de comentário: o histórico de cada pessoa cresce por aqui. */
 function FormComentario({ c, hoje }: { c: Contato; hoje: string }) {
-  const [st, action] = useFormState<CaptacaoState, FormData>(comentar, {});
+  const [st, action] = useActionState<CaptacaoState, FormData>(comentar, {});
   return (
     <form action={action} className="rounded-[18px] bg-[#F7F4FD] p-3">
       <input type="hidden" name="id" value={c.id} />
@@ -222,7 +223,7 @@ function ProximoTexto({ c }: { c: Contato }) {
 
 /** Ficha da pessoa: etapa, data, dados públicos, comentar e histórico. */
 function Ficha({ c, hist, hoje }: { c: Contato; hist: Comentario[]; hoje: string }) {
-  const [st, action] = useFormState<CaptacaoState, FormData>(salvarContato, {});
+  const [st, action] = useActionState<CaptacaoState, FormData>(salvarContato, {});
   return (
     <div className="mt-2 grid gap-3 lg:grid-cols-2">
       <form action={action} className="rounded-[18px] bg-[#F7F4FD] p-3">
@@ -314,7 +315,7 @@ function Linha({ c, hist, hoje, destaque = false }: { c: Contato; hist: Comentar
  * de voltar a falar. É o que ele faz o dia inteiro.
  */
 function FormRegistrar({ hoje }: { hoje: string }) {
-  const [st, action] = useFormState<CaptacaoState, FormData>(registrarContato, {});
+  const [st, action] = useActionState<CaptacaoState, FormData>(registrarContato, {});
   return (
     <form action={action}>
       <Retorno ok={st.ok} erro={st.error} />
@@ -368,7 +369,7 @@ function FormRegistrar({ hoje }: { hoje: string }) {
 
 /** Sobe (ou troca) o vídeo da abordagem, que fica em lugar fechado. */
 function FormVideo({ tem }: { tem: boolean }) {
-  const [st, action] = useFormState<CaptacaoState, FormData>(subirVideoCaptacao, {});
+  const [st, action] = useActionState<CaptacaoState, FormData>(subirVideoCaptacao, {});
   return (
     <form action={action} className={tem ? 'mt-4' : ''}>
       <Retorno ok={st.ok} erro={st.error} />
@@ -394,7 +395,7 @@ function FormVideo({ tem }: { tem: boolean }) {
 }
 
 function FormAdicionar({ hoje }: { hoje: string }) {
-  const [st, action] = useFormState<CaptacaoState, FormData>(adicionarContatos, {});
+  const [st, action] = useActionState<CaptacaoState, FormData>(adicionarContatos, {});
   return (
     <form action={action}>
       <Retorno ok={st.ok} erro={st.error} />
@@ -448,7 +449,7 @@ function FormAdicionar({ hoje }: { hoje: string }) {
  * de lá e colar aqui — uma vez só.
  */
 function FormImportar() {
-  const [st, action] = useFormState<CaptacaoState, FormData>(importarConvites, {});
+  const [st, action] = useActionState<CaptacaoState, FormData>(importarConvites, {});
   return (
     <form action={action}>
       <Retorno ok={st.ok} erro={st.error} />

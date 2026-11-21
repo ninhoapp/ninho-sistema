@@ -37,13 +37,13 @@ export interface PedidoState {
 
 /** Conta o cadastro para a Meta pelo servidor (o navegador manda o mesmo eventId). */
 async function avisarMeta(eventId: string) {
-  const h = headers();
-  const c = cookies();
+  const h = await headers();
+  const c = await cookies();
   await enviarEventoMeta({
     nome: 'Lead',
     eventId,
     url: `${SITE_URL}/landing/sejaconsultor`,
-    ip: ipDoPedido(),
+    ip: await ipDoPedido(),
     userAgent: h.get('user-agent'),
     fbp: c.get('_fbp')?.value ?? null,
     fbc: c.get('_fbc')?.value ?? null,
@@ -55,8 +55,8 @@ const TETO_DIA = 200;
 const POR_IP_HORA = 5;
 const enviosPorIp = new Map<string, number[]>();
 
-function ipDoPedido(): string {
-  const h = headers();
+async function ipDoPedido(): Promise<string> {
+  const h = await headers();
   return (h.get('x-forwarded-for')?.split(',')[0] || h.get('x-real-ip') || 'sem-ip').trim().slice(0, 64);
 }
 
@@ -91,7 +91,7 @@ export async function enviarPedidoSite(_prev: PedidoState, fd: FormData): Promis
   const instagram = iBruto ? normalizarInstagram(iBruto) : null;
   if (iBruto && !instagram) return { error: 'Instagram inválido. Use só o seu @.' };
   if (fd.get('ok1') !== 'on' || fd.get('ok2') !== 'on') return { error: 'Marque as duas caixas para enviar.' };
-  if (ipEstourou(ipDoPedido())) return { error: 'Recebemos muitos pedidos deste aparelho. Tente de novo mais tarde ou fale com a gente no Instagram @useninho.app.' };
+  if (ipEstourou(await ipDoPedido())) return { error: 'Recebemos muitos pedidos deste aparelho. Tente de novo mais tarde ou fale com a gente no Instagram @useninho.app.' };
 
   try {
     const sb = appDb();

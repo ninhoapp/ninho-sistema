@@ -18,14 +18,11 @@ export function ExportExcelButton({
   label?: string;
 }) {
   async function handleExport() {
-    // Carregada só no clique: a lib tem ~180 kB e ia junto em toda tela com
-    // tabela, mesmo quando ninguém exporta nada.
-    const XLSX = await import('xlsx');
-    const sheet = XLSX.utils.json_to_sheet(rows);
-    const book = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(book, sheet, sheetName);
+    // Carregada só no clique, pra não ir junto em toda tela com tabela.
+    // Antes era a lib `xlsx` (SheetJS), trocada por ter falha sem correção.
+    const { baixarXlsx } = await import('@/lib/planilha');
     const hoje = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(book, `${filename}-${hoje}.xlsx`);
+    baixarXlsx(rows, `${filename}-${hoje}.xlsx`, sheetName);
   }
 
   return (

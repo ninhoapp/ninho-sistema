@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { criarCusto, removerCusto, salvarCusto, type ActionState } from '@/app/admin/(painel)/admin-actions';
 import type { Cost } from '@/lib/painel/store';
 import { formatAED } from '@/lib/cambio';
@@ -59,7 +60,7 @@ export function CostsManager({
   cartoes?: Cartao[];
   historico?: CartaoCanal[];
 }) {
-  const [state, action] = useFormState<ActionState, FormData>(criarCusto, {});
+  const [state, action] = useActionState<ActionState, FormData>(criarCusto, {});
   const [kind, setKind] = useState<'fixo' | 'variavel'>('fixo');
   const [data, setData] = useState(hoje());
   const [cartao, setCartao] = useState(() => cartaoDoCanal(historico, 'ferramentas', hoje()) ?? cartoes[0]?.id ?? '');
@@ -228,7 +229,7 @@ function dataBr(d: string): string {
 
 function LinhaCusto({ c, cartoes }: { c: Cost; cartoes: Cartao[] }) {
   const [editando, setEditando] = useState(false);
-  const [state, action] = useFormState<ActionState, FormData>(async (prev, fd) => {
+  const [state, action] = useActionState<ActionState, FormData>(async (prev, fd) => {
     const res = await salvarCusto(prev, fd);
     if (res.ok) setEditando(false);
     return res;

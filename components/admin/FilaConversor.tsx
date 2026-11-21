@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import {
   registrarDesfecho,
   ocultarLead,
@@ -39,7 +40,7 @@ function Submit({ label }: { label: string }) {
 }
 
 function LinhaLead({ lead, whatsapp }: { lead: LeadRow; whatsapp: string | null }) {
-  const [state, action] = useFormState<ActionState, FormData>(registrarDesfecho, {});
+  const [state, action] = useActionState<ActionState, FormData>(registrarDesfecho, {});
   const [aberto, setAberto] = useState(false);
 
   return (

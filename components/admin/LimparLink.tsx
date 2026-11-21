@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { limparDadosDoLink, type LimparState } from '@/app/admin/(painel)/limpar-link-actions';
 
 function Confirmar() {
@@ -33,7 +34,7 @@ export function LimparLink({
 }) {
   const [aberto, setAberto] = useState(false);
   const [campo] = useState(() => `k${Math.random().toString(36).slice(2, 12)}`);
-  const [state, action] = useFormState<LimparState, FormData>(limparDadosDoLink, {});
+  const [state, action] = useActionState<LimparState, FormData>(limparDadosDoLink, {});
 
   if (!aberto) {
     return (

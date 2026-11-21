@@ -23,14 +23,16 @@
 import { redirect } from 'next/navigation';
 import { getSession, senhaMudou, type Role, type SessionData } from '@/lib/auth/session';
 
-export function requireSession(): SessionData {
-  const s = getSession();
+// Next 16: cookies() é assíncrono, então as guardas também são. SEMPRE use
+// `await requireRole(...)`: sem o await o redirect não para a tela nem a ação.
+export async function requireSession(): Promise<SessionData> {
+  const s = await getSession();
   if (!s) redirect('/admin/login');
   return s;
 }
 
-export function requireRole(roles: Role | Role[]): SessionData {
-  const s = requireSession();
+export async function requireRole(roles: Role | Role[]): Promise<SessionData> {
+  const s = await requireSession();
   const allowed = Array.isArray(roles) ? roles : [roles];
   if (!allowed.includes(s.role)) {
     // Cada papel cai na sua própria home se tentar acessar outra área.
@@ -48,7 +50,7 @@ export function requireRole(roles: Role | Role[]): SessionData {
  * Use em toda tela e ação que um parceiro ou conversor acessa.
  */
 export async function requireSessionAtiva(roles?: Role | Role[]): Promise<SessionData> {
-  const s = requireSession();
+  const s = await requireSession();
   const { getPerfil } = await import('@/lib/painel/store');
   const perfil = await getPerfil(s.sub);
   if (!perfil || !perfil.active) redirect('/admin/login?erro=sessao');
@@ -77,7 +79,7 @@ export async function requireSessionAtiva(roles?: Role | Role[]): Promise<Sessio
  * mudança) segue valendo até vencer, em no máximo 7 dias.
  *
  * Limite conhecido: isto roda nas TELAS. As ações do admin continuam conferindo
- * só o cookie (requireRole é síncrono em ~120 lugares). Para derrubar na hora
+ * só o cookie (requireRole é chamado em ~90 lugares). Para derrubar na hora
  * TODAS as sessões de todo mundo, troque SESSION_SECRET na Vercel.
  */
 export async function conferirSenhaDoAdmin(s: SessionData): Promise<void> {

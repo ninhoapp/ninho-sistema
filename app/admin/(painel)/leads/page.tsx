@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
  * foram removidos da fila, que o conversor não vê.
  */
 export default async function LeadsPage() {
-  requireRole('admin');
+  await requireRole('admin');
   const users = await fetchAppUsers();
   const leadSet = await buildConversorLeadSet(users);
 

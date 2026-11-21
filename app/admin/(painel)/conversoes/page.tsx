@@ -18,12 +18,9 @@ function mesValido(v: string | undefined): string {
   return v && /^\d{4}-\d{2}$/.test(v) ? v : new Date().toISOString().slice(0, 7);
 }
 
-export default async function ConversoesPage({
-  searchParams,
-}: {
-  searchParams: { mes?: string };
-}) {
-  requireRole('admin');
+export default async function ConversoesPage(props: { searchParams: Promise<{ mes?: string }> }) {
+  const searchParams = await props.searchParams;
+  await requireRole('admin');
   const mes = mesValido(searchParams.mes);
 
   const [todosOutcomes, perfis, users] = await Promise.all([

@@ -12,7 +12,7 @@ export interface AprovarState {
 const CAMINHO = '/admin/avaliacoes';
 
 export async function aprovar(_prev: AprovarState, fd: FormData): Promise<AprovarState> {
-  requireRole('admin');
+  await requireRole('admin');
   const id = String(fd.get('id') ?? '');
   const resposta = String(fd.get('resposta') ?? '').trim();
   if (!id || resposta.length < 5) return { error: 'Escreva a resposta.' };
@@ -27,7 +27,7 @@ export async function aprovar(_prev: AprovarState, fd: FormData): Promise<Aprova
 }
 
 export async function ignorar(fd: FormData): Promise<void> {
-  requireRole('admin');
+  await requireRole('admin');
   await ignorarAvaliacao(String(fd.get('id') ?? ''));
   revalidatePath(CAMINHO);
 }

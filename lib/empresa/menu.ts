@@ -61,6 +61,8 @@ export const MENU_ADMIN: GrupoMenu[] = [
     abas: [
       { href: '/admin/crescimento', label: 'KPI de crescimento' },
       { href: '/admin/instagram', label: 'Instagram' },
+      // TikTok (pedido do dono, 21/11/2026): fila e números à mão, sem API.
+      { href: '/admin/tiktok', label: 'TikTok' },
     ],
   },
   // Parcerias (pedido do dono, 07/11/2026): grupo próprio na coluna da

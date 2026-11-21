@@ -1,6 +1,7 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { updateOwnPix, type ActionState } from '@/app/admin/actions';
 
 function SubmitBtn() {
@@ -17,7 +18,7 @@ function SubmitBtn() {
 }
 
 export function PixForm({ atual }: { atual: string | null }) {
-  const [state, formAction] = useFormState<ActionState, FormData>(updateOwnPix, {});
+  const [state, formAction] = useActionState<ActionState, FormData>(updateOwnPix, {});
   return (
     <form action={formAction} className="flex max-w-sm flex-col gap-3">
       {state.error && (

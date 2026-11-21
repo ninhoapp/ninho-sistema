@@ -292,7 +292,7 @@ function TabelaContinuidade({ linhas }: { linhas: Continuidade[] | null }) {
 }
 
 export default async function TestePaywallPage() {
-  requireRole('admin');
+  await requireRole('admin');
   const [t, continuidade] = await Promise.all([fetchTestePaywall(), fetchContinuidade()]);
   const { A, B, C } = t.resumo;
   const total = A.cadastros + B.cadastros + C.cadastros;

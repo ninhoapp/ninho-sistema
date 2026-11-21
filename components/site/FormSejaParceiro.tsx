@@ -1,6 +1,7 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { enviarPedidoParceiro, type PedidoParceiroState } from '@/app/sejaparceiro/actions';
 import { TelefonePais } from '@/components/TelefonePais';
 
@@ -15,7 +16,7 @@ function Enviar() {
 
 /** Formulário "Quero ser parceiro": nome, e-mail, WhatsApp e Instagram. Vira pedido no painel do dono. */
 export function FormSejaParceiro({ abertoEm }: { abertoEm: number }) {
-  const [state, action] = useFormState<PedidoParceiroState, FormData>(enviarPedidoParceiro, {});
+  const [state, action] = useActionState<PedidoParceiroState, FormData>(enviarPedidoParceiro, {});
 
   if (state.ok) {
     return (

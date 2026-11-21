@@ -7,7 +7,8 @@
  * 1º acesso o painel obriga o parceiro a trocar a senha.
  */
 import { useRef, useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { aprovarPedidoParceiro, recusarPedidoParceiro, type AprovarState } from '@/app/admin/(painel)/parceiros/actions';
 import type { PedidoParceiro } from '@/lib/parceiros/pedidos';
 
@@ -52,7 +53,7 @@ function Copiar({ texto }: { texto: string }) {
 }
 
 function Pendente({ p, codigoSugerido }: { p: PedidoParceiro; codigoSugerido: string }) {
-  const [state, action] = useFormState<AprovarState, FormData>(aprovarPedidoParceiro, {});
+  const [state, action] = useActionState<AprovarState, FormData>(aprovarPedidoParceiro, {});
   const w = zap(p.whatsapp);
 
   if (state.ok && state.login && state.senha) {

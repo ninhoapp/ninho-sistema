@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { aprovar, type AprovarState } from '@/app/admin/(painel)/avaliacoes/actions';
 
 const LIMITE = 350;
@@ -22,7 +23,7 @@ function Publicar() {
 /** Resposta pública a uma avaliação. Vem com o rascunho da função; o dono
  *  edita se quiser e aprova. Aprovar publica na loja na hora. */
 export function AprovarAvaliacaoForm({ id, rascunho }: { id: string; rascunho: string }) {
-  const [state, action] = useFormState<AprovarState, FormData>(aprovar, {});
+  const [state, action] = useActionState<AprovarState, FormData>(aprovar, {});
   const [texto, setTexto] = useState(rascunho);
 
   if (state.ok) {

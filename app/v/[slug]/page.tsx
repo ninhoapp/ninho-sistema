@@ -29,7 +29,8 @@ export function generateStaticParams() {
   return VIDEOS.map((v) => ({ slug: v.slug }));
 }
 
-export function generateMetadata({ params }: { params: { slug: string } }): Metadata {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const params = await props.params;
   const v = videoPorSlug(params.slug);
   if (!v) return {};
   const url = `${SITE_URL}/v/${v.slug}`;
@@ -51,7 +52,8 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
   };
 }
 
-export default function VideoPage({ params }: { params: { slug: string } }) {
+export default async function VideoPage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const v = videoPorSlug(params.slug);
   if (!v) notFound();
 

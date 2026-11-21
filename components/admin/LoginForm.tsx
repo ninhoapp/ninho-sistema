@@ -1,6 +1,7 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { signIn, type ActionState } from '@/app/admin/actions';
 
 function SubmitBtn() {
@@ -17,7 +18,7 @@ function SubmitBtn() {
 }
 
 export function LoginForm() {
-  const [state, formAction] = useFormState<ActionState, FormData>(signIn, {});
+  const [state, formAction] = useActionState<ActionState, FormData>(signIn, {});
   return (
     <form action={formAction} className="flex flex-col gap-3">
       {state.error && (

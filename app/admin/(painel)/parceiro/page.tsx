@@ -88,7 +88,8 @@ function situacao(u: AppUser): React.ReactNode {
   return <Selo cor="cinza">Sem plano</Selo>;
 }
 
-export default async function ParceiroPage({ searchParams }: { searchParams: Busca }) {
+export default async function ParceiroPage(props: { searchParams: Promise<Busca> }) {
+  const searchParams = await props.searchParams;
   const session = await requireSessionAtiva(['influencer', 'admin']);
   const perfil = await getPerfil(session.sub);
   if (!perfil) return null;

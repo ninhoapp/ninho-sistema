@@ -18,7 +18,7 @@ import { UsuariosTable, type UsuarioRow } from '@/components/admin/UsuariosTable
 export const dynamic = 'force-dynamic';
 
 export default async function UsuariosPage() {
-  requireRole('admin');
+  await requireRole('admin');
 
   const [users, uso, testePaywall, perfis, consultoras] = await Promise.all([
     // Ao vivo (sem o cache de 10 min): entrou na tela, vê o número de agora.

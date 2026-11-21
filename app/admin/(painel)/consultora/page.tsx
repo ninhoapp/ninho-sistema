@@ -93,7 +93,8 @@ type Busca = { ficha?: string; aba?: string; bebe?: string; dia?: string; evo?: 
  * _consultora_rotina, que já cortam o acesso se ela está pausada, sem vínculo
  * ou se a família está sem plano.
  */
-export default async function ConsultoraPage({ searchParams }: { searchParams: Busca }) {
+export default async function ConsultoraPage(props: { searchParams: Promise<Busca> }) {
+  const searchParams = await props.searchParams;
   const s = await requireSessionAtiva('consultora');
   const c = await consultoraDoPerfil(s.sub);
   if (!c) redirect('/admin/login?porta=consultora');

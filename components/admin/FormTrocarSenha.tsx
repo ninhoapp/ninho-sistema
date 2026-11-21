@@ -1,6 +1,7 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { trocarSenhaProvisoria, type ActionState } from '@/app/admin/actions';
 import { PasswordInput } from '@/components/admin/PasswordInput';
 import { SenhaForteInput } from '@/components/admin/SenhaForteInput';
@@ -19,7 +20,7 @@ function Salvar() {
 }
 
 export function FormTrocarSenha() {
-  const [state, action] = useFormState<ActionState, FormData>(trocarSenhaProvisoria, {});
+  const [state, action] = useActionState<ActionState, FormData>(trocarSenhaProvisoria, {});
   return (
     <form action={action} className="mt-6 flex flex-col gap-3">
       {state.error && <div className="rounded-xl bg-red-50 p-2.5 text-sm text-red-600">{state.error}</div>}

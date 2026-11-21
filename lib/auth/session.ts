@@ -100,12 +100,12 @@ export function parseSession(token: string | undefined): SessionData | null {
 }
 
 /** Lê a sessão atual (Server Component / Server Action). */
-export function getSession(): SessionData | null {
-  return parseSession(cookies().get(SESSION_COOKIE)?.value);
+export async function getSession(): Promise<SessionData | null> {
+  return parseSession((await cookies()).get(SESSION_COOKIE)?.value);
 }
 
-export function setSessionCookie(data: Omit<SessionData, 'exp'>) {
-  cookies().set(SESSION_COOKIE, serializeSession(data), {
+export async function setSessionCookie(data: Omit<SessionData, 'exp'>) {
+  (await cookies()).set(SESSION_COOKIE, serializeSession(data), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -114,8 +114,8 @@ export function setSessionCookie(data: Omit<SessionData, 'exp'>) {
   });
 }
 
-export function clearSessionCookie() {
-  cookies().delete(SESSION_COOKIE);
+export async function clearSessionCookie() {
+  (await cookies()).delete(SESSION_COOKIE);
 }
 
 /** Rota destino conforme papel. */

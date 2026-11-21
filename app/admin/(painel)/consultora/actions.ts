@@ -6,7 +6,7 @@
  * refeitas aqui porque o painel entra como service role (sem auth.uid()).
  */
 import { redirect } from 'next/navigation';
-import { revalidatePath, revalidateTag } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { requireSessionAtiva } from '@/lib/auth/guard';
 import { appDb } from '@/lib/supabase/server';
 import {
@@ -45,7 +45,7 @@ function volta(aba: string, r: { ok?: string; erro?: string }, extra: Record<str
   const q = new URLSearchParams({ aba, ...extra });
   if (r.ok) q.set('ok', r.ok);
   if (r.erro) q.set('erro', r.erro);
-  revalidateTag(CONSULTORAS_TAG);
+  updateTag(CONSULTORAS_TAG);
   revalidatePath(BASE);
   redirect(`${BASE}?${q.toString()}`);
 }

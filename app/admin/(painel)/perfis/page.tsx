@@ -6,7 +6,7 @@ import { PerfisManager } from '@/components/admin/PerfisManager';
 export const dynamic = 'force-dynamic';
 
 export default async function PerfisPage() {
-  const session = requireRole('admin');
+  const session = await requireRole('admin');
   const perfis = await listPerfis();
 
   return (

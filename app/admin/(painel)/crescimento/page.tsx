@@ -5,12 +5,9 @@ import { CrescimentoKpi, cenarioValido, mesValido } from '@/components/admin/Cre
 
 export const dynamic = 'force-dynamic';
 
-export default async function CrescimentoKpiPage({
-  searchParams,
-}: {
-  searchParams: { mes?: string; cen?: string };
-}) {
-  requireRole('admin');
+export default async function CrescimentoKpiPage(props: { searchParams: Promise<{ mes?: string; cen?: string }> }) {
+  const searchParams = await props.searchParams;
+  await requireRole('admin');
   const [users, custos] = await Promise.all([fetchAppUsers(), listCosts()]);
   return (
     <CrescimentoKpi

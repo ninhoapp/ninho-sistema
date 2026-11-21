@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import {
   criarPerfil,
   salvarPerfil,
@@ -158,7 +159,7 @@ function CamposComissao({ p, parceiroNovo = false }: { p?: Perfil; parceiroNovo?
 }
 
 function FormNovo() {
-  const [state, action] = useFormState<ActionState, FormData>(criarPerfil, {});
+  const [state, action] = useActionState<ActionState, FormData>(criarPerfil, {});
   const [role, setRole] = useState<Role>('conversor');
 
   return (
@@ -214,8 +215,8 @@ function FormNovo() {
 }
 
 function FormEditar({ p, ehVoce }: { p: Perfil; ehVoce: boolean }) {
-  const [state, action] = useFormState<ActionState, FormData>(salvarPerfil, {});
-  const [senhaState, senhaAction] = useFormState<ActionState, FormData>(resetarSenha, {});
+  const [state, action] = useActionState<ActionState, FormData>(salvarPerfil, {});
+  const [senhaState, senhaAction] = useActionState<ActionState, FormData>(resetarSenha, {});
   const [aberto, setAberto] = useState(false);
 
   return (

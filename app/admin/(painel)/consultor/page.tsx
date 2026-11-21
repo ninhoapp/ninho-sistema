@@ -85,12 +85,9 @@ function brutoDoMes(familias: FamiliaAtribuida[], mes: string, consultoraId?: st
  * Ninho-expo/docs/design/consultora/painel.html (visão "Dono do Ninho").
  * O dono não abre a rotina dos bebês por aqui: só contas, planos e dinheiro.
  */
-export default async function ConsultorPage({
-  searchParams,
-}: {
-  searchParams: { aba?: string; id?: string; mes?: string; ok?: string; erro?: string; estado?: string; q?: string; parte?: string };
-}) {
-  requireRole('admin');
+export default async function ConsultorPage(props: { searchParams: Promise<{ aba?: string; id?: string; mes?: string; ok?: string; erro?: string; estado?: string; q?: string; parte?: string }> }) {
+  const searchParams = await props.searchParams;
+  await requireRole('admin');
   // Comissões e Receita viraram a aba Dinheiro (09/11/2026); links antigos continuam valendo.
   const pedida = searchParams.aba === 'comissoes' || searchParams.aba === 'receita' ? 'dinheiro' : searchParams.aba;
   const aba = ABAS.some(([k]) => k === pedida) ? pedida! : 'geral';

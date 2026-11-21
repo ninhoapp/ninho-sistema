@@ -31,7 +31,7 @@ export async function signIn(_prev: ActionState, formData: FormData): Promise<Ac
   if (!login || !password) return { error: 'Preencha usuário e senha.' };
 
   // Trava contra adivinhação de senha (lib/auth/login-limite.ts): conta só os erros.
-  const ip = ipDe(headers());
+  const ip = ipDe(await headers());
   if (loginBloqueado(login, ip)) return { error: ERRO_MUITAS_TENTATIVAS };
 
   // Falha de infraestrutura (env faltando, schema não exposto, permissão) não
@@ -54,7 +54,7 @@ export async function signIn(_prev: ActionState, formData: FormData): Promise<Ac
   }
   limparFalhasDeLogin(login, ip);
 
-  setSessionCookie({
+  await setSessionCookie({
     sub: perfil.id,
     username: perfil.username,
     role: perfil.role,
@@ -78,7 +78,7 @@ async function renovarCookieDepoisDaTroca(session: { sub: string; pv?: string })
   try {
     const p = await getPerfil(session.sub);
     if (!p) return;
-    setSessionCookie({
+    await setSessionCookie({
       sub: p.id,
       username: p.username,
       role: p.role,
@@ -92,7 +92,7 @@ async function renovarCookieDepoisDaTroca(session: { sub: string; pv?: string })
 
 /** 1º acesso com senha provisória: a pessoa cria a própria senha. */
 export async function trocarSenhaProvisoria(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const session = getSession();
+  const session = await getSession();
   if (!session) return { error: 'Sessão expirada. Entre de novo.' };
   const nova = String(formData.get('nova') || '');
   const confirma = String(formData.get('confirma') || '');
@@ -122,7 +122,7 @@ export async function signInConsultora(_prev: ActionState, formData: FormData): 
     return { error: 'Não consegui conferir agora. Tente de novo em instantes.' };
   }
   if (!res.perfil) return { error: res.error || 'Não consegui entrar.' };
-  setSessionCookie({
+  await setSessionCookie({
     sub: res.perfil.id,
     username: res.perfil.username,
     role: 'consultora',
@@ -132,7 +132,7 @@ export async function signInConsultora(_prev: ActionState, formData: FormData): 
 }
 
 export async function signOut() {
-  clearSessionCookie();
+  await clearSessionCookie();
   redirect('/admin/login');
 }
 
@@ -140,7 +140,7 @@ export async function changeOwnPassword(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  const session = getSession();
+  const session = await getSession();
   if (!session) return { error: 'Sessão expirada.' };
 
   const atual = String(formData.get('atual') || '');
@@ -164,7 +164,7 @@ export async function changeOwnPassword(
 }
 
 export async function updateOwnPix(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const session = getSession();
+  const session = await getSession();
   if (!session) return { error: 'Sessão expirada.' };
   const pix = String(formData.get('pix_key') || '').trim();
   const res = await updatePerfil(session.sub, { pix_key: pix || null });

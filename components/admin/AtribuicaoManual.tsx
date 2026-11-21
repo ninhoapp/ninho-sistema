@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { atribuirParceiroAction, type ActionState } from '@/app/admin/(painel)/admin-actions';
 import { PasswordInput } from '@/components/admin/PasswordInput';
 
@@ -47,7 +48,7 @@ export function AtribuicaoManual({ contas, parceiros }: { contas: ContaAtribuive
   const [soSemParceiro, setSoSemParceiro] = useState(false);
   const [escolha, setEscolha] = useState<Record<string, string>>({});
   const [aberto, setAberto] = useState<{ id: string; code: string; quem: string } | null>(null);
-  const [state, action] = useFormState<ActionState, FormData>(atribuirParceiroAction, {});
+  const [state, action] = useActionState<ActionState, FormData>(atribuirParceiroAction, {});
 
   useEffect(() => {
     if (state.ok) setAberto(null);

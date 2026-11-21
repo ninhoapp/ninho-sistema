@@ -15,7 +15,8 @@ export function generateStaticParams() {
   return GUIAS.map((g) => ({ slug: g.slug }));
 }
 
-export function generateMetadata({ params }: { params: { slug: string } }): Metadata {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const params = await props.params;
   const g = guiaPorSlug(params.slug);
   if (!g) return {};
   const url = `${SITE_URL}/guia/${g.slug}`;
@@ -40,7 +41,8 @@ function dataBr(iso: string) {
   return `${d}/${m}/${a}`;
 }
 
-export default function GuiaPage({ params }: { params: { slug: string } }) {
+export default async function GuiaPage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const g = guiaPorSlug(params.slug);
   if (!g) notFound();
 

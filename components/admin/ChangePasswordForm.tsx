@@ -1,6 +1,7 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { changeOwnPassword, type ActionState } from '@/app/admin/actions';
 import { PasswordInput } from '@/components/admin/PasswordInput';
 import { SenhaForteInput } from '@/components/admin/SenhaForteInput';
@@ -19,7 +20,7 @@ function SubmitBtn() {
 }
 
 export function ChangePasswordForm() {
-  const [state, formAction] = useFormState<ActionState, FormData>(changeOwnPassword, {});
+  const [state, formAction] = useActionState<ActionState, FormData>(changeOwnPassword, {});
   return (
     <form action={formAction} className="flex max-w-sm flex-col gap-3">
       {state.error && (

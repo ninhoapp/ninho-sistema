@@ -13,7 +13,7 @@ import { painelDb } from '@/lib/supabase/server';
 const id = (fd: FormData) => String(fd.get('id') ?? '');
 
 async function mudar(postId: string, campos: Record<string, unknown>, deStatus: string[]) {
-  requireRole('admin');
+  await requireRole('admin');
   if (!/^[0-9a-f-]{36}$/.test(postId)) throw new Error('post inválido');
   const { error } = await painelDb()
     .from('instagram_posts')
@@ -30,7 +30,7 @@ export async function aprovarPost(fd: FormData) {
 }
 
 export async function aprovarSemana(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const semana = String(fd.get('semana') ?? '');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(semana)) throw new Error('semana inválida');
   const { error } = await painelDb()
@@ -58,7 +58,7 @@ export async function recusarPost(fd: FormData) {
 /** Reels de teste (só para quem não segue) ou Reels normal. Trocar não tira o OK. */
 export async function trocarTeste(fd: FormData) {
   const teste = String(fd.get('teste') ?? '') === 'true';
-  requireRole('admin');
+  await requireRole('admin');
   const postId = id(fd);
   if (!/^[0-9a-f-]{36}$/.test(postId)) throw new Error('post inválido');
   const { error } = await painelDb()

@@ -24,8 +24,8 @@ const TETO_DIA = 200;
 const POR_IP_HORA = 5;
 const enviosPorIp = new Map<string, number[]>();
 
-function ipEstourou(): boolean {
-  const h = headers();
+async function ipEstourou(): Promise<boolean> {
+  const h = await headers();
   const ip = (h.get('x-forwarded-for')?.split(',')[0] || h.get('x-real-ip') || 'sem-ip').trim().slice(0, 64);
   const agora = Date.now();
   if (enviosPorIp.size > 5000) enviosPorIp.clear();
@@ -50,7 +50,7 @@ export async function enviarPedidoParceiro(_prev: PedidoParceiroState, fd: FormD
   if (!EMAIL_RE.test(email) || email.length > 254) return { error: 'Coloque um e-mail válido.' };
   if (!whatsapp) return { error: 'WhatsApp com DDD (ex.: 11 98765-4321).' };
   if (!instagram) return { error: 'Coloque o seu @ do Instagram.' };
-  if (ipEstourou()) return { error: 'Recebemos muitos pedidos deste aparelho. Tente de novo mais tarde ou fale com a gente no Instagram @useninho.app.' };
+  if (await ipEstourou()) return { error: 'Recebemos muitos pedidos deste aparelho. Tente de novo mais tarde ou fale com a gente no Instagram @useninho.app.' };
 
   try {
     if (await emailJaNoPrograma(email)) return { ok: true };

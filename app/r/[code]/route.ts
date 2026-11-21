@@ -35,7 +35,8 @@ function dominio(url: string | null): string | null {
   }
 }
 
-export async function GET(req: NextRequest, { params }: { params: { code: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ code: string }> }) {
+  const params = await props.params;
   const parceiro = await findParceiroPorCodigo(params.code);
   if (!parceiro || !parceiro.promo_code) {
     return semCache(NextResponse.redirect(LANDING_URL, 302));

@@ -1,5 +1,5 @@
 import { requireRole } from '@/lib/auth/guard';
-import { fetchAppUsersAoVivo, appDbConfigured } from '@/lib/app-users';
+import { fetchAppUsersAoVivo, fetchUsoPorUsuario, appDbConfigured } from '@/lib/app-users';
 import { listCosts } from '@/lib/painel/store';
 import { aedParaBrl, formatAED } from '@/lib/cambio';
 import {
@@ -7,7 +7,10 @@ import {
   buildOverviewAt,
   custosDoMes,
   formatBRL,
+  isChurn,
+  isPagante,
   pctChange,
+  taxaConversaoNascidos,
 } from '@/lib/metrics';
 import { liquido, DIAS_TRIAL } from '@/lib/precos';
 import { PageHeader } from '@/components/admin/PageHeader';
@@ -16,6 +19,7 @@ import { Mini } from '@/components/admin/Mini';
 import { Notice } from '@/components/admin/Notice';
 import { DonutChart } from '@/components/admin/DonutChart';
 import { VerticalBarChart } from '@/components/admin/VerticalBarChart';
+import { FunilAssinatura } from '@/components/admin/FunilAssinatura';
 import {
   IconUsers,
   IconCrown,
@@ -30,12 +34,12 @@ export const dynamic = 'force-dynamic';
 const PERIODO_MS = 7 * 86400000;
 
 export default async function VisaoGeralPage() {
-  requireRole('admin');
+  await requireRole('admin');
 
   const agora = Date.now();
   const cutoff = agora - PERIODO_MS;
 
-  const [users, custos] = await Promise.all([fetchAppUsersAoVivo(), listCosts()]);
+  const [users, custos, uso] = await Promise.all([fetchAppUsersAoVivo(), listCosts(), fetchUsoPorUsuario()]);
 
   const m = buildOverview(users);
   const mAntes = buildOverviewAt(users, cutoff);
@@ -43,6 +47,15 @@ export default async function VisaoGeralPage() {
   const mes = new Date().toISOString().slice(0, 7);
   const c = custosDoMes(custos, mes);
   const receitaLiquida = liquido(m.receitaMensalEstimada);
+
+  // Funil do cadastro à assinatura. "Concluiu o cadastro" = tem bebê vinculado
+  // (dono ou cuidador). "Já assinou" = pagou alguma vez: tem compra verificada,
+  // assina hoje ou é churn (churn só existe para quem já pagou). Quem herda o
+  // plano de outra conta não comprou nada e não entra nas duas últimas etapas.
+  const concluiram = users.filter((u) => (uso.get(u.id)?.bebes ?? 0) > 0).length;
+  const jaAssinaram = users.filter((u) => u.assinouEm || isPagante(u) || isChurn(u)).length;
+  const pagantesSemCobranca = users.filter((u) => isPagante(u) && !u.assinouEm).length;
+  const conversao = taxaConversaoNascidos(users);
 
   // Cadastros e novos assinantes por dia nos últimos 7 dias — ritmo de crescimento.
   // Novo assinante = dia da 1ª cobrança (assinouEm). Conta mesmo quem cancelou
@@ -163,6 +176,39 @@ export default async function VisaoGeralPage() {
             <span className="text-xs">(sem repasses — o número completo está em Faturamento)</span>
           </p>
         </div>
+      </div>
+
+      <div className="mb-8">
+        <FunilAssinatura
+          etapas={[
+            { label: 'Cadastros no app', n: m.totalUsuarios, cor: '#9F86E0' },
+            { label: 'Concluíram o cadastro', n: concluiram, cor: '#9F86E0' },
+            { label: 'Já assinaram alguma vez', n: jaAssinaram, cor: '#59B287' },
+            { label: 'Assinam hoje', n: m.pagantes, cor: '#2F8A5B' },
+          ]}
+          rodape={
+            <>
+              &quot;Concluíram o cadastro&quot; = já têm bebê no app (próprio ou como cuidador).
+              &quot;Já assinaram&quot; conta quem tem ao menos uma cobrança verificada pela loja, quem
+              assina hoje e quem assinou e saiu.{' '}
+              {pagantesSemCobranca > 0 && (
+                <>
+                  <strong>
+                    {pagantesSemCobranca}{' '}
+                    {pagantesSemCobranca === 1
+                      ? 'assinante de hoje não tem cobrança registrada'
+                      : 'assinantes de hoje não têm cobrança registrada'}
+                  </strong>{' '}
+                  (a loja não confirmou a compra para o servidor), então esse dinheiro não aparece na
+                  receita.{' '}
+                </>
+              )}
+              A taxa de conversão do teste ({conversao.taxa.toFixed(1).replace('.', ',')}%) usa outra
+              base: só quem já terminou o teste, com bebê de 4+ dias de vida — {conversao.assinantes}{' '}
+              ÷ {conversao.base}.
+            </>
+          }
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

@@ -16,8 +16,9 @@ import { marcarPago } from '@/app/admin/(painel)/consultor/actions';
 
 export const dynamic = 'force-dynamic';
 
-export default async function RepassesPage({ searchParams }: { searchParams: { ok?: string; erro?: string } }) {
-  requireRole('admin');
+export default async function RepassesPage(props: { searchParams: Promise<{ ok?: string; erro?: string }> }) {
+  const searchParams = await props.searchParams;
+  await requireRole('admin');
   const [perfis, users, outcomes, cons] = await Promise.all([
     listPerfis(),
     fetchAppUsers(),

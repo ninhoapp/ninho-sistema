@@ -8,7 +8,7 @@
  * NÃO apaga a atribuição das contas (indicacao_parceiro / consultora_indicacoes)
  * nem comissões ou pagamentos: só os eventos de clique e de download.
  */
-import { revalidatePath, revalidateTag } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { requireRole } from '@/lib/auth/guard';
 import { verifyPassword } from '@/lib/auth/password';
 import { getPerfil } from '@/lib/painel/store';
@@ -35,7 +35,7 @@ async function alvo(tipo: Tipo, id: string): Promise<{ codigo: string; nome: str
 
 /** Quantos cliques e downloads seriam apagados (para mostrar antes). */
 export async function contarRastreio(tipo: Tipo, id: string): Promise<{ cliques: number; downloads: number } | null> {
-  requireRole('admin');
+  await requireRole('admin');
   const a = await alvo(tipo, id);
   if (!a) return null;
   const sb = painelDb();
@@ -52,7 +52,7 @@ export async function contarRastreio(tipo: Tipo, id: string): Promise<{ cliques:
 }
 
 export async function limparRastreio(_prev: LimparState, fd: FormData): Promise<LimparState> {
-  const session = requireRole('admin');
+  const session = await requireRole('admin');
   const tipo = String(fd.get('tipo') ?? '') as Tipo;
   const id = String(fd.get('id') ?? '');
   if ((tipo !== 'consultora' && tipo !== 'parceiro') || !/^[0-9a-f-]{36}$/i.test(id)) return { error: 'Pedido inválido.' };
@@ -86,7 +86,7 @@ export async function limparRastreio(_prev: LimparState, fd: FormData): Promise<
     return { error: `Apaguei ${d.count ?? 0} download(s), mas não consegui apagar os cliques agora.` };
   }
 
-  revalidateTag(CONSULTORAS_TAG);
+  updateTag(CONSULTORAS_TAG);
   revalidatePath('/admin', 'layout');
   return { ok: `Pronto: ${c.count ?? 0} clique(s) e ${d.count ?? 0} download(s) de ${a.codigo} apagados. As contas e comissões não mudaram.` };
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { ensinar, rascunhar, responder, type RespostaState } from '@/app/admin/(painel)/atendimento/actions';
 import type { RascunhoNina } from '@/lib/atendimento';
 
@@ -32,7 +33,7 @@ function Enviar({ rotulo, enviando }: { rotulo: string; enviando: string }) {
  *  `rascunho`: texto já escrito pela equipe (ex.: Fernanda/Claude); entra
  *  como instrução para a Nina. */
 export function ResponderForm({ pendenciaId, rascunho }: { pendenciaId: string; resumo?: string; rascunho?: string | null }) {
-  const [state, action] = useFormState<RespostaState, FormData>(responder, {});
+  const [state, action] = useActionState<RespostaState, FormData>(responder, {});
   const [instrucao, setInstrucao] = useState(rascunho ?? '');
   const [draft, setDraft] = useState<RascunhoNina | null>(null);
   const [erroRascunho, setErroRascunho] = useState<string | null>(null);
@@ -126,7 +127,7 @@ export function ResponderForm({ pendenciaId, rascunho }: { pendenciaId: string; 
 
 /** Ensinar sem esperar alguém perguntar (ex.: uma mudança de preço). */
 export function EnsinarForm() {
-  const [state, action] = useFormState<RespostaState, FormData>(ensinar, {});
+  const [state, action] = useActionState<RespostaState, FormData>(ensinar, {});
   return (
     <form action={action} className="flex flex-col gap-3" key={state.ok ? 'ok' : 'novo'}>
       {state.error && <div className="rounded-2xl bg-red-50 p-3 text-sm text-red-600">{state.error}</div>}

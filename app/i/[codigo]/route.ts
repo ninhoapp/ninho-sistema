@@ -91,7 +91,8 @@ async function donaDoCodigo(codigo: string): Promise<string | null> {
   return (data as { profile_id: string } | null)?.profile_id ?? null;
 }
 
-export async function GET(req: NextRequest, { params }: { params: { codigo: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ codigo: string }> }) {
+  const params = await props.params;
   const ua = req.headers.get('user-agent') || '';
   let codigo = '';
   try {

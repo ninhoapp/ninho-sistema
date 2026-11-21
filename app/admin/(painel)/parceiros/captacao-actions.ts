@@ -57,7 +57,7 @@ function aviso(msg?: string): string {
  * já escreve o comentário no histórico.
  */
 export async function registrarContato(_prev: CaptacaoState, fd: FormData): Promise<CaptacaoState> {
-  requireRole('admin');
+  await requireRole('admin');
   const arroba = normalizarArroba(String(fd.get('arroba') ?? ''));
   if (!arroba) return { error: 'Escreva o @ do Instagram (ex.: @maria.sono).' };
 
@@ -103,7 +103,7 @@ export async function registrarContato(_prev: CaptacaoState, fd: FormData): Prom
 
 /** Sobe (ou troca) o vídeo da abordagem, para ele ver e baixar na própria aba. */
 export async function subirVideoCaptacao(_prev: CaptacaoState, fd: FormData): Promise<CaptacaoState> {
-  requireRole('admin');
+  await requireRole('admin');
   const arquivo = fd.get('arquivo');
   if (!(arquivo instanceof File)) return { error: 'Escolha o arquivo do vídeo.' };
   const erro = await subirVideo(arquivo);
@@ -117,7 +117,7 @@ export async function subirVideoCaptacao(_prev: CaptacaoState, fd: FormData): Pr
  * vírgula/espaço) e vira uma linha por pessoa. @ repetido não duplica.
  */
 export async function adicionarContatos(_prev: CaptacaoState, fd: FormData): Promise<CaptacaoState> {
-  requireRole('admin');
+  await requireRole('admin');
   const bruto = String(fd.get('lista') ?? '');
   const { arrobas, recusados } = arrobasDaLista(bruto);
   if (!arrobas.length) {
@@ -171,7 +171,7 @@ export async function adicionarContatos(_prev: CaptacaoState, fd: FormData): Pro
  * não ganha outro.
  */
 export async function importarConvites(_prev: CaptacaoState, fd: FormData): Promise<CaptacaoState> {
-  requireRole('admin');
+  await requireRole('admin');
   // Dois caminhos: o arquivo que o botão "Exportar para o painel" da página de
   // convites baixa (o normal) ou o texto colado do console (o antigo).
   const arquivo = fd.get('arquivo');
@@ -246,7 +246,7 @@ export async function importarConvites(_prev: CaptacaoState, fd: FormData): Prom
 
 /** Etapa, data do próximo contato e os dados públicos da ficha. */
 export async function salvarContato(_prev: CaptacaoState, fd: FormData): Promise<CaptacaoState> {
-  requireRole('admin');
+  await requireRole('admin');
   const id = String(fd.get('id') ?? '');
   if (!id) return { error: 'Contato não encontrado.' };
 
@@ -279,7 +279,7 @@ export async function salvarContato(_prev: CaptacaoState, fd: FormData): Promise
  * quebra, pode mudar a etapa e marcar o dia de voltar a falar.
  */
 export async function comentar(_prev: CaptacaoState, fd: FormData): Promise<CaptacaoState> {
-  requireRole('admin');
+  await requireRole('admin');
   const id = String(fd.get('id') ?? '');
   const txt = texto(fd, 'texto', 1000);
   if (!id) return { error: 'Contato não encontrado.' };
@@ -309,7 +309,7 @@ export async function comentar(_prev: CaptacaoState, fd: FormData): Promise<Capt
 
 /** Tira da lista (arquiva) ou devolve para a lista. O histórico fica. */
 export async function arquivarContato(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const id = String(fd.get('id') ?? '');
   if (!id) return;
   const arquivar = String(fd.get('arquivar') ?? '1') === '1';

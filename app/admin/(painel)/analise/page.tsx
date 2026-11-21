@@ -125,7 +125,7 @@ function CardCampanha({ c, emailRastreado }: { c: CampanhaResumo; emailRastreado
 }
 
 export default async function AnalisePage() {
-  requireRole('admin');
+  await requireRole('admin');
   const [a, users] = await Promise.all([montarAnalise(), fetchAppUsers()]);
   const conversao = taxaConversaoNascidos(users);
 

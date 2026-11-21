@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { enviarPedidoSite, type PedidoState } from '@/app/landing/sejaconsultor/actions';
 import { TelefonePais } from '@/components/TelefonePais';
 import { COMO_SOUBE_OPCOES } from '@/lib/consultoras-regras';
@@ -17,7 +18,7 @@ function Enviar({ pronto }: { pronto: boolean }) {
 
 /** Formulário "Quero ser consultora" (aceites do Darck, versão site-2026-11-06). */
 export function FormSejaConsultora({ abertoEm }: { abertoEm: number }) {
-  const [state, action] = useFormState<PedidoState, FormData>(enviarPedidoSite, {});
+  const [state, action] = useActionState<PedidoState, FormData>(enviarPedidoSite, {});
   const [ok1, setOk1] = useState(false);
   const [ok2, setOk2] = useState(false);
   const avisado = useRef<string | null>(null);

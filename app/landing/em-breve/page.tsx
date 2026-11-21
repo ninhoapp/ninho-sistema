@@ -14,11 +14,8 @@ export const metadata: Metadata = {
  * Assim que STORE_IOS_URL / STORE_ANDROID_URL forem preenchidas, os botões
  * passam a ir direto para a loja e esta página deixa de ser alcançada.
  */
-export default function EmBrevePage({
-  searchParams,
-}: {
-  searchParams: { de?: string };
-}) {
+export default async function EmBrevePage(props: { searchParams: Promise<{ de?: string }> }) {
+  const searchParams = await props.searchParams;
   const loja = searchParams.de === 'android' ? 'Google Play' : 'App Store';
 
   return (

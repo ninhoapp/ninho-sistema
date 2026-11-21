@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { fetchAlertaAtendimento, fetchAlertaResgate, NOME_MOTIVO } from '@/lib/atendimento';
 import { denunciasDeOrientacao } from '@/lib/consultoras';
+import { lembretesVencidos, type Lembrete } from '@/lib/lembretes';
+import { concluirLembrete } from '@/app/admin/(painel)/lembrete-actions';
 
 /**
  * Faixa vermelha no topo de TODAS as páginas do painel enquanto houver
@@ -11,9 +13,57 @@ import { denunciasDeOrientacao } from '@/lib/consultoras';
 export async function AlertaAtendimento() {
   return (
     <>
+      <FaixaLembretes />
       <FaixaDenuncia />
       <FaixaPendencias />
       <FaixaResgate />
+    </>
+  );
+}
+
+/**
+ * Lembretes do dono (00195, pedido de 21/11/2026): a partir da data marcada,
+ * uma faixa vermelha por lembrete, com o nome da sessão do Claude que tem o
+ * contexto. Fica até o dono tocar em "Já fiz a verificação".
+ */
+async function FaixaLembretes() {
+  let lista: Lembrete[];
+  try {
+    lista = await lembretesVencidos();
+  } catch {
+    return null;
+  }
+  if (lista.length === 0) return null;
+  return (
+    <>
+      {lista.map((l) => (
+        <div
+          key={l.id}
+          className="mb-4 flex flex-col gap-3 rounded-2xl border border-red-300 bg-red-600 px-4 py-3 text-sm text-white shadow-sm sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex items-start gap-2">
+            <span className="relative mt-1 flex h-3 w-3 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-white" />
+            </span>
+            <div className="min-w-0">
+              <p className="font-semibold">{l.titulo}</p>
+              {l.sessao && (
+                <p className="mt-0.5">
+                  Sessão: <span className="font-semibold">{l.sessao}</span>
+                </p>
+              )}
+              {l.detalhe && <p className="mt-0.5 text-red-50">{l.detalhe}</p>}
+            </div>
+          </div>
+          <form action={concluirLembrete} className="shrink-0">
+            <input type="hidden" name="id" value={l.id} />
+            <button className="rounded-pill bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50">
+              Já fiz a verificação
+            </button>
+          </form>
+        </div>
+      ))}
     </>
   );
 }

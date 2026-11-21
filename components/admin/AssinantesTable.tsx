@@ -115,7 +115,7 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
   }, [rows, mes]);
 
   const filtradas = useMemo(() => {
-    let r = applyColumnFilters([...rows], colFilters, colValue);
+    const r = applyColumnFilters([...rows], colFilters, colValue);
 
     const ordem: SortState<Col> = sort ?? { key: 'assinou', dir: 'desc' };
     r.sort((a, b) => {

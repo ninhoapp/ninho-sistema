@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { contarRastreio, limparRastreio, type LimparState } from '@/app/admin/(painel)/limpar-rastreio-actions';
 
 function Confirmar() {
@@ -21,7 +22,7 @@ export function LimparRastreio({ tipo, id, codigo }: { tipo: 'consultora' | 'par
   const [aberto, setAberto] = useState(false);
   const [contagem, setContagem] = useState<{ cliques: number; downloads: number } | null | 'carregando'>('carregando');
   const [campo] = useState(() => `k${Math.random().toString(36).slice(2, 12)}`);
-  const [state, action] = useFormState<LimparState, FormData>(limparRastreio, {});
+  const [state, action] = useActionState<LimparState, FormData>(limparRastreio, {});
 
   const abrir = () => {
     setAberto(true);

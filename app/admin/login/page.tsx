@@ -11,8 +11,9 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function AdminLoginPage({ searchParams }: { searchParams: { porta?: string } }) {
-  const session = getSession();
+export default async function AdminLoginPage(props: { searchParams: Promise<{ porta?: string }> }) {
+  const searchParams = await props.searchParams;
+  const session = await getSession();
   if (session) redirect(homeForRole(session.role));
 
   return (

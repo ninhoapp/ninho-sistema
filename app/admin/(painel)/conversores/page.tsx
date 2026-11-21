@@ -14,7 +14,7 @@ import { IconUsers, IconCrown, IconCash } from '@/components/admin/icons';
 export const dynamic = 'force-dynamic';
 
 export default async function ConversoresPage() {
-  requireRole('admin');
+  await requireRole('admin');
   const [perfis, users, outcomes] = await Promise.all([
     listPerfis(),
     fetchAppUsers(),

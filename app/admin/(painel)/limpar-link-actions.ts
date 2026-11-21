@@ -23,7 +23,7 @@ export interface LimparState {
 const UUID = /^[0-9a-f-]{36}$/i;
 
 export async function limparDadosDoLink(_prev: LimparState, fd: FormData): Promise<LimparState> {
-  const session = requireRole('admin');
+  const session = await requireRole('admin');
   const tipo = String(fd.get('tipo') || '');
   const id = String(fd.get('id') || '');
   const campo = String(fd.get('campo') || '');

@@ -23,7 +23,7 @@ export interface RespostaState {
 const CAMINHO = '/admin/atendimento';
 
 export async function responder(_prev: RespostaState, fd: FormData): Promise<RespostaState> {
-  requireRole('admin');
+  await requireRole('admin');
   const pendencia_id = String(fd.get('pendencia_id') ?? '');
   const resposta = String(fd.get('resposta') ?? '').trim();
   const ensinar = fd.get('ensinar') === 'on';
@@ -48,7 +48,7 @@ export async function responder(_prev: RespostaState, fd: FormData): Promise<Res
 /** Pedido do dono (11/11/2026): o que ele escreve é instrução para a Nina,
  *  não a mensagem. Ela devolve o rascunho; nada sai até ele clicar em enviar. */
 export async function rascunhar(pendencia_id: string, instrucao: string): Promise<RascunhoNina | { error: string }> {
-  requireRole('admin');
+  await requireRole('admin');
   if (!pendencia_id || instrucao.trim().length < 2) return { error: 'Escreva o que a Nina deve responder.' };
   try {
     return await rascunharPendencia(pendencia_id, instrucao.trim());
@@ -58,13 +58,13 @@ export async function rascunhar(pendencia_id: string, instrucao: string): Promis
 }
 
 export async function descartar(fd: FormData): Promise<void> {
-  requireRole('admin');
+  await requireRole('admin');
   await descartarPendencia(String(fd.get('id') ?? ''));
   revalidatePath(CAMINHO);
 }
 
 export async function ensinar(_prev: RespostaState, fd: FormData): Promise<RespostaState> {
-  requireRole('admin');
+  await requireRole('admin');
   const pergunta = String(fd.get('pergunta') ?? '').trim();
   const resposta = String(fd.get('resposta') ?? '').trim();
   if (pergunta.length < 3 || resposta.length < 3) return { error: 'Preencha a pergunta e a resposta.' };
@@ -78,20 +78,20 @@ export async function ensinar(_prev: RespostaState, fd: FormData): Promise<Respo
 }
 
 export async function alternar(fd: FormData): Promise<void> {
-  requireRole('admin');
+  await requireRole('admin');
   await alternarAprendizado(String(fd.get('id') ?? ''), fd.get('ativo') === 'true');
   revalidatePath(CAMINHO);
 }
 
 export async function excluir(fd: FormData): Promise<void> {
-  requireRole('admin');
+  await requireRole('admin');
   await excluirAprendizado(String(fd.get('id') ?? ''));
   revalidatePath(CAMINHO);
 }
 
 /** Resgate: tira o motivo do alerta do topo (sem id = todos). */
 export async function marcarVisto(fd: FormData): Promise<void> {
-  requireRole('admin');
+  await requireRole('admin');
   const id = String(fd.get('id') ?? '');
   await marcarResgateVisto(id || null);
   revalidatePath(CAMINHO);
@@ -100,7 +100,7 @@ export async function marcarVisto(fd: FormData): Promise<void> {
 
 /** Resgate: marca para investigar (ou tira) e guarda a nota do dono. */
 export async function investigar(fd: FormData): Promise<void> {
-  requireRole('admin');
+  await requireRole('admin');
   const id = String(fd.get('id') ?? '');
   if (!id) return;
   await salvarInvestigacao(id, fd.get('investigar') === 'true', String(fd.get('nota') ?? ''));

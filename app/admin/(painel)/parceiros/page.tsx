@@ -46,8 +46,9 @@ const ABAS: [string, string][] = [
  * parceiro", onde o dono gerencia quem ele aborda no Instagram para virar
  * consultora de sono.
  */
-export default async function ParceirosPage({ searchParams }: { searchParams: { aba?: string } }) {
-  requireRole('admin');
+export default async function ParceirosPage(props: { searchParams: Promise<{ aba?: string }> }) {
+  const searchParams = await props.searchParams;
+  await requireRole('admin');
   const aba = ABAS.some(([k]) => k === searchParams.aba) ? searchParams.aba! : 'parceiros';
 
   if (aba === 'captacao') {

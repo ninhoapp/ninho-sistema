@@ -6,8 +6,8 @@ import { GuiaParceiroConteudo } from '@/components/parceiros/GuiaParceiroConteud
 // A permissão de menu é ligada em outro lugar. A versão pública, para quem
 // ainda está conhecendo a parceria, é /sejaparceiro/guia (mesmo conteúdo).
 
-export default function GuiaParceiroPage() {
-  requireSession();
+export default async function GuiaParceiroPage() {
+  await requireSession();
 
   return (
     <>

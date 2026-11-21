@@ -41,7 +41,7 @@ function num(v: FormDataEntryValue | null, padrao: number): number {
 }
 
 export async function aprovarPedidoParceiro(_prev: AprovarState, fd: FormData): Promise<AprovarState> {
-  requireRole('admin');
+  await requireRole('admin');
   const id = String(fd.get('id') || '');
   const pedido = await pedidoParceiro(id);
   if (!pedido || pedido.status !== 'pendente') return { error: 'Esse pedido já foi decidido.' };
@@ -79,7 +79,7 @@ export async function aprovarPedidoParceiro(_prev: AprovarState, fd: FormData): 
 }
 
 export async function recusarPedidoParceiro(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const id = String(fd.get('id') || '');
   if (id) await decidirPedidoParceiro(id, 'recusado');
   revalidatePath('/admin/parceiros');

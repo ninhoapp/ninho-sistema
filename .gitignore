@@ -39,3 +39,6 @@ yarn-error.log*
 
 # skills vivem no Ninho-expo (atalho de pasta)
 .claude/skills
+
+# configuração local do Claude (pode ter caminho e token da máquina)
+.claude/settings.local.json

@@ -9,7 +9,7 @@
  * Cada ação volta para a mesma tela com ?ok= ou ?erro= (sem estado no cliente).
  */
 import { redirect } from 'next/navigation';
-import { revalidatePath, revalidateTag } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { requireRole } from '@/lib/auth/guard';
 import { marcarSugestao, type StatusSugestao } from '@/lib/consultoras-sugestoes';
 import { verifyPassword } from '@/lib/auth/password';
@@ -44,7 +44,7 @@ const BASE = '/admin/consultor';
 function volta(params: Record<string, string | null | undefined>, destino: string = BASE): never {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v) q.set(k, v);
-  revalidateTag(CONSULTORAS_TAG);
+  updateTag(CONSULTORAS_TAG);
   revalidatePath(BASE);
   // Repasses (Financeiro) mostra as mesmas comissões: limpa as duas telas.
   revalidatePath('/admin/repasses');
@@ -63,7 +63,7 @@ export interface ExcluirState {
  * Pausar. Pede a senha de login do admin, conferida no servidor.
  */
 export async function excluirConsultora(_prev: ExcluirState, fd: FormData): Promise<ExcluirState> {
-  const session = requireRole('admin');
+  const session = await requireRole('admin');
   const id = txt(fd, 'id');
   // O campo da senha tem nome aleatório (o navegador não preenche sozinho).
   const campo = txt(fd, 'campo');
@@ -146,7 +146,7 @@ async function codigoLivre(desejado: string): Promise<string | null> {
 
 // ── Liberar (cadastrar) ───────────────────────────────────
 export async function liberarConsultora(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const nome = txt(fd, 'nome');
   const email = normalizarEmail(txt(fd, 'email'));
   const igBruto = txt(fd, 'instagram');
@@ -192,7 +192,7 @@ export async function liberarConsultora(fd: FormData) {
 
 // ── Estado ────────────────────────────────────────────────
 export async function pausarConsultora(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const id = txt(fd, 'id');
   const { error } = await appDb()
     .from('consultoras')
@@ -203,7 +203,7 @@ export async function pausarConsultora(fd: FormData) {
 }
 
 export async function reativarConsultora(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const c = await getConsultora(txt(fd, 'id'));
   if (!c) volta({ aba: 'consultoras', erro: 'Consultora não encontrada.' });
   const { error } = await appDb()
@@ -215,7 +215,7 @@ export async function reativarConsultora(fd: FormData) {
 }
 
 export async function alternarLista(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const c = await getConsultora(txt(fd, 'id'));
   const ret = txt(fd, 'aba') || 'consultoras';
   if (!c) volta({ aba: ret, erro: 'Consultora não encontrada.' });
@@ -254,7 +254,7 @@ export async function alternarLista(fd: FormData) {
  * assinantes, depois mais famílias vinculadas. Migration 00170.
  */
 export async function alternarFixaNoTopo(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const c = await getConsultora(txt(fd, 'id'));
   if (!c) volta({ aba: 'consultoras', erro: 'Consultora não encontrada.' });
   const fixar = !c.fixa_no_topo;
@@ -274,7 +274,7 @@ export async function alternarFixaNoTopo(fd: FormData) {
 
 // ── Perfil público: texto e foto ──────────────────────────
 export async function decidirBio(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const c = await getConsultora(txt(fd, 'id'));
   const ret = txt(fd, 'aba') || 'pedidos';
   if (!c || !c.bio_pendente) volta({ aba: ret, erro: 'Não há texto novo para decidir.' });
@@ -292,7 +292,7 @@ export async function decidirBio(fd: FormData) {
 }
 
 export async function decidirFoto(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const c = await getConsultora(txt(fd, 'id'));
   const ret = txt(fd, 'aba') || 'pedidos';
   if (!c || !c.foto_pendente_url) volta({ aba: ret, erro: 'Não há foto nova para decidir.' });
@@ -314,7 +314,7 @@ export async function decidirFoto(fd: FormData) {
 
 /** O dono sobe a foto da consultora: vale na hora (é ele aprovando). */
 export async function subirFotoDono(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const id = txt(fd, 'id');
   const c = await getConsultora(id);
   if (!c) volta({ aba: 'consultoras', erro: 'Consultora não encontrada.' });
@@ -333,7 +333,7 @@ export async function subirFotoDono(fd: FormData) {
 
 // ── Ligar a uma conta existente (ex.: e-mail oculto da Apple) ──
 export async function ligarConta(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const id = txt(fd, 'id');
   const alvo = txt(fd, 'conta');
   const c = await getConsultora(id);
@@ -366,7 +366,7 @@ export async function ligarConta(fd: FormData) {
 }
 
 export async function trocarIndicadaPor(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const id = txt(fd, 'id');
   const nova = txt(fd, 'indicada_por') || null;
   if (nova === id) volta({ aba: 'consultoras', id, erro: 'Ela não pode ter sido indicada por ela mesma.' });
@@ -382,7 +382,7 @@ export async function trocarIndicadaPor(fd: FormData) {
 
 // ── Pedidos ───────────────────────────────────────────────
 export async function decidirPedido(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const id = txt(fd, 'id');
   const aprovar = txt(fd, 'decisao') === 'aprovar';
   const { data } = await appDb().from('consultora_pedidos').select('*').eq('id', id).eq('status', 'pendente').maybeSingle();
@@ -433,7 +433,7 @@ export async function decidirPedido(fd: FormData) {
 
 // ── Pagamento (Pix) ───────────────────────────────────────
 export async function marcarPago(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const id = txt(fd, 'id');
   const competencia = txt(fd, 'competencia');
   // De onde veio: Consultoras › Comissões ou Financeiro › Repasses (a mesma tabela).
@@ -458,7 +458,7 @@ export async function marcarPago(fd: FormData) {
  * faixa vermelha do topo some. "Voltar para aberta" desfaz.
  */
 export async function marcarDenunciaDono(fd: FormData) {
-  const s = requireRole('admin');
+  const s = await requireRole('admin');
   const id = txt(fd, 'id');
   if (!/^[0-9a-f-]{36}$/i.test(id)) volta({ aba: 'denuncias', erro: 'Denúncia não encontrada.' });
   // denuncia_vista_por é uuid; o id do perfil do painel é uuid, mas se um dia
@@ -473,7 +473,7 @@ export async function marcarDenunciaDono(fd: FormData) {
 }
 
 export async function marcarSugestaoDono(fd: FormData) {
-  requireRole('admin');
+  await requireRole('admin');
   const id = txt(fd, 'id');
   const status = txt(fd, 'status');
   if (!/^[0-9a-f-]{36}$/i.test(id) || !['nova', 'lida', 'feita'].includes(status)) volta({ aba: 'sugestoes', erro: 'Sugestão não encontrada.' });

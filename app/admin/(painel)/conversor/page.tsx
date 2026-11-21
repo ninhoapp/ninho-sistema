@@ -20,7 +20,7 @@ import { IconCash, IconClock, IconCrown, IconUsers } from '@/components/admin/ic
 export const dynamic = 'force-dynamic';
 
 export default async function ConversorPage() {
-  const session = requireRole('conversor');
+  const session = await requireRole('conversor');
   // Tudo em paralelo: nada aqui depende do perfil além do filtro por id, e a
   // sessão já traz esse id.
   const [perfil, users, outcomes] = await Promise.all([
