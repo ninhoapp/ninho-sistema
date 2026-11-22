@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/auth/guard';
 import { listCosts, listPerfis, listOutcomes } from '@/lib/painel/store';
 import { fetchAppUsersAoVivo } from '@/lib/app-users';
+import { fetchGrupoTestePorUsuario } from '@/lib/teste-paywall';
 import {
   buildOverview,
   buildPnL,
@@ -55,11 +56,12 @@ export default async function FaturamentoPage(props: { searchParams: Promise<{ m
   await requireRole('admin');
   const mes = mesValido(searchParams.mes);
 
-  const [users, custos, perfis, outcomes] = await Promise.all([
+  const [users, custos, perfis, outcomes, grupoTeste] = await Promise.all([
     fetchAppUsersAoVivo(),
     listCosts(),
     listPerfis(),
     listOutcomes(),
+    fetchGrupoTestePorUsuario(),
   ]);
 
   const m = buildOverview(users);
@@ -379,7 +381,16 @@ export default async function FaturamentoPage(props: { searchParams: Promise<{ m
         <DivergingBarChart bars={seisMeses} />
       </div>
 
-      <AssinantesTable rows={pagantes} mes={mes} />
+      <AssinantesTable
+        rows={pagantes}
+        mes={mes}
+        grupos={Object.fromEntries(
+          pagantes.flatMap((u) => {
+            const g = grupoTeste.get(u.id);
+            return g ? [[u.id, g]] : [];
+          }),
+        )}
+      />
     </>
   );
 }

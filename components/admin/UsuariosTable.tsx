@@ -19,6 +19,7 @@ import { ThSort, nextSort, type SortDir } from '@/components/admin/ThSort';
 import { ORIGENS, ORIGEM_LABEL, ORIGEM_COR, type Origem } from '@/lib/origem';
 import { PAISES, type Pais } from '@/lib/pais';
 import type { GrupoTeste } from '@/lib/teste-paywall';
+import { TESTE_STYLE } from '@/components/admin/GrupoTesteEstilo';
 import { ExportExcelButton } from '@/components/admin/ExportExcelButton';
 import { CopyAll } from '@/components/admin/CopyAll';
 import { VerticalBarChart } from '@/components/admin/VerticalBarChart';
@@ -274,13 +275,6 @@ function usoClass(r: UsuarioRow): string {
 //
 // O que resta por pessoa: Apple Ads (provado) > o que ela respondeu no
 // cadastro > sem informação.
-
-// Mesmas cores dos grupos na página Teste de paywall.
-const TESTE_STYLE: Record<GrupoTeste['grupo'], string> = {
-  A: 'bg-[#EFEAFB] text-[#6B52B8]',
-  B: 'bg-[#FEF1DE] text-[#9A5B1E]',
-  C: 'bg-[#E3F0FC] text-[#2D6FB0]',
-};
 
 function testeTooltip(t: GrupoTeste): string {
   if (!t.sorteado) {

@@ -17,13 +17,16 @@ import {
 } from '@/lib/metrics';
 import { liquido, TAXA_LOJA } from '@/lib/precos';
 import { ORIGEM_COR, ORIGEM_LABEL } from '@/lib/origem';
+import type { GrupoTeste } from '@/lib/teste-paywall';
+import { TESTE_STYLE } from '@/components/admin/GrupoTesteEstilo';
 
 // Toda coluna ordena e filtra — mesma regra da tela de Usuários ativos.
-type Col = 'nome' | 'email' | 'plano' | 'origem' | 'cobrado' | 'entrou' | 'assinou' | 'renova' | 'cadastro';
+type Col = 'nome' | 'grupo' | 'email' | 'plano' | 'origem' | 'cobrado' | 'entrou' | 'assinou' | 'renova' | 'cadastro';
 
 const CABECALHOS: [Col, string][] = [
   ['nome', 'Nome'],
   ['assinou', 'Assinou em'],
+  ['grupo', 'Grupo'],
   ['plano', 'Plano'],
   ['origem', 'Origem'],
   ['cobrado', 'Valor cobrado'],
@@ -36,11 +39,20 @@ const CABECALHOS: [Col, string][] = [
 const COLUNAS: Col[] = CABECALHOS.map(([c]) => c);
 
 /** Largura inicial de cada coluna, na ordem de CABECALHOS (dá para arrastar). */
-const LARGURAS = [170, 100, 130, 185, 120, 140, 100, 100, 210];
+const LARGURAS = [170, 100, 90, 130, 185, 120, 140, 100, 100, 210];
 
 /** Colunas cujo filtro ordena por número, não por texto — senão "R$ 9,90"
  *  viria depois de "R$ 129,90" na lista. */
 const COLUNAS_NUMERICAS: Set<Col> = new Set(['cobrado', 'entrou']);
+
+/** Dica do selo. Aqui a cor é sempre a do grupo, com ou sem sorteio: desde
+ *  14/11/2026 (00151) todo iPhone novo entra no C sem sorteio, e o dono quer
+ *  ver de qual grupo veio cada conversão. */
+function grupoDica(t: GrupoTeste | undefined): string {
+  if (!t) return 'Sem grupo: não passou pelo teste de paywall';
+  if (t.liberadoEm) return 'B: caiu no B, ficou sem cartão e ganhou os 7 dias do app';
+  return t.sorteado ? `${t.grupo}: caiu neste grupo no sorteio` : `${t.grupo}: entrou neste grupo sem sorteio`;
+}
 
 /**
  * Quem está pagando hoje.
@@ -53,7 +65,16 @@ const COLUNAS_NUMERICAS: Set<Col> = new Set(['cobrado', 'entrou']);
  *                        cheio da cobrança menos a taxa da loja, e R$ 0,00 nos
  *                        meses sem cobrança. É esta coluna que soma no caixa.
  */
-export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string }) {
+export function AssinantesTable({
+  rows,
+  mes,
+  grupos,
+}: {
+  rows: AppUser[];
+  mes: string;
+  /** Grupo do teste de paywall por conta; quem não está aqui não tem grupo. */
+  grupos: Record<string, GrupoTeste>;
+}) {
   const { larguras, iniciarArraste } = useLargurasColunas(LARGURAS);
   // Pedido do dono (19/11/2026): a tela abre sempre com quem assinou mais
   // recente em cima. Sem ordenação escolhida, volta a esta, não à da consulta.
@@ -70,6 +91,7 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
   function colValue(u: AppUser, col: Col): string {
     switch (col) {
       case 'nome':     return u.name || '—';
+      case 'grupo':    return grupos[u.id]?.grupo ?? '—';
       case 'email':    return u.email || '—';
       case 'plano':    return planoLabel(u);
       case 'origem':   return ORIGEM_LABEL[u.origem];
@@ -86,6 +108,7 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
   function sortValue(u: AppUser, col: Col): number | string {
     switch (col) {
       case 'nome':     return (u.name ?? '').toLowerCase();
+      case 'grupo':    return grupos[u.id]?.grupo ?? 'Z';
       case 'email':    return (u.email ?? '').toLowerCase();
       case 'plano':    return planoLabel(u);
       case 'origem':   return ORIGEM_LABEL[u.origem];
@@ -112,7 +135,7 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, mes]);
+  }, [rows, mes, grupos]);
 
   const filtradas = useMemo(() => {
     const r = applyColumnFilters([...rows], colFilters, colValue);
@@ -129,7 +152,7 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
     });
     return r;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, colFilters, sort, mes]);
+  }, [rows, colFilters, sort, mes, grupos]);
 
   const totalLiquido = filtradas.reduce((s, u) => s + entrouLiquido(u), 0);
   const totalBruto = filtradas.reduce((s, u) => s + receitaNoMes(u, mes), 0);
@@ -137,6 +160,7 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
   const paraExcel = filtradas.map((u) => ({
     Nome: u.name || '',
     'Assinou em': u.assinouEm ? new Date(u.assinouEm).toLocaleDateString('pt-BR') : '',
+    Grupo: grupos[u.id]?.grupo ?? '',
     Plano: planoLabel(u),
     Ciclo: cicloDoUsuario(u),
     Origem: ORIGEM_LABEL[u.origem],
@@ -223,6 +247,7 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
                 </tr>
               )}
               {filtradas.map((u) => {
+                const grupo = grupos[u.id];
                 const anual = cicloDoUsuario(u) === 'anual';
                 const caixa = entrouLiquido(u);
                 return (
@@ -230,6 +255,17 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
                     <td className="p-3 font-medium text-ninho-grafite">{u.name || '—'}</td>
                     <td className="whitespace-nowrap p-3 text-ninho-cinza">
                       {formatDate(u.assinouEm)}
+                    </td>
+                    <td className="p-3" title={grupoDica(grupo)}>
+                      {grupo ? (
+                        <span
+                          className={`inline-block rounded-pill px-2 py-0.5 text-xs font-semibold ${TESTE_STYLE[grupo.grupo]}`}
+                        >
+                          {grupo.grupo}
+                        </span>
+                      ) : (
+                        <span className="text-ninho-cinza">—</span>
+                      )}
                     </td>
                     <td className="p-3">
                       <span
@@ -286,7 +322,7 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-ninho-borda bg-ninho-nuvem">
-                <td colSpan={5} className="p-3 text-xs font-semibold uppercase text-ninho-cinza">
+                <td colSpan={6} className="p-3 text-xs font-semibold uppercase text-ninho-cinza">
                   Entrou em {mes}
                 </td>
                 <td colSpan={4} className="p-3 font-bold text-ninho-roxo-escuro">
@@ -307,7 +343,10 @@ export function AssinantesTable({ rows, mes }: { rows: AppUser[]; mes: string })
         os {Math.round(TAXA_LOJA * 100)}% da loja, e R$ 0,00 nos meses sem cobrança.{' '}
         <strong>Assinou em</strong> vem da primeira compra verificada, não da data de cadastro.{' '}
         <strong>Origem</strong>: Apple Ads é confirmado pela Apple (o número é a campanha); o resto é
-        o que a pessoa respondeu no cadastro.
+        o que a pessoa respondeu no cadastro.{' '}
+        <strong>Grupo</strong>: o grupo do teste de paywall em que a pessoa está, com ou sem sorteio
+        (passe o mouse para ver qual foi o caso; quem caiu no B e foi liberado sem cartão continua
+        como B). "—" = não passou pelo teste.
       </p>
     </>
   );
