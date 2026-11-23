@@ -10,6 +10,7 @@ import {
   IconeSeta,
   IconeSino,
 } from '@/components/consultoras/IconesApp';
+import { COMISSAO_VISIVEL } from '@/lib/consultoras-regras';
 
 /**
  * Moldura de iPhone e peças do app para desenhar as telas do manual.
@@ -336,7 +337,8 @@ export function BarraDaConsultora({ ativa, aberta = true }: { ativa: 'Rotina' | 
     { label: 'Evolução', icone: (p) => <IconeBarras {...p} /> },
     { label: 'Início', icone: (p) => <IconeCasa {...p} />, centro: true },
     { label: 'Convidar', icone: (p) => <IconePessoaMais {...p} /> },
-    { label: 'Ganhos', icone: (p) => <IconeDinheiro {...p} /> },
+    // Com a comissão escondida, o manual também não desenha a aba Ganhos.
+    ...(COMISSAO_VISIVEL ? [{ label: 'Ganhos', icone: (p: { size?: number; color?: string }) => <IconeDinheiro {...p} /> }] : []),
   ];
   return (
     <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>

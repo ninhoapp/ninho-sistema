@@ -1485,7 +1485,7 @@ async function Convidar({ c, ok, erro }: { c: Consultora; ok?: string; erro?: st
         </form>
         {(ok || erro) && <div className="mt-3"><Retorno ok={ok} erro={erro} /></div>}
       </Card>
-      <Aviso tom="vermelho">Para trazer uma amiga consultora, use Indicar consultora.</Aviso>
+      {COMISSAO_VISIVEL && <Aviso tom="vermelho">Para trazer uma amiga consultora, use Indicar consultora.</Aviso>}
     </>
   );
 }
