@@ -1421,7 +1421,7 @@ function Ajuda({ c }: { c: Consultora }) {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card titulo="Seu código">
           <p className="text-3xl font-black tracking-[0.12em] text-[#24164F]">{c.codigo}</p>
-          <p className="mt-2 text-[12.5px] text-ninho-cinza">A família digita o código em Cuidador ou Consultor › Adicionar › Consultora de sono. O link para convidar fica em Convidar família; {COMISSAO_VISIVEL ? 'o de indicar e ganhar comissão, em Ganhos.' : ''}</p>
+          <p className="mt-2 text-[12.5px] text-ninho-cinza">A família digita o código em Cuidador ou Consultor › Adicionar › Consultora de sono. O link para convidar fica em Convidar família{COMISSAO_VISIVEL ? '; o de indicar e ganhar comissão, em Ganhos.' : '.'}</p>
         </Card>
         <Card titulo="Ajuda">
           <ul className="space-y-2 text-[13.5px] leading-relaxed">
