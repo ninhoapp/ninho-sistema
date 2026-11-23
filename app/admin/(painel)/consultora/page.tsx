@@ -41,6 +41,7 @@ import {
   prazoPix,
   somar,
   valorComissao,
+  COMISSAO_VISIVEL,
   TEXTO_QUEM_GERA_COMISSAO,
   ACEITE_VINCULO_CONSULTORA_TEXTO,
   COMO_SOUBE_OPCOES,
@@ -105,8 +106,10 @@ export default async function ConsultoraPage(props: { searchParams: Promise<Busc
   let corpo: React.ReactNode;
   if (aba === 'rotina' || aba === 'semana') corpo = await Rotina({ c, sp: searchParams, semana: aba === 'semana' });
   else if (aba === 'convidar') corpo = await Convidar({ c, ok: searchParams.ok, erro: searchParams.erro });
-  else if (aba === 'ganhos') corpo = await Ganhos({ c, mes: searchParams.mes });
-  else if (aba === 'indicar') corpo = await Indicar({ c });
+  // Com a comissão escondida, Ganhos e Indicar não abrem nem pelo endereço
+  // direto: o link some do menu, mas o favorito continuaria funcionando.
+  else if (aba === 'ganhos') corpo = COMISSAO_VISIVEL ? await Ganhos({ c, mes: searchParams.mes }) : await Familias({ c, sp: searchParams });
+  else if (aba === 'indicar') corpo = COMISSAO_VISIVEL ? await Indicar({ c }) : await Familias({ c, sp: searchParams });
   else if (aba === 'perfil') corpo = await Perfil({ c });
   else if (aba === 'relatorio') corpo = await RelatorioIA({ c, sp: searchParams });
   else if (aba === 'assinatura') corpo = await AssinaturaIA({ c });
@@ -129,8 +132,8 @@ export default async function ConsultoraPage(props: { searchParams: Promise<Busc
       </div>
       {pausada && (
         <Aviso tom="vermelho">
-          Sua conta de consultora está pausada pelo Ninho. Você não vê a rotina das famílias até ser reativada. A
-          comissão das famílias que já assinam continua.
+          Sua conta de consultora está pausada pelo Ninho. Você não vê a rotina das famílias até ser reativada.
+          {COMISSAO_VISIVEL ? ' A comissão das famílias que já assinam continua.' : ''}
         </Aviso>
       )}
       <div className="mt-4">
@@ -1403,8 +1406,7 @@ async function AssinaturaIA({ c }: { c: Consultora }) {
           </div>
           <Aviso>
             A assinatura é feita <b>pelo app do Ninho</b> (Relatório IA › Assinar), com a App Store ou o Google Play. Ela
-            renova todo mês; cancele quando quiser nos ajustes da loja. A assinatura é separada da sua comissão: uma não
-            desconta da outra.
+            renova todo mês; cancele quando quiser nos ajustes da loja.
           </Aviso>
         </Card>
       </div>
@@ -1419,13 +1421,13 @@ function Ajuda({ c }: { c: Consultora }) {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card titulo="Seu código">
           <p className="text-3xl font-black tracking-[0.12em] text-[#24164F]">{c.codigo}</p>
-          <p className="mt-2 text-[12.5px] text-ninho-cinza">A família digita o código em Cuidador ou Consultor › Adicionar › Consultora de sono. O link para convidar fica em Convidar família; o de indicar e ganhar comissão, em Ganhos.</p>
+          <p className="mt-2 text-[12.5px] text-ninho-cinza">A família digita o código em Cuidador ou Consultor › Adicionar › Consultora de sono. O link para convidar fica em Convidar família; {COMISSAO_VISIVEL ? 'o de indicar e ganhar comissão, em Ganhos.' : ''}</p>
         </Card>
         <Card titulo="Ajuda">
           <ul className="space-y-2 text-[13.5px] leading-relaxed">
             <li><b>Entrar no computador:</b> no app, gere o código de 6 dígitos e use com o seu e-mail em useninho.com.br/admin/login (aba Sou consultora). Ele vale 10 minutos.</li>
             <li><b>Rotina sumiu?</b> A família pode ter tirado o acesso, estar sem plano, ou a sua conta pode estar pausada.</li>
-            <li><b>Comissão:</b> {TEXTO_QUEM_GERA_COMISSAO}</li>
+            {COMISSAO_VISIVEL && <li><b>Comissão:</b> {TEXTO_QUEM_GERA_COMISSAO}</li>}
             <li><b>Falar com o Ninho:</b> pelo botão Ajuda do app ou pelo e-mail suporte@useninho.com.br.</li>
           </ul>
         </Card>
@@ -1470,7 +1472,7 @@ async function Convidar({ c, ok, erro }: { c: Consultora; ok?: string; erro?: st
       <Card titulo="Convidar pelo e-mail da família" className="mt-4">
         <p className="text-[13px] leading-relaxed text-ninho-cinza">
           Para quem já usa o Ninho. Digite o e-mail exato da conta da família: ela recebe o convite no sininho, escolhe o
-          bebê e decide. A rotina só aparece depois que ela aceitar. Convite não gera comissão.
+          bebê e decide. A rotina só aparece depois que ela aceitar.{COMISSAO_VISIVEL ? ' Convite não gera comissão.' : ''}
         </p>
         <form action={convidarFamilia} className="mt-3 max-w-xl">
           <label className={rotuloCampo}>E-mail da família no Ninho</label>
@@ -1670,7 +1672,7 @@ async function Indicar({ c, noPerfil = false }: { c: Consultora; noPerfil?: bool
 // ── Meu perfil ────────────────────────────────────────────
 async function Perfil({ c }: { c: Consultora }) {
   const naLista = c.na_lista && c.estado === 'ativa' && !!c.perfil_aprovado_em;
-  const exemplo = valorComissao(PRECOS.premium.mensal, PCT_DIRETO);
+  const exemplo = COMISSAO_VISIVEL ? valorComissao(PRECOS.premium.mensal, PCT_DIRETO) : 0;
   return (
     <>
       <Titulo
@@ -1699,16 +1701,20 @@ async function Perfil({ c }: { c: Consultora }) {
               <label className="flex items-center gap-2"><input type="checkbox" name="atende_online" defaultChecked={c.atende_online} /> Online</label>
               <label className="flex items-center gap-2"><input type="checkbox" name="atende_presencial" defaultChecked={c.atende_presencial} /> Presencial</label>
             </div>
-            <p className="mt-4 text-[11px] font-extrabold tracking-[0.09em] text-[#9A95AD]">PARA RECEBER (SÓ O NINHO VÊ)</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div><label className={rotuloCampo}>CPF</label><input name="cpf" inputMode="numeric" placeholder={c.cpf ? 'trocar o CPF' : 'só números'} className={campo} /></div>
-              <div><label className={rotuloCampo}>Chave Pix</label><input name="pix" placeholder={c.pix_chave ? 'trocar a chave' : ''} className={campo} /></div>
-            </div>
-            <p className="mt-1 text-[11.5px] text-ninho-cinza">
-              {c.cpf ? `CPF salvo: •••.•••.•${c.cpf.slice(-4, -2)}-${c.cpf.slice(-2)}` : 'CPF ainda não cadastrado'} ·{' '}
-              {c.pix_chave ? `Pix salvo: ${c.pix_chave.length > 6 ? `${c.pix_chave.slice(0, 3)}•••${c.pix_chave.slice(-3)}` : '•••'}` : 'Pix ainda não cadastrado'}.
-              Por segurança, os campos ficam vazios: deixe vazio para manter.
-            </p>
+            {COMISSAO_VISIVEL && (
+              <>
+              <p className="mt-4 text-[11px] font-extrabold tracking-[0.09em] text-[#9A95AD]">PARA RECEBER (SÓ O NINHO VÊ)</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className={rotuloCampo}>CPF</label><input name="cpf" inputMode="numeric" placeholder={c.cpf ? 'trocar o CPF' : 'só números'} className={campo} /></div>
+                <div><label className={rotuloCampo}>Chave Pix</label><input name="pix" placeholder={c.pix_chave ? 'trocar a chave' : ''} className={campo} /></div>
+              </div>
+              <p className="mt-1 text-[11.5px] text-ninho-cinza">
+                {c.cpf ? `CPF salvo: •••.•••.•${c.cpf.slice(-4, -2)}-${c.cpf.slice(-2)}` : 'CPF ainda não cadastrado'} ·{' '}
+                {c.pix_chave ? `Pix salvo: ${c.pix_chave.length > 6 ? `${c.pix_chave.slice(0, 3)}•••${c.pix_chave.slice(-3)}` : '•••'}` : 'Pix ainda não cadastrado'}.
+                Por segurança, os campos ficam vazios: deixe vazio para manter.
+              </p>
+              </>
+            )}
             <button className={`${botao.grad} mt-4 w-full`}>Salvar</button>
             <p className="mt-2 text-xs leading-snug text-ninho-cinza">Texto e foto novos passam pelo Ninho antes de aparecer. Cidade, contato e atendimento valem na hora.</p>
           </form>
@@ -1740,11 +1746,16 @@ async function Perfil({ c }: { c: Consultora }) {
             </Aviso>
           )}
           <p className="mt-3 text-[11.5px] text-ninho-cinza">Última alteração salva: {new Date(c.atualizado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.</p>
-          <Aviso>Antes de te chamar, a família marca que você é independente, que suas orientações são de sua responsabilidade e que você pode receber comissão.</Aviso>
-          <Aviso tom="verde">Exemplo: cada família no Premium mensal pelo seu link dá {brl(exemplo)} por mês, por {PARCELAS_MENSAL} meses.</Aviso>
+          <Aviso>
+            Antes de te chamar, a família marca que você é independente e que suas orientações são de sua responsabilidade
+            {COMISSAO_VISIVEL ? ', e que você pode receber comissão' : ''}.
+          </Aviso>
+          {COMISSAO_VISIVEL && (
+            <Aviso tom="verde">Exemplo: cada família no Premium mensal pelo seu link dá {brl(exemplo)} por mês, por {PARCELAS_MENSAL} meses.</Aviso>
+          )}
         </Card>
       </div>
-      {await Indicar({ c, noPerfil: true })}
+      {COMISSAO_VISIVEL && (await Indicar({ c, noPerfil: true }))}
     </>
   );
 }

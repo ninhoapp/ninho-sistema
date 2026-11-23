@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { botao, campo, rotuloCampo } from '@/components/consultoras/ui';
 import { TelefonePais } from '@/components/TelefonePais';
-import { COMO_SOUBE_OPCOES } from '@/lib/consultoras-regras';
+import { COMISSAO_VISIVEL, COMO_SOUBE_OPCOES } from '@/lib/consultoras-regras';
 
 /**
  * Botão "+ Nova consultora" do painel do dono (09/11/2026). O formulário só
@@ -69,13 +69,19 @@ export function NovaConsultora({
                 <label className={rotuloCampo}>Código do link</label>
                 <input name="codigo" maxLength={20} placeholder="Sai do nome se ficar vazio" className={`${campo} uppercase`} />
               </div>
-              <div>
-                <label className={rotuloCampo}>Indicada por</label>
-                <select name="indicada_por" className={campo} defaultValue="">
-                  <option value="">Ninguém · {pctDireto}</option>
-                  {opcoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
-              </div>
+              {/* Quem indicou é o que decide o percentual (dono, 23/11/2026:
+                  "na hora que eu for criar eu não quero escolher percentual de
+                  comissão"). Sem o campo, a consultora nasce sem indicação — e
+                  dá para acertar depois na ficha dela, em /admin/consultor. */}
+              {COMISSAO_VISIVEL && (
+                <div>
+                  <label className={rotuloCampo}>Indicada por</label>
+                  <select name="indicada_por" className={campo} defaultValue="">
+                    <option value="">Ninguém · {pctDireto}</option>
+                    {opcoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  </select>
+                </div>
+              )}
               <div className="sm:col-span-2">
                 <label className={rotuloCampo}>Como ficou sabendo do Ninho?</label>
                 <select name="como_soube" className={campo} defaultValue="">

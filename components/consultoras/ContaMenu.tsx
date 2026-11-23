@@ -8,9 +8,12 @@
 import Link from 'next/link';
 import { signOut } from '@/app/admin/actions';
 
+import { COMISSAO_VISIVEL } from '@/lib/consultoras-regras';
+
 export const ITENS_CONTA: [string, string, string][] = [
-  ['/admin/consultora?aba=perfil', 'Meu perfil na lista', 'Texto, foto, contato e Pix'],
-  ['/admin/consultora?aba=indicar', 'Indicar consultora', 'Traga uma amiga para o programa'],
+  ['/admin/consultora?aba=perfil', 'Meu perfil na lista', COMISSAO_VISIVEL ? 'Texto, foto, contato e Pix' : 'Texto, foto e contato'],
+  // "Indicar consultora" é do programa de comissão: some junto com ele.
+  ...(COMISSAO_VISIVEL ? ([['/admin/consultora?aba=indicar', 'Indicar consultora', 'Traga uma amiga para o programa']] as [string, string, string][]) : []),
   ['/admin/consultora?aba=assinatura', 'Assinatura IA', 'Relatórios do mês e validade'],
   ['/admin/consultora?aba=ajuda', 'Código e ajuda', 'Seu código, link e como entrar'],
   ['/admin/consultora?aba=sugestoes', 'Sugestões', 'O que você gostaria de ter por aqui?'],

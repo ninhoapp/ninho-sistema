@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import type { Role } from '@/lib/auth/session';
 import { MENU_ADMIN, grupoDe } from '@/lib/empresa/menu';
 import { ITENS_CONTA } from '@/components/consultoras/ContaMenu';
+import { COMISSAO_VISIVEL } from '@/lib/consultoras-regras';
 import { signOut } from '@/app/admin/actions';
 
 interface NavItem {
@@ -44,7 +45,7 @@ const CONSULTORA: NavItem[] = [
   { href: '/admin/consultora?aba=semana', label: 'Evolução' },
   { href: '/admin/consultora?aba=relatorio', label: 'Relatório IA' },
   { href: '/admin/consultora?aba=convidar', label: 'Convidar família' },
-  { href: '/admin/consultora?aba=ganhos', label: 'Ganhos' },
+  ...(COMISSAO_VISIVEL ? [{ href: '/admin/consultora?aba=ganhos', label: 'Ganhos' }] : []),
   { href: '/admin/consultora?aba=manual', label: 'Manual' },
   // Meu perfil, Indicar, Assinatura IA e Ajuda: menu ☰ do topo e bloco "Sua conta" abaixo.
 ];

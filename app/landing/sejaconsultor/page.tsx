@@ -16,7 +16,7 @@ import { unstable_cache } from 'next/cache';
 import { SITE_URL } from '@/lib/config';
 import { PRECOS } from '@/lib/precos';
 import { totalDeContas } from '@/lib/consultoras';
-import { PCT_DIRETO, PCT_REDE, PARCELAS_MENSAL, TEXTO_QUEM_GERA_COMISSAO, valorComissao, somar } from '@/lib/consultoras-regras';
+import { COMISSAO_VISIVEL, PCT_DIRETO, PCT_REDE, PARCELAS_MENSAL, TEXTO_QUEM_GERA_COMISSAO, valorComissao, somar } from '@/lib/consultoras-regras';
 import { formatBRL } from '@/lib/metrics';
 import { SitePage } from '@/components/site/SiteChrome';
 import '@/components/site/consultora.css';
@@ -24,8 +24,10 @@ import { FormSejaConsultora } from '@/components/site/FormSejaConsultora';
 
 export const dynamic = 'force-dynamic';
 
-const DESCRICAO =
-  'Consultora de sono: acompanhe a rotina dos bebês que você atende no app e no computador e ganhe comissão quando a família assina o Ninho.';
+// Com a comissão escondida (COMISSAO_VISIVEL), a página não promete ganho.
+const DESCRICAO = COMISSAO_VISIVEL
+  ? 'Consultora de sono: acompanhe a rotina dos bebês que você atende no app e no computador e ganhe comissão quando a família assina o Ninho.'
+  : 'Consultora de sono: acompanhe no app e no computador a rotina dos bebês que você atende, com a ficha de cada família e as orientações que você envia.';
 
 export const metadata: Metadata = {
   title: 'Seja consultora de sono no Ninho',
@@ -177,7 +179,7 @@ function LegendaDia() {
 }
 
 // ── Painel web ──
-const MENU_WEB = ['Início', 'Famílias', 'Rotina', 'Evolução', 'Relatório IA', 'Convidar família', 'Ganhos'];
+const MENU_WEB = ['Início', 'Famílias', 'Ficha', 'Rotina', 'Evolução', 'Relatório IA', 'Convidar família', ...(COMISSAO_VISIVEL ? ['Ganhos'] : [])];
 
 function Navegador({ url, ativo, children }: { url: string; ativo: string; children: React.ReactNode }) {
   return (
@@ -320,7 +322,8 @@ const BARRA: [string, React.ComponentProps<typeof Ic>['n'], boolean?][] = [
   ['Evolução', 'barras'],
   ['Início', 'casa', true],
   ['Convidar', 'pessoaMais'],
-  ['Ganhos', 'dinheiro'],
+  // A barra do app desenhada aqui segue o que a consultora realmente vê.
+  ...(COMISSAO_VISIVEL ? ([['Ganhos', 'dinheiro']] as [string, React.ComponentProps<typeof Ic>['n'], boolean?][]) : []),
 ];
 
 function Celular({ t1, t2, barraAberta, escala, children }: { t1: string; t2: string; barraAberta?: boolean; escala?: number; children: React.ReactNode }) {
@@ -495,19 +498,21 @@ export default async function SejaConsultoraPage() {
         </section>
 
         <section className="n-wrap" style={{ marginTop: 34 }}>
-          <div className="nc-g3">
+          <div className={COMISSAO_VISIVEL ? 'nc-g3' : 'nc-g2'}>
             <div className="nc-big">
               <div className="nc-ico">◐</div>
               <div className="num">App + web</div>
               <b>Acompanhe seus bebês</b>
               <p>A rotina de todos os bebês que você atende num lugar só: sono, mamadas, fraldas e comida, registrados pela família. Só leitura.</p>
             </div>
-            <div className="nc-big">
-              <div className="nc-ico">R$</div>
-              <div className="num">até {pct(PCT_DIRETO)}</div>
-              <b>De comissão por até {PARCELAS_MENSAL} meses</b>
-              <p>Em cada família que criar a conta pelo seu link ou código e assinar: até {pct(PCT_DIRETO)} por até {PARCELAS_MENSAL} meses no mensal, ou 1x no anual. Indicada por outra consultora, a comissão é dividida meio a meio.</p>
-            </div>
+            {COMISSAO_VISIVEL && (
+              <div className="nc-big">
+                <div className="nc-ico">R$</div>
+                <div className="num">até {pct(PCT_DIRETO)}</div>
+                <b>De comissão por até {PARCELAS_MENSAL} meses</b>
+                <p>Em cada família que criar a conta pelo seu link ou código e assinar: até {pct(PCT_DIRETO)} por até {PARCELAS_MENSAL} meses no mensal, ou 1x no anual. Indicada por outra consultora, a comissão é dividida meio a meio.</p>
+              </div>
+            )}
             <div className="nc-big">
               <div className="nc-ico">★</div>
               <div className="num">Top 10</div>
@@ -518,7 +523,7 @@ export default async function SejaConsultoraPage() {
           <div className="nc-tags">
             <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.09em', color: '#9A95AD', alignSelf: 'center' }}>E PARA O NINHO</span>
             <span className="nc-tag">Famílias que entendem o valor do app</span>
-            <span className="nc-tag">Você só ganha quando a família assina</span>
+            {COMISSAO_VISIVEL && <span className="nc-tag">Você só ganha quando a família assina</span>}
           </div>
         </section>
 
@@ -539,48 +544,52 @@ export default async function SejaConsultoraPage() {
               <CelBebe />
               <p className="nc-cap"><b>Rotina</b> · o dia do bebê</p>
             </div>
-            <div>
-              <CelGanhos comissao={brl(somar([ex, ex, ex, ex]))} />
-              <p className="nc-cap"><b>Ganhos</b> · comissão e data do Pix</p>
-            </div>
+            {COMISSAO_VISIVEL && (
+              <div>
+                <CelGanhos comissao={brl(somar([ex, ex, ex, ex]))} />
+                <p className="nc-cap"><b>Ganhos</b> · comissão e data do Pix</p>
+              </div>
+            )}
           </div>
           <p className="nc-ilustra">Telas ilustrativas, com dados de exemplo.</p>
         </section>
 
-        <section className="n-wrap nc-sec">
-          <div className="nc-sec-t"><h2>Como funcionam os repasses</h2><p>Você ganha quando a família paga. Teste grátis não conta.</p></div>
-          <div className="nc-g3" style={{ marginTop: 24 }}>
-            {[
-              ['1', 'A família cria a conta e assina', 'Pelo seu link ou código.'],
-              ['2', `Comissão por até ${PARCELAS_MENSAL} meses`, `Mensal: até ${pct(PCT_DIRETO)} todo mês, por até ${PARCELAS_MENSAL} meses. Anual: até ${pct(PCT_DIRETO)} uma vez só.`],
-              ['3', 'Pix todo mês', 'Até o 5º dia útil do mês seguinte.'],
-            ].map(([n, t, d]) => (
-              <div key={n} className="nc-passo"><i>{n}</i><div><b>{t}</b><p>{d}</p></div></div>
-            ))}
-          </div>
-          <div className="nc-banner lilas" style={{ maxWidth: 860, margin: '16px auto 0', textAlign: 'center' }}>
-            {TEXTO_QUEM_GERA_COMISSAO}
-          </div>
-          <div className="nc-g2" style={{ marginTop: 16 }}>
-            <div className="nc-card">
-              <h3>Quem ganha o quê</h3>
-              <div className="nc-arv">
-                <div className="nc-no raiz"><b>Ana</b><small>veio direto ao Ninho</small><span className="nc-badge v">até {pct(PCT_DIRETO)} das famílias dela</span></div>
-                <div className="nc-linha" />
-                <div className="nc-no"><b>Bia</b><small>indicada pela Ana</small><span className="nc-badge v">Bia {pct(PCT_REDE)}</span><span className="nc-badge l">Ana {pct(PCT_REDE)}</span></div>
-                <div className="nc-linha" />
-                <div className="nc-no"><b>Carol</b><small>indicada pela Bia</small><span className="nc-badge v">Carol {pct(PCT_REDE)}</span><span className="nc-badge l">Bia {pct(PCT_REDE)}</span><small style={{ marginTop: 4 }}>a Ana não ganha aqui: só 1 nível</small></div>
+        {COMISSAO_VISIVEL && (
+          <section className="n-wrap nc-sec">
+            <div className="nc-sec-t"><h2>Como funcionam os repasses</h2><p>Você ganha quando a família paga. Teste grátis não conta.</p></div>
+            <div className="nc-g3" style={{ marginTop: 24 }}>
+              {[
+                ['1', 'A família cria a conta e assina', 'Pelo seu link ou código.'],
+                ['2', `Comissão por até ${PARCELAS_MENSAL} meses`, `Mensal: até ${pct(PCT_DIRETO)} todo mês, por até ${PARCELAS_MENSAL} meses. Anual: até ${pct(PCT_DIRETO)} uma vez só.`],
+                ['3', 'Pix todo mês', 'Até o 5º dia útil do mês seguinte.'],
+              ].map(([n, t, d]) => (
+                <div key={n} className="nc-passo"><i>{n}</i><div><b>{t}</b><p>{d}</p></div></div>
+              ))}
+            </div>
+            <div className="nc-banner lilas" style={{ maxWidth: 860, margin: '16px auto 0', textAlign: 'center' }}>
+              {TEXTO_QUEM_GERA_COMISSAO}
+            </div>
+            <div className="nc-g2" style={{ marginTop: 16 }}>
+              <div className="nc-card">
+                <h3>Quem ganha o quê</h3>
+                <div className="nc-arv">
+                  <div className="nc-no raiz"><b>Ana</b><small>veio direto ao Ninho</small><span className="nc-badge v">até {pct(PCT_DIRETO)} das famílias dela</span></div>
+                  <div className="nc-linha" />
+                  <div className="nc-no"><b>Bia</b><small>indicada pela Ana</small><span className="nc-badge v">Bia {pct(PCT_REDE)}</span><span className="nc-badge l">Ana {pct(PCT_REDE)}</span></div>
+                  <div className="nc-linha" />
+                  <div className="nc-no"><b>Carol</b><small>indicada pela Bia</small><span className="nc-badge v">Carol {pct(PCT_REDE)}</span><span className="nc-badge l">Bia {pct(PCT_REDE)}</span><small style={{ marginTop: 4 }}>a Ana não ganha aqui: só 1 nível</small></div>
+                </div>
+              </div>
+              <div className="nc-card">
+                <h3>Quanto você recebe por família</h3>
+                <p>Até {pct(PCT_DIRETO)} do preço cheio da assinatura de cada família que veio pelo seu link ou código, por até {PARCELAS_MENSAL} meses no plano mensal, ou uma vez no anual.</p>
+                <div className="nc-banner verde">
+                  O valor de cada família aparece no seu painel, em <b>Ganhos</b>, com a data do Pix. Se a família cancelar ou pedir reembolso, a comissão dela para.
+                </div>
               </div>
             </div>
-            <div className="nc-card">
-              <h3>Quanto você recebe por família</h3>
-              <p>Até {pct(PCT_DIRETO)} do preço cheio da assinatura de cada família que veio pelo seu link ou código, por até {PARCELAS_MENSAL} meses no plano mensal, ou uma vez no anual.</p>
-              <div className="nc-banner verde">
-                O valor de cada família aparece no seu painel, em <b>Ganhos</b>, com a data do Pix. Se a família cancelar ou pedir reembolso, a comissão dela para.
-              </div>
-            </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         <section className="n-wrap nc-sec" id="form-consultora" style={{ paddingBottom: 72 }}>
           <div className="nc-sec-t"><h2>Quero ser consultora no Ninho</h2><p>O Ninho confere cada pedido. Também dá para falar com a gente no Instagram @useninho.app.</p></div>
@@ -591,7 +600,7 @@ export default async function SejaConsultoraPage() {
               <li>Você é independente e responde sozinha pelas orientações que dá às famílias. Nunca indique remédio, dose ou posição de sono, nem prometa resultado. Saúde é com o pediatra.</li>
               <li>Use a rotina dos bebês só para atender aquela família. Não copie, não guarde e não divulgue esses dados.</li>
               <li>Ao divulgar seu link, avise que tem parceria com o Ninho (&ldquo;#publi&rdquo;).</li>
-              <li>Comissão: até {pct(PCT_DIRETO)} (dividida meio a meio quando você foi indicada) por até {PARCELAS_MENSAL} meses no plano mensal, ou uma vez no anual. Pagamento por Pix até o 5º dia útil do mês seguinte. Vale só para famílias que criaram a conta pelo seu link ou código (o vínculo sozinho não gera, e quem achou você pela lista do app também não) e acaba quando a família cancela ou pede reembolso.</li>
+              {COMISSAO_VISIVEL && <li>Comissão: até {pct(PCT_DIRETO)} (dividida meio a meio quando você foi indicada) por até {PARCELAS_MENSAL} meses no plano mensal, ou uma vez no anual. Pagamento por Pix até o 5º dia útil do mês seguinte. Vale só para famílias que criaram a conta pelo seu link ou código (o vínculo sozinho não gera, e quem achou você pela lista do app também não) e acaba quando a família cancela ou pede reembolso.</li>}
               <li>Se o Ninho for cobrado por algo que você fez, você ressarce.</li>
             </ul>
             <p style={{ marginTop: 8 }}>O termo completo aparece no app, na primeira vez que você entra como consultora.</p>

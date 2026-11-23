@@ -29,6 +29,21 @@
  *    pulando sábado, domingo e feriado nacional.
  */
 
+/**
+ * A comissão existe inteira no código e no banco, mas NÃO aparece para a
+ * consultora enquanto isto for `false` (dono, 23/11/2026: "não quero que
+ * mostre nada para a consultora disso ainda, porque eu acho que eu vou tirar
+ * essa parte... mas não quero que você delete tudo").
+ *
+ * Desligado, somem: a parte de comissão e ganhos da página "Seja consultora",
+ * a aba Ganhos e a aba Indicar do painel dela (inclusive pelo endereço
+ * direto), os textos de comissão do Manual e do Perfil e a escolha de
+ * "Indicada por" na criação. Nada muda para o DONO: /admin/consultor segue
+ * com as contas, o histórico e o Pix, porque o que já foi prometido continua
+ * valendo. Para voltar tudo, troque para `true`.
+ */
+export const COMISSAO_VISIVEL = false;
+
 export const PCT_DIRETO = 25;
 export const PCT_REDE = 12.5;
 export const PARCELAS_MENSAL = 6;
