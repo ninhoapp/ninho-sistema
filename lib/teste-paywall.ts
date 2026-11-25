@@ -85,6 +85,9 @@ export interface Cartao {
    *  tentando de novo (status past_due da assinatura). */
   recusado: boolean;
   origem: Origem;
+  /** Grupo do paywall (A, B ou C) e se caiu nele pelo sorteio. */
+  grupo: Grupo | null;
+  sorteado: boolean;
 }
 
 export interface DiaGrupo {
@@ -379,7 +382,7 @@ async function fetchCartoes(): Promise<Cartao[]> {
   const sb = appDb();
   const { data: part, error } = await sb
     .from('teste_paywall_participantes')
-    .select('profile_id,teste_loja_ate,renovacao_automatica,registros,pagou')
+    .select('profile_id,grupo,sorteado,teste_loja_ate,renovacao_automatica,registros,pagou')
     .eq('comecou_teste_loja', true);
   if (error) throw new Error(`Teste de paywall (cartões): ${error.message}`);
   const linhas = part ?? [];
@@ -418,6 +421,8 @@ async function fetchCartoes(): Promise<Cartao[]> {
         pagou: !!l.pagou,
         recusado: !l.pagou && s?.status === 'past_due',
         origem: resolverOrigem(a?.atribuido === true, p?.como_conheceu ?? null, a?.campaign_id ?? null),
+        grupo: ehGrupo(l.grupo) ? l.grupo : null,
+        sorteado: !!l.sorteado,
       };
     })
     .sort((x, y) => (x.cobranca_em ?? '').localeCompare(y.cobranca_em ?? ''));

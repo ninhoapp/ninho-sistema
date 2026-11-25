@@ -10,11 +10,11 @@ import {
   type Grupo,
   type Liberado,
   type ResumoGrupo,
+  type Taxas,
   DIA_MUDANCA,
 } from '@/lib/teste-paywall';
-import { brl } from '@/lib/precos';
-import { valorCartao } from '@/lib/teste-paywall-formato';
-import { TabelaCartoes, TabelaLiberados } from '@/components/admin/TabelasTestePaywall';
+import { PainelCartoes, TabelaLiberados, type CartaoLinha } from '@/components/admin/TabelasTestePaywall';
+import { fetchUsoPorUsuario } from '@/lib/app-users';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { StatCard } from '@/components/admin/StatCard';
 import { Notice } from '@/components/admin/Notice';
@@ -199,6 +199,72 @@ function CartaoLiberados({ lista }: { lista: Liberado[] | null }) {
   );
 }
 
+function taxasDoResumo(r: ResumoGrupo): Taxas {
+  return {
+    cadastros: r.cadastros,
+    decididos: r.decididos ?? r.cadastros,
+    pagaram: r.pagaram,
+    cartao: r.comecaram_teste_loja,
+    cancelaram: r.cancelaram_no_teste,
+    cartaoDecididos: 0,
+    cartaoPagaram: 0,
+  };
+}
+
+/** Conversão de um grupo (pagaram ÷ decididos), com o selo do momento dele. */
+function CartaoConversao({
+  titulo,
+  selo,
+  cor,
+  t,
+  extra,
+  destaque = false,
+}: {
+  titulo: string;
+  selo: string;
+  cor: string;
+  t: Taxas;
+  extra: string;
+  destaque?: boolean;
+}) {
+  const taxa = t.decididos > 0 ? (t.pagaram / t.decididos) * 100 : null;
+  const ainda = Math.max(t.cadastros - t.decididos, 0);
+  return (
+    <div
+      className={`rounded-2xl border p-4 ${
+        destaque ? 'border-ninho-roxo bg-gradient-to-b from-ninho-roxo-suave to-white' : 'border-ninho-borda bg-white'
+      }`}
+    >
+      <span
+        className={`mb-2 inline-block rounded-pill px-2 py-0.5 text-[10.5px] font-bold uppercase ${
+          destaque ? 'bg-ninho-roxo text-white' : 'bg-ninho-nuvem text-ninho-cinza'
+        }`}
+      >
+        {selo}
+      </span>
+      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ninho-cinza">
+        <i className="inline-block h-2 w-2 rounded-full" style={{ background: cor }} />
+        {titulo}
+      </div>
+      <div className={`mt-1 font-extrabold tabular-nums text-ninho-roxo-escuro ${destaque ? 'text-3xl' : 'text-2xl'}`}>
+        {taxa == null ? '—' : `${taxa.toFixed(1).replace('.', ',')}%`}
+      </div>
+      {destaque && (
+        <div className="my-2 h-1.5 overflow-hidden rounded-full bg-[#EEE8FA]">
+          <div className="h-full rounded-full bg-ninho-roxo" style={{ width: `${Math.min(taxa ?? 0, 100) * 10}%` }} />
+        </div>
+      )}
+      <div className="text-xs text-ninho-cinza">
+        <strong className="text-ninho-grafite">
+          {t.pagaram} de {t.decididos}
+        </strong>{' '}
+        que já decidiram{ainda > 0 ? ` · ${ainda} ainda nos dias grátis` : ''}
+      </div>
+      <div className="mt-1.5 text-xs text-ninho-cinza">{extra}</div>
+    </div>
+  );
+}
+
 const NOME_FATIA: Record<FatiaContinuidade, string> = {
   A: 'Todos (sem tela de planos)',
   cartao: 'Puseram o cartão',
@@ -293,7 +359,7 @@ function TabelaContinuidade({ linhas }: { linhas: Continuidade[] | null }) {
 
 export default async function TestePaywallPage() {
   await requireRole('admin');
-  const [t, continuidade] = await Promise.all([fetchTestePaywall(), fetchContinuidade()]);
+  const [t, continuidade, uso] = await Promise.all([fetchTestePaywall(), fetchContinuidade(), fetchUsoPorUsuario()]);
   const { A, B, C } = t.resumo;
   const total = A.cadastros + B.cadastros + C.cadastros;
   const hoje = hojeDubai();
@@ -314,11 +380,19 @@ export default async function TestePaywallPage() {
   // 1 A × 3 B nos números pareciam erro.
   const antesDoRodizio = t.config ? Math.max(0, total - t.config.sorteios) : 0;
 
+  const f = t.fluxoNovo;
+  const cAtual = f.cSemSorteio;
+  const aAgora = f.depois.grupos.A?.cadastros ?? 0;
+  const linhasCartao: CartaoLinha[] = t.cartoes.map((c) => {
+    const u = uso.get(c.profile_id);
+    return { ...c, diasUso: Math.max(u?.diasAbertura ?? 0, u?.diasRegistro ?? 0) };
+  });
+
   return (
     <>
       <PageHeader
-        title="Teste de paywall"
-        subtitle="Grupo A (7 dias de teste do app, sem cartão), grupo B (tela de planos obrigatória, 7 dias grátis da loja com cartão) e grupo C (tela de planos com X para fechar)."
+        title="Paywall e cartões"
+        subtitle="Quem pôs o cartão, quem cancelou, quando cada um vai ser cobrado e a conversão de verdade do fluxo atual."
         right={
           <span
             className={`inline-block rounded-full px-3 py-1.5 text-xs font-semibold ${
@@ -330,6 +404,62 @@ export default async function TestePaywallPage() {
         }
       />
 
+      <div className="mb-8">
+        <PainelCartoes lista={linhasCartao} corte={f.corte} cadastrosAtual={cAtual.cadastros} />
+      </div>
+
+      <h2 className="mb-1 text-base font-bold text-ninho-grafite">Conversão real · pagaram ÷ quem já decidiu</h2>
+      <p className="mb-3 text-xs text-ninho-cinza">
+        Decidiu = pagou ou o período grátis acabou. Quem ainda está nos dias grátis fica de fora, senão a taxa parece
+        menor do que é.
+      </p>
+      <div className="mb-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <CartaoConversao
+          destaque
+          selo="Vale daqui para frente"
+          cor={COR.C}
+          titulo={`C atual · desde ${dataBR(DIA_MUDANCA)}`}
+          t={cAtual}
+          extra={`${cAtual.cadastros} cadastros · ${cAtual.cartao} puseram o cartão (${pct(cAtual.cartao, cAtual.cadastros)}) · ${cAtual.cancelaram} cancelaram`}
+        />
+        <CartaoConversao
+          selo="Antes"
+          cor={COR.C}
+          titulo="C no sorteio"
+          t={taxasDoResumo(C)}
+          extra={`${C.cadastros} cadastros · ${C.comecaram_teste_loja} puseram o cartão · ${C.cancelaram_no_teste} cancelaram`}
+        />
+        <CartaoConversao
+          selo="Encerrado"
+          cor={COR.B}
+          titulo="B · cartão obrigatório"
+          t={taxasDoResumo(B)}
+          extra={`${B.cadastros} cadastros · ${B.comecaram_teste_loja} puseram o cartão · ${B.cancelaram_no_teste} cancelaram (${pct(B.cancelaram_no_teste, B.comecaram_teste_loja)})`}
+        />
+        <CartaoConversao
+          selo="Antes"
+          cor={COR.A}
+          titulo="A · sem cartão"
+          t={taxasDoResumo(A)}
+          extra={`${A.cadastros} cadastros · agora só Android: ${aAgora} ${aAgora === 1 ? 'cadastro' : 'cadastros'} desde ${dataBR(DIA_MUDANCA)}`}
+        />
+      </div>
+      <Notice tone="info">
+        Desde {dataBR(DIA_MUDANCA)} todo iPhone novo vai para o C, inclusive quem está grávida. O A ficou só para
+        Android, porque o Google Play não tem os 7 dias grátis da loja. A conversão da Visão geral junta todo mundo desde
+        o começo; a do <strong>C atual</strong> é a do fluxo que está no ar e fica mais firme conforme quem está nos dias
+        grátis decidir.
+      </Notice>
+
+      <details className="mb-8 mt-8 rounded-2xl border border-dashed border-ninho-borda bg-white px-5">
+        <summary className="cursor-pointer py-4 text-sm font-bold text-ninho-grafite">
+          Histórico do teste A × B × C{' '}
+          <span className="font-normal text-ninho-cinza">
+            · guardado, clique para abrir (números por grupo, antes × depois, quem saiu do app depois da tela, liberados
+            do B, cadastros por dia)
+          </span>
+        </summary>
+        <div className="pb-6">
       <Notice tone="warn">
         <strong>Pôr o cartão não é pagar.</strong> No grupo B, quem começa os 7 dias grátis da loja
         ainda pode cancelar antes da primeira cobrança. A métrica que decide o teste é{' '}
@@ -435,25 +565,6 @@ export default async function TestePaywallPage() {
             <TabelaContinuidade linhas={continuidade} />
           </div>
 
-          <h2 className="mb-1 text-base font-bold text-ninho-grafite">Quem pôs o cartão</h2>
-          <p className="mb-3 text-xs text-ninho-cinza">
-            Horários no fuso de Dubai. A loja tenta a 1ª cobrança no fim dos 7 dias grátis.{' '}
-            {(() => {
-              const previsto = t.cartoes.reduce((s, c) => s + valorCartao(c).valor, 0);
-              const aCobrar = t.cartoes.filter((c) => valorCartao(c).valor > 0).length;
-              return (
-                <>
-                  <strong>{brl(previsto)}</strong> previstos de {aCobrar}{' '}
-                  {aCobrar === 1 ? 'pessoa' : 'pessoas'} que ainda não cancelaram (valor de tabela, antes da
-                  taxa da loja). Lançamentos em vermelho = ainda não registrou nada.
-                </>
-              );
-            })()}
-          </p>
-          <div className="mb-8">
-            <TabelaCartoes lista={t.cartoes} />
-          </div>
-
           {t.liberados != null && (
             <>
               <h2 className="mb-1 text-base font-bold text-ninho-grafite">Quem foi liberado</h2>
@@ -490,6 +601,8 @@ export default async function TestePaywallPage() {
         {t.foraDoSorteio === 1 ? 'conta' : 'contas'}. Essas pessoas vão direto para o grupo A e
         ficam fora da comparação.
       </p>
+        </div>
+      </details>
     </>
   );
 }

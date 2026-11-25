@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paywall e cartões · mockup</title>
+<style>
+  :root {
+    --lilas: #9F86E0; --lilas-claro: #EDE4FB; --lilas-escuro: #7C5CD6; --titulo: #24164F;
+    --fundo: #F6F5FA; --branco: #fff; --texto: #1E1F25; --cinza: #6B6F80; --borda: #ECE6F5;
+    --verde: #4CAF74; --vermelho: #E85D5D; --amarelo: #E8A33C;
+    --A: #9F86E0; --B: #F7A83C; --C: #4C9BE8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fundo); color: var(--texto); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .faixa { background: #24164F; color: #fff; padding: 10px 24px; font-size: 13px; }
+  .faixa b { color: #D9CCFA; }
+  .pagina { max-width: 1240px; margin: 0 auto; padding: 24px 24px 60px; }
+  h1 { margin: 0; font-size: 24px; color: var(--titulo); }
+  .sub { color: var(--cinza); margin: 4px 0 0; }
+  .topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 600; }
+  .pill.ok { background: #E3F4EA; color: #2E8A55; }
+  .seg { display: inline-flex; background: #fff; border: 1px solid var(--borda); border-radius: 999px; padding: 3px; }
+  .seg button { border: 0; background: none; padding: 7px 14px; border-radius: 999px; font: inherit; font-size: 13px; color: var(--cinza); cursor: pointer; }
+  .seg button.on { background: var(--lilas); color: #fff; font-weight: 600; }
+  h2 { font-size: 16px; color: var(--titulo); margin: 28px 0 4px; }
+  .nota { color: var(--cinza); font-size: 12.5px; margin: 0 0 12px; }
+  .grade { display: grid; gap: 14px; }
+  .g5 { grid-template-columns: repeat(5, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 980px) { .g5, .g4 { grid-template-columns: repeat(2, 1fr); } }
+  .card { background: #fff; border: 1px solid var(--borda); border-radius: 20px; padding: 16px 18px; }
+  .card .rot { font-size: 11.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--cinza); display: flex; align-items: center; gap: 6px; }
+  .card .num { font-size: 30px; font-weight: 800; color: var(--titulo); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .card .det { font-size: 12.5px; color: var(--cinza); }
+  .card.clic { cursor: pointer; transition: box-shadow .15s, border-color .15s; }
+  .card.clic:hover { border-color: var(--lilas); box-shadow: 0 4px 14px rgba(124,92,214,.12); }
+  .card.sel { border-color: var(--lilas); box-shadow: 0 0 0 2px var(--lilas) inset; }
+  .bola { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .conv { position: relative; }
+  .conv.destaque { background: linear-gradient(180deg, #F3EEFF, #fff 70%); border-color: #CDBDF3; }
+  .conv .tag { display: inline-block; margin-bottom: 8px; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 3px 8px; }
+  .tag.agora { background: var(--lilas); color: #fff; }
+  .tag.antes { background: #F1F1F5; color: var(--cinza); }
+  .conv .num.peq { font-size: 22px; }
+  .barra { height: 6px; background: #EEE8FA; border-radius: 99px; margin: 10px 0 6px; overflow: hidden; }
+  .barra i { display: block; height: 100%; background: var(--lilas); border-radius: 99px; }
+  .aviso { background: #FFF8EC; border: 1px solid #F6DDB0; color: #7A5413; border-radius: 14px; padding: 10px 14px; font-size: 12.5px; margin-top: 12px; }
+  .tabela-caixa { background: #fff; border: 1px solid var(--borda); border-radius: 20px; padding: 8px; }
+  .ferr { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 8px 12px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { border: 1px solid var(--borda); background: #fff; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12.5px; cursor: pointer; color: var(--texto); }
+  .chip b { font-variant-numeric: tabular-nums; }
+  .chip.on { background: var(--titulo); color: #fff; border-color: var(--titulo); }
+  .btn { border: 1px solid var(--borda); background: #fff; border-radius: 999px; padding: 7px 13px; font: inherit; font-size: 12.5px; cursor: pointer; color: var(--lilas-escuro); font-weight: 600; }
+  .btn.on { background: var(--lilas-claro); border-color: #CDBDF3; }
+  .busca { border: 1px solid var(--borda); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13px; width: 200px; }
+  .rolar { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 1080px; }
+  th { text-align: left; font-size: 11.5px; color: var(--cinza); font-weight: 600; padding: 10px 10px; border-bottom: 2px solid var(--borda); white-space: nowrap; cursor: pointer; user-select: none; }
+  th:hover { color: var(--lilas-escuro); }
+  th .seta { opacity: .45; margin-left: 3px; }
+  th.ativo { color: var(--lilas-escuro); }
+  th.ativo .seta { opacity: 1; }
+  th.num, td.num { text-align: right; }
+  td { padding: 10px; border-bottom: 1px solid var(--borda); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  tr:hover td { background: #FAF8FE; }
+  .sit { display: inline-block; border-radius: 999px; padding: 3px 9px; font-size: 11.5px; font-weight: 600; }
+  .s-gratis { background: #EDE4FB; color: #5B41B8; }
+  .s-pago { background: #E3F4EA; color: #2E8A55; }
+  .s-cancelou { background: #FDECEC; color: #C24343; }
+  .s-recusado { background: #FFF1DD; color: #9A5B1E; }
+  .grupo { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11.5px; font-weight: 700; }
+  .gA { background: #EFEAFB; color: #6B52B8; } .gB { background: #FEF1DE; color: #9A5B1E; } .gC { background: #E3F0FC; color: #2D6FB0; }
+  .mud { color: var(--cinza); font-size: 11.5px; }
+  .zero { color: var(--vermelho); font-weight: 700; }
+  .perto { color: var(--lilas-escuro); font-weight: 700; }
+  .rodape { display: flex; justify-content: space-between; padding: 12px 10px 6px; font-size: 12.5px; color: var(--cinza); flex-wrap: wrap; gap: 8px; }
+  details { background: #fff; border: 1px dashed #D9D2EA; border-radius: 20px; padding: 4px 18px; margin-top: 28px; }
+  summary { cursor: pointer; padding: 14px 0; font-weight: 700; color: var(--titulo); }
+  summary span { font-weight: 400; color: var(--cinza); font-size: 12.5px; margin-left: 6px; }
+  .velho { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding-bottom: 18px; }
+  .velho .card { background: #FBFAFD; }
+  .velho ul { margin: 6px 0 0; padding-left: 16px; color: var(--cinza); font-size: 12.5px; }
+  .lembrete { margin-top: 32px; background: #fff; border: 1px solid var(--borda); border-radius: 16px; padding: 14px 18px; font-size: 12.5px; color: var(--cinza); }
+  .lembrete b { color: var(--titulo); }
+</style>
+</head>
+<body>
+<div class="faixa"><b>Mockup</b> da tela Teste de paywall · 25/11/2026 · números de hoje tirados do painel; nomes trocados. Os dias de uso e o grupo dos cartões antigos são ilustrativos (na tela vêm do banco).</div>
+
+<div class="pagina">
+  <div class="topo">
+    <div>
+      <h1>Paywall e cartões</h1>
+      <p class="sub">Quem pôs o cartão, quem cancelou, quando cada um vai ser cobrado e a conversão de verdade do fluxo atual.</p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span class="pill ok">● Todo iPhone novo no C desde 14/11 · Android no A</span>
+      <div class="seg" id="periodo">
+        <button data-p="atual" class="on">Fluxo atual · desde 14/11</button>
+        <button data-p="tudo">Tudo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1. Cartões -->
+  <div class="grade g5" id="kpis"></div>
+
+  <!-- 2. Tabela -->
+  <h2>Quem pôs o cartão</h2>
+  <p class="nota">Abre com quem pôs o cartão mais recente em cima. Clique no título da coluna para ordenar, ou em <b>Cobrança mais próxima</b>. Os cartões de cima também filtram a tabela.</p>
+  <div class="tabela-caixa">
+    <div class="ferr">
+      <div class="chips" id="chips"></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn" id="btnProx">Cobrança mais próxima primeiro</button>
+        <input class="busca" id="busca" placeholder="Buscar nome ou origem">
+        <button class="btn">⬇ Excel</button>
+      </div>
+    </div>
+    <div class="rolar">
+      <table>
+        <thead><tr id="cab"></tr></thead>
+        <tbody id="corpo"></tbody>
+      </table>
+    </div>
+    <div class="rodape" id="rodape"></div>
+  </div>
+
+  <!-- 3. Conversão -->
+  <h2>Conversão real · pagaram ÷ quem já decidiu</h2>
+  <p class="nota">Decidiu = pagou, cancelou ou acabaram os 7 dias grátis. Quem ainda está nos dias grátis fica de fora, senão a taxa parece menor do que é.</p>
+  <div class="grade g4">
+    <div class="card conv destaque">
+      <span class="tag agora">VALE DAQUI PARA FRENTE</span>
+      <div class="rot"><span class="bola" style="background:var(--C)"></span>C atual · desde 14/11</div>
+      <div class="num">2,7%</div>
+      <div class="barra"><i style="width:27%"></i></div>
+      <div class="det"><b>3 de 112</b> que já decidiram · 335 ainda nos dias grátis</div>
+      <div class="det" style="margin-top:6px">447 cadastros · 12 puseram o cartão (2,7%) · 0 cancelaram</div>
+    </div>
+    <div class="card conv">
+      <span class="tag antes">ANTES</span>
+      <div class="rot"><span class="bola" style="background:var(--C)"></span>C no sorteio · 05 a 14/11</div>
+      <div class="num peq">4,0%</div>
+      <div class="det">2 de 50 · 53 cadastros</div>
+      <div class="det" style="margin-top:6px">3 puseram o cartão · 1 cancelou</div>
+    </div>
+    <div class="card conv">
+      <span class="tag antes">ENCERRADO</span>
+      <div class="rot"><span class="bola" style="background:var(--B)"></span>B · cartão obrigatório</div>
+      <div class="num peq">5,0%</div>
+      <div class="det">11 de 222 · 223 cadastros · saiu em 12/11</div>
+      <div class="det" style="margin-top:6px">39 puseram o cartão · 22 cancelaram (56%)</div>
+    </div>
+    <div class="card conv">
+      <span class="tag antes">ANTES</span>
+      <div class="rot"><span class="bola" style="background:var(--A)"></span>A · sem cartão</div>
+      <div class="num peq">3,6%</div>
+      <div class="det">13 de 359 · 364 cadastros</div>
+      <div class="det" style="margin-top:6px"><b>Agora:</b> só Android · 0 cadastros desde 14/11</div>
+    </div>
+  </div>
+  <div class="aviso"><b>Atenção:</b> o A de hoje não é "só grávidas". Desde 14/11 quem está grávida também vai para o C. O A ficou só para Android, porque o Google Play não tem os 7 dias grátis da loja. A taxa de 1% da Visão geral junta todo mundo desde o começo; a do C atual (2,7%) é a do fluxo que está no ar e fica mais firme a cada dia, conforme os 335 que ainda estão nos dias grátis decidirem.</div>
+
+  <!-- 4. Histórico -->
+  <details>
+    <summary>Histórico do teste A × B × C <span>· guardado, clique para abrir (números por grupo, quem saiu do app depois da tela, liberados do B, cadastros por dia)</span></summary>
+    <div class="velho">
+      <div class="card"><div class="rot"><span class="bola" style="background:var(--A)"></span>Grupo A</div><ul><li>364 cadastros · 80 viram a oferta</li><li>Conversão 3,6% (13 de 359)</li><li>27 registros por pessoa</li></ul></div>
+      <div class="card"><div class="rot"><span class="bola" style="background:var(--B)"></span>Grupo B</div><ul><li>223 cadastros · 39 puseram o cartão</li><li>22 cancelaram · 11 pagaram</li><li>183 liberados sem cartão</li></ul></div>
+      <div class="card"><div class="rot"><span class="bola" style="background:var(--C)"></span>Grupo C (sorteio)</div><ul><li>53 cadastros · 3 puseram o cartão</li><li>1 cancelou · 2 pagaram</li></ul></div>
+      <div class="card"><div class="rot">Antes × depois da mudança</div><ul><li>14 dias antes: 3,8% (19 de 500)</li><li>14 dias depois: 2,7% (3 de 112)</li></ul></div>
+    </div>
+    <p class="nota" style="padding-bottom:14px">Aqui dentro ficam, sem mudar nada, as tabelas que hoje ocupam a tela: "Depois da tela de planos: sai do app ou continua?", "Quem foi liberado" e "Novos usuários por dia, por grupo".</p>
+  </details>
+
+  <div class="lembrete"><b>Na tela de verdade:</b> os nomes são os reais. <b>Dias de uso</b> = dias diferentes em que a pessoa abriu o app ou registrou algo desde que pôs o cartão (o mesmo dado de Usuários ativos). A tabela segue o padrão das outras: filtro em toda coluna, largura arrastável e Excel.</div>
+</div>
+
+<script>
+// [nome, cobranca "dd/mm hh:mm", lancamentos, plano, situacao, valor, origem]
+const L = [
+ ['Helena','31/10 22:37',629,'Básico mensal','pago',9.9,'Instagram/Facebook'],['Laura','01/11 02:53',559,'Premium mensal','pago',14.9,'Apple Ads'],
+ ['Cecília','01/11 16:01',3,'Básico mensal','cancelou',9.9,'Apple Ads'],['Lívia','01/11 18:11',2,'Premium mensal','cancelou',14.9,'Apple Ads'],
+ ['Marina','02/11 00:11',3,'Premium mensal','cancelou',14.9,'Apple Ads'],['Aline','02/11 13:12',1,'Premium mensal','recusado',14.9,'Sem informação'],
+ ['Clara','03/11 04:37',1,'Premium mensal','cancelou',14.9,'Busca na loja'],['Beatriz','05/11 06:33',2,'Premium mensal','cancelou',14.9,'TikTok'],
+ ['Carla','05/11 23:07',2,'Premium mensal','recusado',14.9,'Sem informação'],['Lorena','06/11 04:07',0,'Básico mensal','cancelou',9.9,'Instagram/Facebook'],
+ ['Manuela','06/11 06:00',323,'Premium mensal','pago',14.9,'Sem informação'],['Isadora','07/11 10:32',74,'Premium mensal','cancelou',14.9,'Busca na loja'],
+ ['Heloísa','07/11 22:02',8,'Básico mensal','pago',9.9,'Instagram/Facebook'],['Sara','08/11 02:59',1,'Premium mensal','cancelou',14.9,'Sem informação'],
+ ['Elisa','08/11 17:33',269,'Básico mensal','pago',9.9,'Sem informação'],['Débora','09/11 05:58',0,'Premium mensal','cancelou',14.9,'Apple Ads'],
+ ['Raquel','09/11 07:56',4,'Premium mensal','cancelou',14.9,'Instagram/Facebook'],['Valentina','09/11 17:51',7,'Premium mensal','pago',14.9,'Apple Ads'],
+ ['Daniela','09/11 21:08',1,'Premium mensal','recusado',14.9,'Apple Ads'],['Joana','10/11 05:08',0,'Premium mensal','cancelou',14.9,'Sem informação'],
+ ['Andressa','10/11 17:06',296,'Básico mensal','pago',9.9,'Apple Ads'],['Gustavo','11/11 04:24',0,'Básico mensal','cancelou',9.9,'Sem informação'],
+ ['Larissa','11/11 17:29',2,'Premium mensal','cancelou',14.9,'Indicação'],['Simone','12/11 08:43',2,'Básico mensal','cancelou',9.9,'Apple Ads'],
+ ['Vitória','12/11 12:53',3,'Premium mensal','cancelou',14.9,'Apple Ads'],['Fernanda','12/11 15:49',17,'Premium mensal','cancelou',14.9,'Apple Ads'],
+ ['Amanda','12/11 17:05',1,'Premium mensal','cancelou',14.9,'Apple Ads'],['Patrícia','12/11 18:50',136,'Premium mensal','recusado',14.9,'Apple Ads'],
+ ['Rebeca','12/11 22:21',1,'Premium mensal','pago',14.9,'Apple Ads'],['Ana','13/11 12:23',43,'Premium mensal','recusado',17.9,'Apple Ads'],
+ ['Priscila','13/11 21:50',0,'Básico mensal','cancelou',9.9,'Sem informação'],['Cristina','14/11 01:30',0,'Básico mensal','cancelou',9.9,'Apple Ads'],
+ ['Bruna','15/11 22:31',2,'Premium mensal','cancelou',14.9,'Apple Ads'],['Eduardo','16/11 14:57',1,'Premium mensal','cancelou',14.9,'Instagram/Facebook'],
+ ['Tainá','16/11 21:03',28,'Premium mensal','pago',17.9,'Apple Ads'],['Paula','17/11 00:16',0,'Básico anual','cancelou',89.9,'Apple Ads'],
+ ['Felipe','17/11 04:29',8,'Premium mensal','recusado',17.9,'Sem informação'],['Mariana','17/11 11:32',397,'Básico mensal','pago',12.9,'Apple Ads'],
+ ['Bianca','18/11 06:17',18,'Premium mensal','pago',17.9,'Sem informação'],['Renata','18/11 16:56',259,'Básico mensal','pago',12.9,'Sem informação'],
+ ['Diego','19/11 09:19',0,'Premium anual','pago',129.9,'Sem informação'],['Daniele','21/11 04:00',2,'Premium mensal','cancelou',17.9,'Apple Ads'],
+ ['Rosa','22/11 01:16',5,'Premium anual','recusado',129.9,'Sem informação'],['Mirela','23/11 05:46',3,'Premium anual','recusado',129.9,'Apple Ads'],
+ ['Ariane','25/11 03:28',184,'Básico anual','pago',89.9,'Apple Ads'],['Gisele','30/11 01:55',0,'Básico mensal','gratis',12.9,'Sem informação'],
+ ['Michele','30/11 06:18',2,'Básico anual','gratis',89.9,'Apple Ads'],['Luiz','30/11 11:26',25,'Básico mensal','gratis',12.9,'Instagram'],
+ ['Gabriela','30/11 13:34',55,'Básico anual','gratis',89.9,'Sem informação'],['Lara','01/12 07:06',4,'Premium mensal','gratis',17.9,'Apple Ads'],
+ ['Silvia','01/12 20:28',11,'Premium mensal','gratis',17.9,'Google'],['Jaqueline','02/12 00:06',0,'Premium anual','gratis',129.9,'Outro'],
+ ['Thaís','02/12 00:55',7,'Premium anual','gratis',129.9,'Facebook'],['Raíssa','02/12 05:18',1,'Premium mensal','gratis',17.9,'Apple Ads'],
+];
+const HOJE = new Date('2026-11-25T12:00:00+04:00').getTime();
+const CORTE = new Date('2026-11-14T23:32:00+04:00').getTime();
+const DIA = 86400000;
+const quando = (s) => { const [d, h] = s.split(' '); const [dd, mm] = d.split('/'); return new Date(`2026-${mm}-${dd}T${h}:00+04:00`).getTime(); };
+const fmt = (t) => { const d = new Date(t + 4 * 3600000); const p = (n) => String(n).padStart(2, '0'); return `${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`; };
+const brl = (v) => 'R$ ' + v.toFixed(2).replace('.', ',');
+const linhas = L.map(([nome, cob, lanc, plano, sit, valor, origem], i) => {
+  const cobranca = quando(cob), cartao = cobranca - 7 * DIA;
+  const desde = Math.max(1, Math.ceil((Math.min(HOJE, cobranca) - cartao) / DIA));
+  const dias = lanc === 0 ? 1 : Math.min(desde, lanc < 5 ? 2 : lanc < 20 ? 3 : lanc < 60 ? 5 : 7);
+  const grupo = cartao > CORTE ? 'C' : [34, 38, 41].includes(i) ? 'C' : 'B';
+  return { nome, cartao, cobranca, lanc, plano, sit, valor, origem, dias, grupo, atual: cartao > CORTE };
+});
+
+const SIT = { gratis: ['Nos 7 dias grátis', 's-gratis'], pago: ['Pagou', 's-pago'], cancelou: ['Cancelou antes de pagar', 's-cancelou'], recusado: ['Cartão recusado', 's-recusado'] };
+const COLS = [
+  ['nome', 'Nome'], ['grupo', 'Grupo'], ['cartao', 'Pôs o cartão'], ['sit', 'Situação'], ['cobranca', 'Cobrança'],
+  ['falta', 'Falta', 'num'], ['plano', 'Plano'], ['valor', 'Valor', 'num'], ['lanc', 'Lançamentos', 'num'], ['dias', 'Dias de uso', 'num'], ['origem', 'Origem'],
+];
+let periodo = 'atual', filtro = null, busca = '', ordem = { k: 'cartao', dir: -1 };
+
+const base = () => linhas.filter((l) => periodo === 'tudo' || l.atual);
+function kpis() {
+  const b = base(), n = (s) => b.filter((l) => l.sit === s).length;
+  const decid = b.filter((l) => l.sit !== 'gratis').length, prev = b.filter((l) => l.sit === 'gratis').reduce((s, l) => s + l.valor, 0);
+  const cad = periodo === 'atual' ? 447 : 1087;
+  const cards = [
+    [null, 'Puseram o cartão', b.length, periodo === 'atual' ? `${(b.length / cad * 100).toFixed(1).replace('.', ',')}% dos ${cad} cadastros` : 'desde o começo do teste', 'var(--lilas)'],
+    ['gratis', 'Nos 7 dias grátis agora', n('gratis'), `${brl(prev)} previstos na 1ª cobrança`, 'var(--lilas-escuro)'],
+    ['cancelou', 'Cancelaram antes de pagar', n('cancelou'), b.length ? `${Math.round(n('cancelou') / b.length * 100)}% de quem pôs o cartão` : '—', 'var(--vermelho)'],
+    ['pago', 'Pagaram', n('pago'), decid ? `${Math.round(n('pago') / decid * 100)}% de quem já decidiu (${n('pago')} de ${decid})` : '—', 'var(--verde)'],
+    ['recusado', 'Cartão recusado', n('recusado'), 'a loja segue tentando cobrar', 'var(--amarelo)'],
+  ];
+  document.getElementById('kpis').innerHTML = cards.map(([k, r, v, d, c]) => `
+    <div class="card clic ${filtro === k ? 'sel' : ''}" data-k="${k ?? ''}">
+      <div class="rot"><span class="bola" style="background:${c}"></span>${r}</div>
+      <div class="num">${v}</div><div class="det">${d}</div></div>`).join('');
+  document.querySelectorAll('#kpis .card').forEach((el) => el.onclick = () => { filtro = el.dataset.k || null; desenhar(); });
+  document.getElementById('chips').innerHTML = [[null, 'Todos', b.length], ...Object.entries(SIT).map(([k, [r]]) => [k, r, n(k)])]
+    .map(([k, r, v]) => `<button class="chip ${filtro === k ? 'on' : ''}" data-k="${k ?? ''}">${r} <b>${v}</b></button>`).join('');
+  document.querySelectorAll('#chips .chip').forEach((el) => el.onclick = () => { filtro = el.dataset.k || null; desenhar(); });
+}
+function falta(l) { return l.sit === 'gratis' ? Math.ceil((l.cobranca - HOJE) / DIA) : null; }
+function valorOrd(l, k) { return k === 'falta' ? (falta(l) ?? 9999) : k === 'sit' ? SIT[l.sit][0] : l[k]; }
+function tabela() {
+  document.getElementById('cab').innerHTML = COLS.map(([k, r, c]) => `<th class="${c ?? ''} ${ordem.k === k ? 'ativo' : ''}" data-k="${k}">${r}<span class="seta">${ordem.k === k ? (ordem.dir > 0 ? '↑' : '↓') : '↕'}</span></th>`).join('');
+  document.querySelectorAll('#cab th').forEach((th) => th.onclick = () => {
+    const k = th.dataset.k; ordem = ordem.k === k ? { k, dir: -ordem.dir } : { k, dir: ['cartao', 'lanc', 'dias', 'valor'].includes(k) ? -1 : 1 }; desenhar();
+  });
+  document.getElementById('btnProx').classList.toggle('on', ordem.k === 'falta' && ordem.dir === 1);
+  const q = busca.toLowerCase();
+  const r = base().filter((l) => (!filtro || l.sit === filtro) && (!q || (l.nome + ' ' + l.origem).toLowerCase().includes(q)))
+    .sort((a, b) => { const x = valorOrd(a, ordem.k), y = valorOrd(b, ordem.k); return (typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'pt-BR')) * ordem.dir; });
+  document.getElementById('corpo').innerHTML = r.map((l) => {
+    const f = falta(l);
+    return `<tr>
+      <td><b>${l.nome}</b></td>
+      <td><span class="grupo g${l.grupo}">${l.grupo}</span></td>
+      <td>${fmt(l.cartao)}</td>
+      <td><span class="sit ${SIT[l.sit][1]}">${SIT[l.sit][0]}</span></td>
+      <td>${fmt(l.cobranca)}${l.sit === 'cancelou' ? ' <span class="mud">· não vai cobrar</span>' : ''}</td>
+      <td class="num">${f == null ? '<span class="mud">—</span>' : `<span class="${f <= 2 ? 'perto' : ''}">${f === 0 ? 'hoje' : f === 1 ? 'amanhã' : f + ' dias'}</span>`}</td>
+      <td>${l.plano}</td>
+      <td class="num">${l.sit === 'cancelou' ? '<span class="mud">R$ 0</span>' : brl(l.valor)}</td>
+      <td class="num ${l.lanc === 0 ? 'zero' : ''}">${l.lanc}</td>
+      <td class="num">${l.dias}</td>
+      <td>${l.origem}</td></tr>`;
+  }).join('') || `<tr><td colspan="11" style="text-align:center;color:var(--cinza);padding:24px">Ninguém com esse filtro.</td></tr>`;
+  const prev = r.filter((l) => l.sit === 'gratis').reduce((s, l) => s + l.valor, 0);
+  document.getElementById('rodape').innerHTML = `<span>${r.length} ${r.length === 1 ? 'pessoa' : 'pessoas'} na lista</span><span>Ainda vão ser cobrados: <b style="color:var(--titulo)">${brl(prev)}</b> (preço de tabela, antes da taxa da loja) · lançamentos em vermelho = nada registrado</span>`;
+}
+function desenhar() { kpis(); tabela(); }
+document.querySelectorAll('#periodo button').forEach((b) => b.onclick = () => {
+  periodo = b.dataset.p; document.querySelectorAll('#periodo button').forEach((x) => x.classList.toggle('on', x === b)); desenhar();
+});
+document.getElementById('busca').oninput = (e) => { busca = e.target.value; tabela(); };
+document.getElementById('btnProx').onclick = () => { ordem = ordem.k === 'falta' && ordem.dir === 1 ? { k: 'cartao', dir: -1 } : { k: 'falta', dir: 1 }; desenhar(); };
+desenhar();
+</script>
+</body>
+</html>

@@ -31,3 +31,28 @@ export function valorCartao(c: Cartao): { texto: string; valor: number } {
   if (c.renova === false) return { texto: 'R$ 0 · cancelou', valor: 0 };
   return { texto: brl(preco), valor: preco };
 }
+
+/** Quando a pessoa pôs o cartão: os dias grátis da loja são 7, então é
+ *  7 dias antes da 1ª cobrança (a view não guarda a hora do cartão). */
+export function cartaoEm(c: Cartao): string | null {
+  return c.cobranca_em ? new Date(new Date(c.cobranca_em).getTime() - 7 * 86400000).toISOString() : null;
+}
+
+export type Situacao = 'gratis' | 'cobrando' | 'pago' | 'cancelou' | 'recusado';
+
+export const SITUACAO_LABEL: Record<Situacao, string> = {
+  gratis: 'Nos 7 dias grátis',
+  cobrando: 'Cobrança em andamento',
+  pago: 'Pagou',
+  cancelou: 'Cancelou antes de pagar',
+  recusado: 'Cartão recusado',
+};
+
+/** Onde a pessoa está entre o cartão e a 1ª cobrança. */
+export function situacao(c: Cartao, agora = Date.now()): Situacao {
+  if (c.pagou) return 'pago';
+  if (c.renova === false) return 'cancelou';
+  if (c.recusado) return 'recusado';
+  if (c.cobranca_em && new Date(c.cobranca_em).getTime() > agora) return 'gratis';
+  return 'cobrando';
+}
