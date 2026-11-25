@@ -339,13 +339,64 @@ function quemVale(parceiroEm: string | null, consultoraEm: string | null): AppUs
   return new Date(consultoraEm).getTime() < new Date(parceiroEm).getTime() ? 'vale_consultora' : 'vale_parceiro';
 }
 
+/** Bebês de cada conta (dono ou cuidador): diz quem divide o plano com quem. */
+async function fetchBebesPorConta(): Promise<Map<string, Set<string>>> {
+  const out = new Map<string, Set<string>>();
+  const { data, error } = await lerTudo<{ profile_id: string; baby_id: string }>('caregivers', (de, ate) =>
+    appDb().from('caregivers').select('profile_id,baby_id').is('deleted_at', null).order('id').range(de, ate),
+  );
+  if (error) {
+    console.error('[painel] caregivers (quem paga por quem) falhou:', error.message);
+    return out;
+  }
+  for (const r of data ?? []) {
+    const s = out.get(r.profile_id) ?? new Set<string>();
+    s.add(r.baby_id);
+    out.set(r.profile_id, s);
+  }
+  return out;
+}
+
+/**
+ * Quem HERDA o plano de alguém que está nos 7 dias grátis da loja (ou que
+ * cancelou o cartão antes da 1ª cobrança) não pode aparecer como assinante.
+ * O banco chama esse plano de ativo (o app libera o Premium no teste), e o
+ * ajuste de ajustarTesteLoja só valia para quem pôs o cartão. Caso de
+ * 25/11/2026: a Chloe, cuidadora convidada pelo Jack, aparecia "Premium anual
+ * · herdado de Jack" enquanto o Jack estava no teste da loja e já tinha
+ * desligado a renovação. Aqui quem herda passa a ter o estado de quem paga.
+ * Quem paga = conta com o nome de `coberto_por` que cuida do mesmo bebê.
+ */
+function herdarTesteLoja(users: AppUser[], bebes: Map<string, Set<string>>): AppUser[] {
+  const porId = new Map(users.map((u) => [u.id, u]));
+  const contasDoBebe = new Map<string, string[]>();
+  for (const [conta, set] of bebes) {
+    for (const b of set) contasDoBebe.set(b, [...(contasDoBebe.get(b) ?? []), conta]);
+  }
+  return users.map((u) => {
+    if (!u.herdadoDe || u.estadoEfetivo !== 'pagante') return u;
+    const juntos = new Set<string>();
+    for (const b of bebes.get(u.id) ?? []) for (const c of contasDoBebe.get(b) ?? []) if (c !== u.id) juntos.add(c);
+    const pagador = [...juntos]
+      .map((id) => porId.get(id))
+      .find((x) => x && !x.herdadoDe && x.testeLojaAte && (x.name ?? '').trim() === u.herdadoDe!.trim());
+    if (!pagador || pagador.estado === 'pagante') return u;
+    return {
+      ...u,
+      estadoEfetivo: pagador.estado,
+      trialEndsAtEfetivo: pagador.emTesteLoja ? pagador.testeLojaAte : pagador.trial_ends_at,
+      cancelouTesteLoja: pagador.cancelouTesteLoja,
+    };
+  });
+}
+
 async function fetchAppUsersRaw(): Promise<AppUser[]> {
   if (!appDbConfigured()) return [];
   const sb = appDb();
 
   // profiles e a view não têm FK declarada entre si, então PostgREST não faz o
   // embed — busca separado e junta aqui.
-  const [profilesRes, estadosRes, efetivosRes, nascimentos, assinouEm, appleAds, indicacoes, consultoraEm, landing] = await Promise.all([
+  const [profilesRes, estadosRes, efetivosRes, nascimentos, assinouEm, appleAds, indicacoes, consultoraEm, landing, bebes] = await Promise.all([
     lerTudo<ProfileRow>('profiles', (de, ate) =>
       sb
         .from('profiles')
@@ -369,6 +420,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
     fetchIndicacoes(),
     fetchAtribuicaoConsultora(),
     fetchOrigemLanding(),
+    fetchBebesPorConta(),
   ]);
 
   // O e-mail vem de `usuarios_admin` (que lê auth.users). A API admin de auth
@@ -382,7 +434,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
   const estados = (estadosRes.data as EstadoRow[] | null) ?? [];
   const estadoByProfile = new Map(estados.map((e) => [e.profile_id, e]));
 
-  return profiles.map((p) => {
+  const lista: AppUser[] = profiles.map((p) => {
     const e = estadoByProfile.get(p.id);
     const ef = efetivos.get(p.id);
     const teste = ajustarTesteLoja(e, corrigirChurnPorData(e), assinouEm.get(p.id) ?? null);
@@ -437,6 +489,7 @@ async function fetchAppUsersRaw(): Promise<AppUser[]> {
       atribuicaoDupla: quemVale(ind?.created_at ?? (ind ? '' : null), consultoraEm.get(p.id)?.em ?? null),
     };
   });
+  return herdarTesteLoja(lista, bebes);
 }
 
 /**

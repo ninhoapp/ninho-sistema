@@ -277,11 +277,9 @@ function usoClass(r: UsuarioRow): string {
 // cadastro > sem informação.
 
 function testeTooltip(t: GrupoTeste): string {
-  if (!t.sorteado) {
-    return t.grupo === 'A'
-      ? 'A — fora da comparação: bebê ainda não nascido vai direto para o A'
-      : `${t.grupo} — conta de teste forçada no grupo, fora da comparação`;
-  }
+  // Sem sorteio: desde 14/11/2026 todo iPhone novo vai direto para o C
+  // (00151), o Android para o A (00141), e quem veio por link para o C (00124).
+  if (!t.sorteado) return `${t.grupo} — entrou neste grupo sem sorteio (fora da comparação do teste)`;
   if (t.liberadoEm) return 'B — ficou sem cartão (30 min; 2h até 02/11) e ganhou 7 dias sem cartão; no teste continua contando no B';
   if (t.grupo === 'C') return 'C — tela de planos depois do onboarding, com X para fechar e seguir no teste do app';
   return t.grupo === 'A' ? 'A — 7 dias de teste do app, sem cartão' : 'B — tela de planos obrigatória, 7 dias grátis da loja';
@@ -1200,8 +1198,8 @@ export function UsuariosTable({
         rastreamento a Meta não informa quem veio do anúncio, só o total no Gerenciador.{' '}
         <strong>Versão</strong> vem do aparelho mais recente com push token (o sistema está no
         tooltip): fica vazia pra quem recusou notificações.{' '}
-        <strong>Teste:</strong> grupo do teste de paywall (passe o mouse para o detalhe). Cinza = fora
-        da comparação (bebê ainda não nascido ou conta de teste). "—" = nunca entrou no teste (só existe a partir da
+        <strong>Teste:</strong> grupo do teste de paywall (passe o mouse para o detalhe). Cinza = entrou
+        sem sorteio (desde 14/11 todo iPhone novo vai direto para o C e o Android para o A). "—" = nunca entrou no teste (só existe a partir da
         versão 1.0.6).
       </p>
     </div>
