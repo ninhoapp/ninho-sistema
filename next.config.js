@@ -48,6 +48,8 @@ const nextConfig = {
       { source: '/terms-en', destination: '/legal/terms-en.html' },
       { source: '/privacy', destination: '/legal/privacy.html' },
       { source: '/privacy-en', destination: '/legal/privacy-en.html' },
+      { source: '/terms-es', destination: '/legal/terms-es.html' },
+      { source: '/privacy-es', destination: '/legal/privacy-es.html' },
       { source: '/termos', destination: '/legal/terms.html' },
       { source: '/privacidade', destination: '/legal/privacy.html' },
     ];
