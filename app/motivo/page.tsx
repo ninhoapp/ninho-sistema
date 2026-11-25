@@ -13,6 +13,7 @@ import { headers } from 'next/headers';
 import { appDb } from '@/lib/supabase/server';
 import { MotivoForm, SairForm } from './MotivoForm';
 import { ehMotivo, UUID } from './opcoes';
+import { type Idioma, idiomaDoNavegador, idiomaDoTexto, tr } from '@/lib/idioma';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,18 +22,19 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/** Idioma do app da pessoa (o mesmo do e-mail); sem ele, o do navegador. */
-async function idiomaDe(token: string, valido: boolean): Promise<'pt' | 'en'> {
+/** Idioma do app da pessoa (profiles.locale, o mesmo do e-mail: "es-419"
+ *  vira espanhol); sem ele, o do navegador. */
+async function idiomaDe(token: string, valido: boolean): Promise<Idioma> {
   if (valido) {
     try {
       const { data } = await appDb().from('profiles').select('locale').eq('unsubscribe_token', token).maybeSingle();
-      const locale = (data?.locale as string | null) ?? null;
-      if (locale) return locale.toLowerCase().startsWith('en') ? 'en' : 'pt';
+      const doPerfil = idiomaDoTexto((data?.locale as string | null) ?? null);
+      if (doPerfil) return doPerfil;
     } catch {
       // sem banco (ex.: máquina sem .env.local): cai no navegador
     }
   }
-  return ((await headers()).get('accept-language') ?? '').toLowerCase().startsWith('en') ? 'en' : 'pt';
+  return idiomaDoNavegador((await headers()).get('accept-language'));
 }
 
 export default async function MotivoPage(props: { searchParams: Promise<{ t?: string; r?: string; sair?: string }> }) {
@@ -50,7 +52,7 @@ export default async function MotivoPage(props: { searchParams: Promise<{ t?: st
         <div className="px-6 py-8">
           {!valido ? (
             <p className="text-[15px] text-ninho-cinza">
-              {idioma === 'en' ? 'This link is not valid.' : 'Este link não é válido.'}
+              {tr(idioma, 'Este link não é válido.', 'This link is not valid.', 'Este enlace no es válido.')}
             </p>
           ) : searchParams.sair ? (
             <SairForm token={token} idioma={idioma} />

@@ -17,12 +17,14 @@ import { detectDevice, LANDING_URL } from '@/lib/config';
 import { findParceiroPorCodigo, logClick } from '@/lib/painel/store';
 import { destinoDoLink, ehNavegadorEmbutido, familiaDoIp, geoDe, ipDe, ipHash, linkParaCopiar, visitorHash } from '@/lib/atribuicao';
 import { paginaNavegadorEmbutido } from '@/lib/atribuicao-paginas';
+import { idiomaDaRequisicao } from '@/lib/idioma';
 
 export const dynamic = 'force-dynamic';
 
 function semCache(res: NextResponse): NextResponse {
   res.headers.set('Cache-Control', 'no-store');
-  res.headers.set('Vary', 'User-Agent');
+  // As páginas mudam de idioma pelo navegador (lib/idioma.ts).
+  res.headers.set('Vary', 'User-Agent, Accept-Language');
   return res;
 }
 
@@ -75,7 +77,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ code: str
     new NextResponse(corpo, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   const res =
     device === 'ios' && ehNavegadorEmbutido(ua)
-      ? html(paginaNavegadorEmbutido(url, copiar))
+      ? html(paginaNavegadorEmbutido(url, copiar, idiomaDaRequisicao(req)))
       : NextResponse.redirect(url, 302);
 
   const cookie = { httpOnly: false, sameSite: 'lax' as const, path: '/', maxAge: 60 * 60 * 24 * 30 };

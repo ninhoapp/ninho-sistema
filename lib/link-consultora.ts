@@ -16,6 +16,7 @@ import { logClickConsultora } from '@/lib/painel/store';
 import { consultoraAtivaPorCodigo } from '@/lib/consultoras';
 import { destinoDoLink, ehNavegadorEmbutido, familiaDoIp, geoDe, ipDe, ipHash, linkParaCopiar, visitorHash } from '@/lib/atribuicao';
 import { paginaNavegadorEmbutido } from '@/lib/atribuicao-paginas';
+import { idiomaDaRequisicao } from '@/lib/idioma';
 
 /**
  * Link da CONSULTORIA liberado só para estas consultoras (dono, 12/11/2026).
@@ -32,7 +33,8 @@ export function consultoriaLiberada(emailLiberado: string | null | undefined): b
 
 export function semCache(res: NextResponse): NextResponse {
   res.headers.set('Cache-Control', 'no-store');
-  res.headers.set('Vary', 'User-Agent');
+  // As páginas mudam de idioma pelo navegador (lib/idioma.ts).
+  res.headers.set('Vary', 'User-Agent, Accept-Language');
   return res;
 }
 
@@ -149,7 +151,7 @@ export function respostaDeDivulgacao(req: NextRequest, clique: CliqueConsultora)
   const html = (corpo: string) => new NextResponse(corpo, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   const res =
     device === 'ios' && ehNavegadorEmbutido(ua)
-      ? html(paginaNavegadorEmbutido(destino, copiar))
+      ? html(paginaNavegadorEmbutido(destino, copiar, idiomaDaRequisicao(req)))
       : NextResponse.redirect(destino, 302);
   gravarCookies(res, clique.consultora.codigo, clique.clickId);
   return semCache(res);

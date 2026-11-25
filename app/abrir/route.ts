@@ -23,12 +23,21 @@
  * conhecidos, e assim ninguém monta um link do domínio do Ninho que joga a
  * pessoa em outro esquema.
  *
- * Quem manda estes links: supabase/functions/enviar-nudges (urlAbrirApp) e
- * supabase/functions/send-caregiver-invite, no repositório Ninho-expo.
+ * Quem manda estes links: supabase/functions/enviar-nudges (urlAbrirApp),
+ * enviar-comunicado (urlAbrir) e send-caregiver-invite, no repositório
+ * Ninho-expo.
+ *
+ * IDIOMA (25/11/2026): `?lang=en|es` vem no link de quem usa o app em inglês
+ * ou espanhol; sem ele, português. Só o parâmetro da URL decide no servidor
+ * (está na chave do cache). NUNCA ler Accept-Language aqui: pelo mesmo motivo
+ * do User-Agent acima, a borda serviria o idioma do primeiro visitante para
+ * todo mundo. Link sem `lang` (antigo) troca o texto no aparelho, pelo idioma
+ * do navegador — o HTML continua o mesmo para todos.
  */
 import { NextResponse } from 'next/server';
 
 import { STORE_ANDROID_URL, STORE_IOS_URL, LANDING_URL } from '@/lib/config';
+import { htmlLang, idiomaDoParametro, tr, type Idioma } from '@/lib/idioma';
 
 const SCHEME = 'ninho://';
 
@@ -40,20 +49,34 @@ const ROTAS = new Set(['', 'baby-profile', 'settings/subscription-plans', 'signu
 /** Só repassa algo com cara de e-mail — nada de montar URL com texto livre. */
 const EMAIL_OK = /^[^\s@"'<>]+@[^\s@"'<>]+\.[^\s@"'<>]+$/;
 
+function textos(idioma: Idioma) {
+  return {
+    abrindo: tr(idioma, 'Abrindo o Ninho…', 'Opening Ninho…', 'Abriendo Ninho…'),
+    naoAbriu: tr(idioma, 'Não abriu?', "Didn't open?", '¿No se abrió?'),
+    toque: tr(idioma, 'toque aqui', 'tap here', 'toca aquí'),
+  };
+}
+
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const to = params.get('to') ?? '';
   const email = params.get('email') ?? '';
   const query = to === 'signup' && EMAIL_OK.test(email) ? `?email=${encodeURIComponent(email)}` : '';
   const deep = SCHEME + (ROTAS.has(to) ? to + query : '');
+  // `lang` só escolhe o texto; nunca entra no ninho://.
+  const langUrl = idiomaDoParametro(params.get('lang'));
+  const idioma: Idioma = langUrl ?? 'pt';
+  const tx = textos(idioma);
+  // Sem `lang` na URL: o aparelho escolhe pelo idioma do navegador.
+  const outros = langUrl ? null : { en: textos('en'), es: textos('es') };
 
   const html = `<!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="${htmlLang(idioma)}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex">
-  <title>Abrindo o Ninho…</title>
+  <title>${tx.abrindo}</title>
   <style>
     body { margin: 0; display: flex; align-items: center; justify-content: center;
            min-height: 100svh; font-family: -apple-system, sans-serif;
@@ -64,13 +87,25 @@ export async function GET(request: Request) {
 </head>
 <body>
   <div>
-    <p>Abrindo o Ninho…</p>
+    <p id="abrindo">${tx.abrindo}</p>
     <p style="margin-top:16px;font-size:14px;color:#6B6F80">
-      Não abriu? <a href="${deep}">toque aqui</a>
+      <span id="naoabriu">${tx.naoAbriu}</span> <a id="toque" href="${deep}">${tx.toque}</a>
     </p>
   </div>
   <script>
     (function () {
+      var outros = ${JSON.stringify(outros)};
+      if (outros) {
+        var l = ((navigator.languages && navigator.languages[0]) || navigator.language || '').toLowerCase();
+        var t = l.indexOf('es') === 0 ? outros.es : (l && l.indexOf('pt') !== 0 ? outros.en : null);
+        if (t) {
+          document.documentElement.lang = l.indexOf('es') === 0 ? 'es' : 'en';
+          document.title = t.abrindo;
+          document.getElementById('abrindo').textContent = t.abrindo;
+          document.getElementById('naoabriu').textContent = t.naoAbriu;
+          document.getElementById('toque').textContent = t.toque;
+        }
+      }
       var ua = navigator.userAgent || '';
       // iPad moderno se anuncia como Mac; maxTouchPoints o entrega.
       var ios = /iphone|ipad|ipod/i.test(ua) || (/Mac/.test(ua) && navigator.maxTouchPoints > 1);

@@ -12,13 +12,18 @@
  *
  * Não consulta o banco: a página não mostra nome de bebê nem de ninguém (o
  * link pode ser repassado). Quem vê o convite e aceita é o app, logado.
- * A resposta varia por aparelho: nunca em cache.
+ * A resposta varia por aparelho e idioma: nunca em cache.
+ *
+ * Idioma (25/11/2026): `?lang=pt|en|es` se vier no link; senão, o do
+ * navegador de quem tocou (lib/idioma.ts). O nome do botão do app é o mesmo
+ * da tela de cadastro (account.recebeuConvite no Ninho-expo).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { detectDevice, LANDING_URL, STORE_ANDROID_URL, STORE_IOS_URL } from '@/lib/config';
 import { escaparHtml } from '@/lib/atribuicao-paginas';
 import { geoDe, ipDe, ipHash, visitorHash } from '@/lib/atribuicao';
 import { painelDb } from '@/lib/supabase/server';
+import { htmlLang, idiomaDaRequisicao, tr, type Idioma } from '@/lib/idioma';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,17 +37,28 @@ function loja(ua: string): string {
   return LANDING_URL;
 }
 
-function pagina(codigo: string, destino: string): string {
+function pagina(codigo: string, destino: string, idioma: Idioma): string {
   const app = `ninho://convite/${codigo}`;
+  const t = (pt: string, en: string, es: string) => tr(idioma, pt, en, es);
+  const titulo = t('Você foi convidado(a) para o Ninho', "You've been invited to Ninho", 'Te invitaron a Ninho');
+  const sub = t(
+    'Para cuidar do bebê junto: todo mundo registra, todo mundo vê.',
+    'To care for the baby together: everyone logs, everyone sees.',
+    'Para cuidar al bebé juntos: todos registran, todos ven.',
+  );
   return `<!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="${htmlLang(idioma)}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
-<title>Convite para o Ninho</title>
-<meta property="og:title" content="Você foi convidado(a) para o Ninho">
-<meta property="og:description" content="Cuide do bebê junto: todo mundo registra, todo mundo vê.">
+<title>${t('Convite para o Ninho', 'Invitation to Ninho', 'Invitación a Ninho')}</title>
+<meta property="og:title" content="${titulo}">
+<meta property="og:description" content="${t(
+    'Cuide do bebê junto: todo mundo registra, todo mundo vê.',
+    'Care for the baby together: everyone logs, everyone sees.',
+    'Cuida al bebé junto con tu familia: todos registran, todos ven.',
+  )}">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#F5F1FB;color:#1E1F25;min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px;text-align:center}
@@ -60,14 +76,22 @@ h1{font-size:23px;line-height:1.25;margin-bottom:10px;letter-spacing:-.3px}
 </head>
 <body>
 <div class="bola">👪</div>
-<h1>Você foi convidado(a) para o Ninho</h1>
-<p class="sub">Para cuidar do bebê junto: todo mundo registra, todo mundo vê.</p>
+<h1>${titulo}</h1>
+<p class="sub">${sub}</p>
 <div class="card">
-  <div class="step"><div class="num">1</div><div>Baixe o Ninho e crie sua conta, com qualquer e-mail.</div></div>
-  <div class="step"><div class="num">2</div><div>O convite abre sozinho no cadastro. Se não abrir, toque em "Recebeu um convite da família?" e use o código:</div></div>
+  <div class="step"><div class="num">1</div><div>${t(
+    'Baixe o Ninho e crie sua conta, com qualquer e-mail.',
+    'Download Ninho and create your account with any email.',
+    'Descarga Ninho y crea tu cuenta con cualquier correo.',
+  )}</div></div>
+  <div class="step"><div class="num">2</div><div>${t(
+    'O convite abre sozinho no cadastro. Se não abrir, toque em "Recebeu um convite da família?" e use o código:',
+    "The invitation opens on its own when you sign up. If it doesn't, tap \"Got a family invitation?\" and use the code:",
+    'La invitación se abre sola al registrarte. Si no se abre, toca "¿Recibiste una invitación de la familia?" y usa el código:',
+  )}</div></div>
   <div class="codigo">${escaparHtml(codigo)}</div>
-  <a id="baixar" class="btn prim" href="${escaparHtml(destino)}">Baixar o Ninho</a>
-  <a class="btn sec" href="${escaparHtml(app)}">Já tenho o Ninho</a>
+  <a id="baixar" class="btn prim" href="${escaparHtml(destino)}">${t('Baixar o Ninho', 'Download Ninho', 'Descargar Ninho')}</a>
+  <a class="btn sec" href="${escaparHtml(app)}">${t('Já tenho o Ninho', 'I already have Ninho', 'Ya tengo Ninho')}</a>
 </div>
 </body>
 </html>`;
@@ -107,9 +131,9 @@ export async function GET(request: NextRequest, props: { params: Promise<{ codig
     }
   }
   const res = CODIGO_RE.test(codigo)
-    ? new NextResponse(pagina(codigo, destino), { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+    ? new NextResponse(pagina(codigo, destino, idiomaDaRequisicao(request)), { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
     : NextResponse.redirect(destino, 302);
   res.headers.set('Cache-Control', 'no-store');
-  res.headers.set('Vary', 'User-Agent');
+  res.headers.set('Vary', 'User-Agent, Accept-Language');
   return res;
 }

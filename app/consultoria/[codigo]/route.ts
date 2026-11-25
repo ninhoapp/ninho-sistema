@@ -20,11 +20,15 @@
  * pausada: vai para a loja sem gravar nada (não revela se o código existe).
  * iPhone dentro do Instagram/Facebook: a mesma página do link de divulgação,
  * que ensina a abrir no Safari. A resposta varia por aparelho: nunca em cache.
+ *
+ * Idioma (25/11/2026): `?lang=` se vier no link; senão, o do navegador de
+ * quem tocou (lib/idioma.ts). "Consultora de sono" = "Asesora de sueño".
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { ehNavegadorEmbutido } from '@/lib/atribuicao';
 import { escaparHtml, paginaNavegadorEmbutido } from '@/lib/atribuicao-paginas';
 import { gravarCookies, lojaSemRastreio, registrarCliqueConsultora, respostaDeDivulgacao, semCache, type CliqueConsultora } from '@/lib/link-consultora';
+import { htmlLang, idiomaDaRequisicao, tr, type Idioma } from '@/lib/idioma';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,9 +37,10 @@ function iniciais(nome: string): string {
   return ((p[0]?.[0] ?? '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase() || 'N';
 }
 
-function pagina(c: CliqueConsultora): string {
+function pagina(c: CliqueConsultora, idioma: Idioma): string {
   const { consultora, device, destino } = c;
-  const nome = (consultora.nome ?? '').trim() || 'Sua consultora';
+  const t = (pt: string, en: string, es: string) => tr(idioma, pt, en, es);
+  const nome = (consultora.nome ?? '').trim() || t('Sua consultora', 'Your sleep consultant', 'Tu asesora');
   const prim = nome.split(/\s+/)[0] || nome;
   const app = `ninho://consultoria/${encodeURIComponent(consultora.codigo)}`;
   const foto = consultora.foto_url
@@ -43,18 +48,22 @@ function pagina(c: CliqueConsultora): string {
     : `<div class="foto ini">${escaparHtml(iniciais(nome))}</div>`;
   const celular = device === 'ios' || device === 'android';
   const botoes = celular
-    ? `<a id="baixar" class="btn prim" href="${escaparHtml(destino)}">Baixar o Ninho grátis</a>
-  <a class="btn sec" href="${escaparHtml(app)}">Já tenho o Ninho</a>`
-    : `<p class="pc">Abra este link no celular para baixar o Ninho.</p>`;
+    ? `<a id="baixar" class="btn prim" href="${escaparHtml(destino)}">${t('Baixar o Ninho grátis', 'Download Ninho for free', 'Descargar Ninho gratis')}</a>
+  <a class="btn sec" href="${escaparHtml(app)}">${t('Já tenho o Ninho', 'I already have Ninho', 'Ya tengo Ninho')}</a>`
+    : `<p class="pc">${t('Abra este link no celular para baixar o Ninho.', 'Open this link on your phone to download Ninho.', 'Abre este enlace en tu celular para descargar Ninho.')}</p>`;
   return `<!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="${htmlLang(idioma)}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
-<title>${escaparHtml(prim)} te convidou para o Ninho</title>
-<meta property="og:title" content="${escaparHtml(nome)} te convidou para o Ninho">
-<meta property="og:description" content="Sua consultora de sono acompanha a rotina do seu bebê pelo Ninho.">
+<title>${t(`${escaparHtml(prim)} te convidou para o Ninho`, `${escaparHtml(prim)} invited you to Ninho`, `${escaparHtml(prim)} te invitó a Ninho`)}</title>
+<meta property="og:title" content="${t(`${escaparHtml(nome)} te convidou para o Ninho`, `${escaparHtml(nome)} invited you to Ninho`, `${escaparHtml(nome)} te invitó a Ninho`)}">
+<meta property="og:description" content="${t(
+    'Sua consultora de sono acompanha a rotina do seu bebê pelo Ninho.',
+    "Your sleep consultant follows your baby's routine through Ninho.",
+    'Tu asesora de sueño acompaña la rutina de tu bebé con Ninho.',
+  )}">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:linear-gradient(180deg,#F1E7FF 0%,#FBF8FF 46%,#fff 100%);color:#1E1F25;min-height:100svh;display:flex;flex-direction:column;align-items:center;padding:36px 22px 28px;text-align:center}
@@ -84,12 +93,24 @@ h1{font-size:25px;line-height:1.2;font-weight:800;letter-spacing:-.4px;color:#24
   <div class="marca"><img src="/brand/ninho-logo-limpo.png" alt="">Ninho</div>
   <div class="av">${foto}<span class="ok">✓</span></div>
   <div class="nome">${escaparHtml(nome)}</div>
-  <div class="papel">Consultora de sono</div>
-  <h1>A ${escaparHtml(prim)} vai acompanhar a rotina do seu bebê pelo Ninho</h1>
-  <p class="sub">Baixe o app e cadastre o bebê. No final, confirme que quer compartilhar a rotina com ela. Nada de mandar print.</p>
+  <div class="papel">${t('Consultora de sono', 'Sleep consultant', 'Asesora de sueño')}</div>
+  <h1>${t(
+    `A ${escaparHtml(prim)} vai acompanhar a rotina do seu bebê pelo Ninho`,
+    `${escaparHtml(prim)} will follow your baby's routine through Ninho`,
+    `${escaparHtml(prim)} va a acompañar la rutina de tu bebé con Ninho`,
+  )}</h1>
+  <p class="sub">${t(
+    'Baixe o app e cadastre o bebê. No final, confirme que quer compartilhar a rotina com ela. Nada de mandar print.',
+    'Download the app and add your baby. At the end, confirm you want to share the routine with her. No more sending screenshots.',
+    'Descarga la app y registra a tu bebé. Al final, confirma que quieres compartir la rutina con ella. Sin mandar capturas de pantalla.',
+  )}</p>
   <div class="acoes">
   ${botoes}
-  <p class="rodape">7 dias grátis. Código da ${escaparHtml(prim)}: <b>${escaparHtml(consultora.codigo)}</b></p>
+  <p class="rodape">${t(
+    `7 dias grátis. Código da ${escaparHtml(prim)}:`,
+    `7 free days. ${escaparHtml(prim)}'s code:`,
+    `7 días gratis. Código de ${escaparHtml(prim)}:`,
+  )} <b>${escaparHtml(consultora.codigo)}</b></p>
   </div>
 </div>
 </body>
@@ -105,10 +126,11 @@ export async function GET(req: NextRequest, props: { params: Promise<{ codigo: s
   // como o link de divulgação, sem página e sem pergunta no app.
   if (!clique.vinculo) return respostaDeDivulgacao(req, clique);
   const html = (corpo: string) => new NextResponse(corpo, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  const idioma = idiomaDaRequisicao(req);
   const res =
     clique.device === 'ios' && ehNavegadorEmbutido(ua)
-      ? html(paginaNavegadorEmbutido(clique.destino, clique.copiar))
-      : html(pagina(clique));
+      ? html(paginaNavegadorEmbutido(clique.destino, clique.copiar, idioma))
+      : html(pagina(clique, idioma));
   gravarCookies(res, clique.consultora.codigo, clique.clickId);
   return semCache(res);
 }
