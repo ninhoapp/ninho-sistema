@@ -67,6 +67,8 @@ import {
   type SemanaV3,
 } from '@/lib/consultoras-rotina';
 import { BarrasSemana, DiaStrip, EvolucaoSono, FaixasNoites, Horarios, JanelaAntesDeDormir, Legenda, MiniNoites, Sequencia, SonecasNoite, diaCurto } from '@/components/consultoras/RotinaV3';
+import { JanelasDasSonecas, textoEtiqueta } from '@/components/consultoras/JanelasDasSonecas';
+import { compararJanela, janelasDoPeriodo, lerCorte, lerPeriodo, posicaoPorInicio } from '@/lib/consultoras-janelas';
 import { CompartilharRelatorio } from '@/components/consultoras/CompartilharRelatorio';
 import { ManualDaConsultora } from '@/components/consultoras/ManualDaConsultora';
 import { IA_LIMITE_MES, IA_PERIODOS, IA_PRECO_MENSAL, RODAPE_IA, iaStatus, lerRelatorio, listarRelatorios, secoes, type IaStatus } from '@/lib/consultoras-ia';
@@ -85,7 +87,7 @@ const H = 3600 * 1000;
 const pctTxt = (p: number) => `${String(p).replace('.', ',')}%`;
 const primeiro = (n: string | null) => (n || '').split(' ')[0];
 
-type Busca = { ficha?: string; aba?: string; bebe?: string; dia?: string; evo?: string; dias?: string; id?: string; mes?: string; filtro?: string; q?: string; ok?: string; erro?: string };
+type Busca = { jan?: string; corte?: string; ficha?: string; aba?: string; bebe?: string; dia?: string; evo?: string; dias?: string; id?: string; mes?: string; filtro?: string; q?: string; ok?: string; erro?: string };
 
 /**
  * Área da CONSULTORA (role consultora). Desenho e comportamento:
@@ -920,7 +922,11 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
   if (!semana) {
     // Padrão: HOJE (dono, 13/11/2026; antes abria em ontem).
     const dia = sp.dia && /^\d{4}-\d{2}-\d{2}$/.test(sp.dia) && sp.dia <= hoje && sp.dia >= somarDias(hoje, -30) ? sp.dia : hoje;
-    const de = new Date(inicioDoDia(somarDias(dia, -8)) - 12 * H);
+    // Janela antes de cada soneca (26/11/2026): 7 ou 14 dias e o corte da soneca boa.
+    const janLib = evolucaoLiberada(c.email_liberado);
+    const janDias = lerPeriodo(sp.jan);
+    const janCorte = lerCorte(sp.corte);
+    const de = new Date(inicioDoDia(somarDias(dia, janLib && janDias === 14 ? -15 : -8)) - 12 * H);
     const ate = new Date(Math.min(inicioDoDia(somarDias(dia, 1)) + 14 * H, agora + 60_000));
     const { registros, semAcesso } = await rotinaDe(c.id, f.baby_id, de, ate, rel);
     const nav = (
@@ -933,6 +939,15 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
     const head = <Titulo t={f.bebe_nome} sub={sub} direita={seletor(nav)} />;
     if (semAcesso) return <>{head}{trava('Sem acesso à rotina deste bebê agora (vínculo removido, família sem plano ou conta pausada).')}</>;
     const d = diaV3(registros, dia, agora);
+    const janelas = janLib ? janelasDoPeriodo(registros, dia, janDias, janCorte, agora) : null;
+    const posJanela = posicaoPorInicio(d.sonecas);
+    const etiquetaJanela = janelas
+      ? (inicio: number, antes: number) => {
+          const p = posJanela.get(inicio);
+          if (p === undefined) return d.dormiu === inicio ? textoEtiqueta(compararJanela(antes, janelas.noite), 'pt') : null;
+          return textoEtiqueta(compararJanela(antes, janelas.sonecas.find((x) => x.posicao === p)), 'pt');
+        }
+      : undefined;
     if (!d.temRegistro) return <>{head}{trava(<><b className="text-ninho-grafite">Nada registrado neste dia</b>Sem registro, sem número.</>)}</>;
     const cost = costumeAntes(registros, dia, agora);
     const ac = cost.horarios.find((h) => h.rotulo === 'Acordou');
@@ -961,7 +976,7 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
         </Card>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <Card titulo="Sequência do dia" direita="cada sono com início e fim">
-            <Sequencia d={d} />
+            <Sequencia d={d} etiqueta={etiquetaJanela} />
           </Card>
           <Card titulo="Registros" direita={`${d.resumo.registros.length}`}>
             <div className="max-h-[460px] overflow-auto">
@@ -993,6 +1008,11 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
             <p className="mt-2.5 text-[11.5px] font-semibold text-[#9A95AD]">Só leitura. Fotos, momentos e chat ficam com a família. Horário da família{rel.fuso ? ` (${rel.fuso.replace(/_/g, ' ')})` : ''}.</p>
           </Card>
         </div>
+        {janelas && (
+          <Card className="mt-4" titulo={'Janela antes de cada soneca'}>
+            <JanelasDasSonecas dados={janelas} dias={janDias} corte={janCorte} diaAberto={dia} bebe={f.bebe_nome ?? ''} idioma={'pt'} href={(n, ct) => `${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${dia}&jan=${n}&corte=${ct}`} />
+          </Card>
+        )}
       </>
     );
   }

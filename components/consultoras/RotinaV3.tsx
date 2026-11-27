@@ -125,7 +125,7 @@ function Etiqueta({ txt, atencao }: { txt: string; atencao?: boolean }) {
   );
 }
 
-export function Sequencia({ d }: { d: DiaV3 }) {
+export function Sequencia({ d , etiqueta }: { d: DiaV3; etiqueta?: (inicio: number, antesMin: number) => { ok: boolean; texto: string } | null }) {
   // Sonos do dia com os extras, pelo início (mesmo instante da linha).
   const sonosReg = d.resumo.registros.filter((r) => r.tipo === 'sleep');
   const porInicio = new Map(sonosReg.map((r) => [new Date(r.inicio).getTime(), r.detalhe]));
@@ -200,6 +200,11 @@ export function Sequencia({ d }: { d: DiaV3 }) {
                 <span className="h-full border-l-2 border-dotted border-[#D9D3EA]" />
               </span>
               <span className="text-[11.5px] font-semibold tabular-nums text-[#9A95AD]">Janela de sono {dur(l.antes)}</span>
+              {etiqueta && (() => {
+                // Comparação com as sonecas boas da semana (dono, 26/11/2026).
+                const e = etiqueta(l.de, l.antes as number);
+                return e ? <span className={`ml-1 rounded-full px-2 py-0.5 text-[11px] font-extrabold ${e.ok ? 'bg-[#E7F5EC] text-[#2F8A55]' : 'bg-[#FFF3DF] text-[#A8670F]'}`}>{e.texto}</span> : null;
+              })()}
             </div>
           )}
           <div className="flex gap-2.5 py-1 text-[13px]">
