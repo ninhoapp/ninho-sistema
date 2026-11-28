@@ -5,8 +5,11 @@
  */
 import Link from 'next/link';
 import { formatBRL } from '@/lib/metrics';
+import { fmtBRL, textos, type Idioma } from '@/lib/i18n-consultora';
 
-export const brl = (v: number) => formatBRL(v);
+// Compartilhado com o painel do dono: sem idioma, tudo em pt como antes.
+/** Sempre em R$; o formato segue o idioma (pt: o mesmo de formatBRL). */
+export const brl = (v: number, idioma: Idioma = 'pt') => (idioma === 'pt' ? formatBRL(v) : fmtBRL(idioma, v));
 
 export function Card({ titulo, direita, children, className = '' }: { titulo?: React.ReactNode; direita?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
@@ -45,10 +48,11 @@ export function Selo({ cor, children }: { cor: keyof typeof SELO; children: Reac
   return <span className={`inline-block whitespace-nowrap rounded-pill px-2.5 py-0.5 text-[11px] font-extrabold ${SELO[cor]}`}>{children}</span>;
 }
 
-export function SeloEstado({ estado }: { estado: string }) {
-  if (estado === 'ativa') return <Selo cor="verde">Ativa</Selo>;
-  if (estado === 'pausada') return <Selo cor="cinza">Pausada</Selo>;
-  return <Selo cor="ambar">Esperando cadastro</Selo>;
+export function SeloEstado({ estado, idioma = 'pt' }: { estado: string; idioma?: Idioma }) {
+  const t = textos(idioma).rotina.ui;
+  if (estado === 'ativa') return <Selo cor="verde">{t.ativa}</Selo>;
+  if (estado === 'pausada') return <Selo cor="cinza">{t.pausada}</Selo>;
+  return <Selo cor="ambar">{t.esperando}</Selo>;
 }
 
 const CORES = ['#3E9D70', '#4583D6', '#C066AE', '#E58A1F', '#5F6CCB', '#33A99F', '#7F5FD6', '#D9434F'];
@@ -133,11 +137,11 @@ export const campo = 'h-10 w-full rounded-xl border-[1.5px] border-transparent b
 export const rotuloCampo = 'mb-1 mt-3 block text-[11.5px] font-bold text-[#9A95AD]';
 
 /** Chave liga/desliga (dentro de um <form>). */
-export function Chave({ ligada, desabilitada = false }: { ligada: boolean; desabilitada?: boolean }) {
+export function Chave({ ligada, desabilitada = false, idioma = 'pt' }: { ligada: boolean; desabilitada?: boolean; idioma?: Idioma }) {
   return (
     <button
       type="submit"
-      title="Aparecer em Encontrar consultora de sono"
+      title={textos(idioma).rotina.ui.chave}
       className={`relative inline-block h-[26px] w-11 rounded-full align-middle transition ${ligada ? 'bg-[#4CAF74]' : 'bg-[#E2DEEA]'} ${desabilitada ? 'opacity-45' : ''}`}
     >
       <span className="absolute top-[3px] h-5 w-5 rounded-full bg-white shadow transition-all" style={{ left: ligada ? 21 : 3 }} />

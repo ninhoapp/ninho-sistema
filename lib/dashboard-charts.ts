@@ -2,6 +2,7 @@
  * Ninho · Séries temporais para os gráficos de barra do painel. Server-only,
  * sem I/O — recebe os usuários já buscados e só agrega.
  */
+import type { Idioma } from '@/lib/idioma';
 
 const MES_ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
@@ -107,8 +108,12 @@ export function buildUsuariosCharts(users: { created_at: string }[]): UsuariosCh
   };
 }
 
-/** Mês (yyyy-mm) de um instante, no fuso do painel. */
-export function mesNoPainel(iso: string | Date): string {
+/**
+ * Mês (yyyy-mm) de um instante, no fuso do painel. Devolve uma CHAVE, não
+ * texto: o `idioma` (opcional, painel da consultora) não muda o resultado.
+ */
+export function mesNoPainel(iso: string | Date, idioma: Idioma = 'pt'): string {
+  void idioma;
   return tzDateString(typeof iso === 'string' ? new Date(iso) : iso).slice(0, 7);
 }
 

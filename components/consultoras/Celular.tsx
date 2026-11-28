@@ -11,6 +11,7 @@ import {
   IconeSino,
 } from '@/components/consultoras/IconesApp';
 import { COMISSAO_VISIVEL } from '@/lib/consultoras-regras';
+import { textos, type Idioma } from '@/lib/i18n-consultora';
 
 /**
  * Moldura de iPhone e peças do app para desenhar as telas do manual.
@@ -30,6 +31,14 @@ import { COMISSAO_VISIVEL } from '@/lib/consultoras-regras';
  *   - `src/features/consultora/BarraConsultora.tsx` (barra de baixo)
  * Mudou no app, mude aqui.
  */
+
+/**
+ * Texto do dicionário com `**trecho**` em negrito (o dicionário é .ts, sem JSX).
+ * Função pura, sem hook: serve ao servidor e ao cliente.
+ */
+export function Rico({ texto }: { texto: string }) {
+  return <>{texto.split('**').map((parte, i) => (i % 2 ? <b key={i}>{parte}</b> : parte))}</>;
+}
 
 // ── Tokens do app ─────────────────────────────────────────
 export const HEAD_TOP = '#BB92FF';
@@ -331,14 +340,24 @@ export function Dedo({ style }: { style?: React.CSSProperties }) {
  * No app a pílula se fecha sozinha depois de alguns segundos; no manual ela
  * aparece aberta, que é o que a gente quer ensinar.
  */
-export function BarraDaConsultora({ ativa, aberta = true }: { ativa: 'Rotina' | 'Evolução' | 'Início' | 'Convidar' | 'Ganhos'; aberta?: boolean }) {
-  const itens: { label: string; icone: (p: { size?: number; color?: string }) => React.ReactNode; centro?: boolean }[] = [
-    { label: 'Rotina', icone: (p) => <IconeRelogio {...p} /> },
-    { label: 'Evolução', icone: (p) => <IconeBarras {...p} /> },
-    { label: 'Início', icone: (p) => <IconeCasa {...p} />, centro: true },
-    { label: 'Convidar', icone: (p) => <IconePessoaMais {...p} /> },
+export function BarraDaConsultora({
+  ativa,
+  aberta = true,
+  idioma = 'pt',
+}: {
+  ativa: 'Rotina' | 'Evolução' | 'Início' | 'Convidar' | 'Ganhos';
+  aberta?: boolean;
+  idioma?: Idioma;
+}) {
+  const t = textos(idioma).manual.barra;
+  // `chave` é a aba (igual ao `ativa`); `label` é o texto no idioma.
+  const itens: { chave: string; label: string; icone: (p: { size?: number; color?: string }) => React.ReactNode; centro?: boolean }[] = [
+    { chave: 'Rotina', label: t.rotina, icone: (p) => <IconeRelogio {...p} /> },
+    { chave: 'Evolução', label: t.evolucao, icone: (p) => <IconeBarras {...p} /> },
+    { chave: 'Início', label: t.inicio, icone: (p) => <IconeCasa {...p} />, centro: true },
+    { chave: 'Convidar', label: t.convidar, icone: (p) => <IconePessoaMais {...p} /> },
     // Com a comissão escondida, o manual também não desenha a aba Ganhos.
-    ...(COMISSAO_VISIVEL ? [{ label: 'Ganhos', icone: (p: { size?: number; color?: string }) => <IconeDinheiro {...p} /> }] : []),
+    ...(COMISSAO_VISIVEL ? [{ chave: 'Ganhos', label: t.ganhos, icone: (p: { size?: number; color?: string }) => <IconeDinheiro {...p} /> }] : []),
   ];
   return (
     <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>
@@ -361,11 +380,11 @@ export function BarraDaConsultora({ ativa, aberta = true }: { ativa: 'Rotina' | 
           }}
         >
           {itens.map((it) => {
-            const on = it.label === ativa;
+            const on = it.chave === ativa;
             const tam = it.centro ? 48 : 40;
             const corIcone = it.centro ? '#FFFFFF' : on ? LILAS : TINTA_FRACA;
             return (
-              <div key={it.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div key={it.chave} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                 <div
                   style={{
                     width: tam,
@@ -388,14 +407,14 @@ export function BarraDaConsultora({ ativa, aberta = true }: { ativa: 'Rotina' | 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 20, paddingRight: 20, paddingBottom: 26 }}>
         <div style={{ width: 56, height: 56, borderRadius: 28, background: TINTA, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, boxShadow: '0 4px 12px -4px rgba(35,26,61,.3)' }}>
           <IconeHeadset size={20} color="#FFFFFF" />
-          <span style={{ color: '#FFFFFF', fontSize: 9.5, fontWeight: 700 }}>Ajuda</span>
+          <span style={{ color: '#FFFFFF', fontSize: 9.5, fontWeight: 700 }}>{t.ajuda}</span>
         </div>
         <div style={{ paddingLeft: 22, paddingRight: 22, paddingTop: 10, paddingBottom: 10, borderRadius: 999, background: '#FFFFFF', boxShadow: '0 2px 6px rgba(35,26,61,.08)' }}>
           <IconeSeta dir={aberta ? 'baixo' : 'cima'} size={20} color={TINTA_FRACA} />
         </div>
         <div style={{ position: 'relative', width: 56, height: 56, borderRadius: 28, background: '#FFFFFF', border: '1.5px solid #E6DEF7', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px -4px rgba(35,26,61,.18)' }}>
           <IconeMonitor size={20} color={ROXO_FUNDO} />
-          <span style={{ color: ROXO_FUNDO, fontSize: 9, fontWeight: 800, marginTop: 1 }}>Painel</span>
+          <span style={{ color: ROXO_FUNDO, fontSize: 9, fontWeight: 800, marginTop: 1 }}>{t.painel}</span>
         </div>
       </div>
     </div>

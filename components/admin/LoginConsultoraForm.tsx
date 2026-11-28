@@ -5,8 +5,10 @@ import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { signInConsultora, type ActionState } from '@/app/admin/actions';
 import { LoginForm } from '@/components/admin/LoginForm';
+import { textos, type Idioma } from '@/lib/i18n-consultora';
 
-function Entrar() {
+function Entrar({ idioma }: { idioma: Idioma }) {
+  const t = textos(idioma).geral.login;
   const { pending } = useFormStatus();
   return (
     <button
@@ -14,22 +16,24 @@ function Entrar() {
       disabled={pending}
       className="w-full rounded-pill bg-ninho-roxo py-3.5 text-base font-semibold text-white transition hover:bg-ninho-roxo-escuro active:scale-[0.98] disabled:opacity-50"
     >
-      {pending ? 'Entrando...' : 'Entrar'}
+      {pending ? t.entrando : t.entrar}
     </button>
   );
 }
 
-function FormConsultora() {
+function FormConsultora({ idioma }: { idioma: Idioma }) {
   const [state, formAction] = useActionState<ActionState, FormData>(signInConsultora, {});
+  const t = textos(idioma).geral.login;
   return (
     <form action={formAction} className="flex flex-col gap-3">
       {state.error && <div className="rounded-2xl bg-red-50 p-3 text-sm text-red-600">{state.error}</div>}
+      <input type="hidden" name="lang" value={idioma} />
       <input
         name="email"
         type="email"
         autoComplete="email"
         autoCapitalize="none"
-        placeholder="E-mail que você usa no app"
+        placeholder={t.email}
         className="w-full rounded-pill border border-ninho-borda bg-white px-5 py-3.5 text-sm text-ninho-grafite outline-none focus:border-ninho-roxo"
         autoFocus
       />
@@ -38,20 +42,21 @@ function FormConsultora() {
         inputMode="numeric"
         autoComplete="one-time-code"
         maxLength={7}
-        placeholder="Código de 6 dígitos"
+        placeholder={t.codigo}
         className="w-full rounded-pill border border-ninho-borda bg-white px-5 py-3.5 text-center font-mono text-lg tracking-[0.4em] text-ninho-grafite outline-none placeholder:font-sans placeholder:text-sm placeholder:tracking-normal focus:border-ninho-roxo"
       />
-      <Entrar />
+      <Entrar idioma={idioma} />
       <p className="text-center text-xs leading-relaxed text-ninho-cinza">
-        Gere o código no app do Ninho, na sua área de consultora. Ele vale 10 minutos e serve uma vez só.
+        {t.ajudaCodigo}
       </p>
     </form>
   );
 }
 
 /** Login do painel com duas portas: equipe (usuário e senha) e consultora (e-mail + código do app). */
-export function LoginPortas({ inicial = 'equipe' }: { inicial?: 'equipe' | 'consultora' }) {
+export function LoginPortas({ inicial = 'equipe', idioma = 'pt' }: { inicial?: 'equipe' | 'consultora'; idioma?: Idioma }) {
   const [porta, setPorta] = useState(inicial);
+  const t = textos(idioma).geral.login;
   const aba = (v: 'equipe' | 'consultora', t: string) => (
     <button
       type="button"
@@ -66,10 +71,10 @@ export function LoginPortas({ inicial = 'equipe' }: { inicial?: 'equipe' | 'cons
   return (
     <div>
       <div className="mb-4 flex gap-1 rounded-pill border border-ninho-borda bg-white p-1">
-        {aba('equipe', 'Equipe Ninho')}
-        {aba('consultora', 'Sou consultora')}
+        {aba('equipe', t.abaEquipe)}
+        {aba('consultora', t.abaConsultora)}
       </div>
-      {porta === 'equipe' ? <LoginForm /> : <FormConsultora />}
+      {porta === 'equipe' ? <LoginForm /> : <FormConsultora idioma={idioma} />}
     </div>
   );
 }

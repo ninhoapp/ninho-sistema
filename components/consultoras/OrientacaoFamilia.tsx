@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { botao, campo } from './ui';
+import { useTextos } from '@/components/consultoras/IdiomaConsultora';
 
 /**
  * "Orientação para a família" na aba Ficha do painel da consultora
@@ -54,6 +55,7 @@ export function OrientacaoFamilia({
   /** Motivo para não dar nem para escrever (família sem plano, sem aceite dela…). */
   bloqueio?: string;
 }) {
+  const t = useTextos().rotina.orientacao;
   const [texto, setTexto] = useState('');
   const [marcado, setMarcado] = useState(false);
   const limpo = texto.trim();
@@ -72,13 +74,12 @@ export function OrientacaoFamilia({
         onChange={(e) => setTexto(e.target.value)}
         maxLength={ORIENTACAO_MAX}
         rows={6}
-        placeholder="Escreva aqui a orientação que a família vai ler no app. Sem link e sem anexo."
+        placeholder={t.placeholder}
         className={`${campo} h-auto py-2 leading-relaxed`}
       />
       <div className="mt-1.5 flex flex-wrap items-start justify-between gap-2">
         <small className="max-w-[460px] text-[11.5px] leading-snug text-ninho-cinza">
-          A família recebe no sininho e no celular, e você vê quando ela ler. Depois de enviada, a orientação não
-          pode ser editada nem apagada.
+          {t.nota}
         </small>
         <small className="text-[11.5px] font-extrabold tabular-nums text-ninho-cinza">
           {texto.length}/{ORIENTACAO_MAX}
@@ -88,27 +89,27 @@ export function OrientacaoFamilia({
       {(comLink || saude) && (
         <div className="mt-2 rounded-2xl bg-[#FFF3DF] px-3 py-2 text-[12.5px] font-bold leading-snug text-[#A8670F]">
           {comLink
-            ? 'A orientação não pode ter link. Tire o endereço para poder enviar.'
-            : 'Esse texto parece falar de saúde (remédio, dose, posição de sono). Você pode enviar, mas lembre: orientação de saúde é com o pediatra.'}
+            ? t.comLink
+            : t.saude}
         </div>
       )}
 
       {precisaAceite && (
         <div className="mt-3 rounded-2xl bg-[#F8F6FC] px-4 py-3">
-          <p className="text-[12.5px] font-extrabold text-[#24164F]">Antes da primeira orientação, confirme o termo</p>
+          <p className="text-[12.5px] font-extrabold text-[#24164F]">{t.termoTitulo}</p>
           <div className="mt-2 max-h-[220px] overflow-auto text-[12.5px] leading-relaxed text-ninho-grafite">
             <TextoComNegrito texto={termo} />
           </div>
           <label className="mt-3 flex items-start gap-2 text-[12.5px] font-bold text-ninho-grafite">
             <input type="checkbox" name="aceite" checked={marcado} onChange={(e) => setMarcado(e.target.checked)} className="mt-0.5" />
-            <span>Li e concordo com o termo acima.</span>
+            <span>{t.concordo}</span>
           </label>
         </div>
       )}
 
       <div className="mt-3">
         <button className={botao.grad} disabled={!pode}>
-          Enviar para a família
+          {t.enviar}
         </button>
       </div>
     </form>

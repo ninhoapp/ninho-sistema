@@ -5,6 +5,9 @@ import { SidebarNav } from '@/components/admin/SidebarNav';
 import { SetorTabs } from '@/components/admin/SetorTabs';
 import { AlertaAtendimento } from '@/components/admin/AlertaAtendimento';
 import { ContaMenu } from '@/components/consultoras/ContaMenu';
+import { IdiomaProvider, SeletorIdioma } from '@/components/consultoras/IdiomaConsultora';
+import { idiomaDaConsultora } from '@/lib/i18n-consultora/servidor';
+import { textos } from '@/lib/i18n-consultora';
 import '../admin.css';
 
 export const dynamic = 'force-dynamic';
@@ -25,9 +28,14 @@ export default async function PainelLayout({ children }: { children: React.React
   // Admin: se a senha mudou depois do login, o cookie antigo não entra mais.
   // Banco fora do ar não derruba (auditoria, 10/11/2026).
   if (cookie.role === 'admin') await conferirSenhaDoAdmin(cookie);
+  // Painel da consultora em pt/en/es (25/11/2026); o dono e os outros papéis ficam em pt.
+  const consultora = session.role === 'consultora';
+  const idioma = consultora ? await idiomaDaConsultora() : 'pt';
+  const t = textos(idioma).geral.topo;
 
   return (
-    <div className="min-h-screen bg-ninho-nuvem text-ninho-grafite">
+    <IdiomaProvider idioma={idioma}>
+    <div className="min-h-screen bg-ninho-nuvem text-ninho-grafite" lang={consultora ? idioma : undefined}>
       {/* Topbar */}
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-ninho-borda bg-white px-4 py-3 sm:px-6">
         <div className="flex items-center gap-2.5">
@@ -36,11 +44,14 @@ export default async function PainelLayout({ children }: { children: React.React
             <span className="block text-sm font-bold tracking-wide text-ninho-roxo-escuro">
               NINHO
             </span>
-            <span className="block text-[11px] text-ninho-cinza">Painel</span>
+            <span className="block text-[11px] text-ninho-cinza">{t.painel}</span>
           </div>
         </div>
-        {session.role === 'consultora' ? (
-          <ContaMenu nome={session.name} />
+        {consultora ? (
+          <div className="flex items-center gap-3">
+            <SeletorIdioma atual={idioma} className="hidden sm:flex" />
+            <ContaMenu nome={session.name} idioma={idioma} />
+          </div>
         ) : (
         <div className="flex items-center gap-3">
           <div className="text-right leading-tight">
@@ -68,8 +79,9 @@ export default async function PainelLayout({ children }: { children: React.React
         <main className="min-w-0 flex-1">
           {/* Menu recolhido no celular */}
           <details className="mb-4 rounded-2xl bg-white p-2 md:hidden">
-            <summary className="cursor-pointer px-2 py-1 text-sm font-semibold">Menu</summary>
+            <summary className="cursor-pointer px-2 py-1 text-sm font-semibold">{t.menu}</summary>
             <SidebarNav role={session.role} />
+            {consultora && <SeletorIdioma atual={idioma} className="mt-2 border-t border-ninho-borda px-3 pt-2 sm:hidden" />}
           </details>
           {session.role === 'admin' && <AlertaAtendimento />}
           {session.role === 'admin' && <SetorTabs />}
@@ -77,5 +89,6 @@ export default async function PainelLayout({ children }: { children: React.React
         </main>
       </div>
     </div>
+    </IdiomaProvider>
   );
 }

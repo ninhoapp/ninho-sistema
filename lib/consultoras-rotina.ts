@@ -22,6 +22,7 @@
  */
 import type { RegistroRotina } from '@/lib/consultoras';
 import { periodosDosSonos, type PerfilDoSono, type PeriodoSono } from '@/lib/periodo-do-sono';
+import { fmtHora, textos, type Idioma } from '@/lib/i18n-consultora';
 
 export const FUSO_MS = -3 * 3600 * 1000;
 const H = 3600 * 1000;
@@ -42,13 +43,19 @@ export function somarDias(diaLocal: string, n: number): string {
   return diaLocalDe(inicioDoDia(diaLocal) + n * DIA + 12 * H);
 }
 
-/** "14:05" local. */
-export function hora(ms: number): string {
+/** "14:05" local (pt e es); "2:05 PM" no inglês. */
+export function hora(ms: number, idioma: Idioma = 'pt'): string {
+  if (idioma === 'en') return fmtHora(idioma, ms + FUSO_MS, 'UTC');
   return new Date(ms + FUSO_MS).toISOString().slice(11, 16);
 }
 
-/** Minutos → "1h05" ou "40 min". */
-export function dur(min: number): string {
+/**
+ * Minutos → "1h05" ou "40 min". Igual nos três idiomas, como no app
+ * (Ninho-expo, src/utils/duracao.ts: o dono quis um formato só); o idioma
+ * fica na assinatura pelo contrato dos textos.
+ */
+export function dur(min: number, idioma: Idioma = 'pt'): string {
+  void idioma;
   const m = Math.max(0, Math.round(min));
   return m < 60 ? `${m} min` : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
 }
@@ -222,7 +229,8 @@ export interface ResumoDia {
   registros: RegistroRotina[];
 }
 
-export function resumoDoDia(regs: RegistroRotina[], dia: string, agora: number): ResumoDia {
+export function resumoDoDia(regs: RegistroRotina[], dia: string, agora: number, idioma: Idioma = 'pt'): ResumoDia {
+  const tj = textos(idioma).rotina.janela;
   const ini = inicioDoDia(dia);
   const fimDia = ini + DIA;
   const noiteAnterior = noiteDe(regs, somarDias(dia, -1), agora);
@@ -240,12 +248,12 @@ export function resumoDoDia(regs: RegistroRotina[], dia: string, agora: number):
   let cursor: number | null = acordou;
   sonecas.forEach((s, i) => {
     if (cursor !== null && s.a > cursor) {
-      janelas.push({ de: cursor, ate: s.a, min: (s.a - cursor) / 60000, rotulo: i === 0 ? 'Acordou → 1ª soneca' : `${i}ª → ${i + 1}ª soneca` });
+      janelas.push({ de: cursor, ate: s.a, min: (s.a - cursor) / 60000, rotulo: i === 0 ? tj.acordouPrimeira : tj.entre(i) });
     }
     cursor = s.emAndamento ? null : s.b;
   });
   if (cursor !== null && noite.dormiu !== null && noite.dormiu > cursor) {
-    janelas.push({ de: cursor, ate: noite.dormiu, min: (noite.dormiu - cursor) / 60000, rotulo: sonecas.length ? 'Última soneca → noite' : 'Acordou → noite' });
+    janelas.push({ de: cursor, ate: noite.dormiu, min: (noite.dormiu - cursor) / 60000, rotulo: sonecas.length ? tj.ultimaNoite : tj.acordouNoite });
   }
 
   const doDia = regs.filter((r) => {
@@ -292,30 +300,36 @@ export function resumoDoDia(regs: RegistroRotina[], dia: string, agora: number):
   };
 }
 
-/** Rótulo e detalhe de um registro, em português simples. */
-export function descreverRegistro(r: RegistroRotina, agora: number, periodo?: PeriodoSono): { titulo: string; detalhe: string; cor: string } {
+/** Rótulo e detalhe de um registro, em linguagem simples. */
+export function descreverRegistro(
+  r: RegistroRotina,
+  agora: number,
+  periodo?: PeriodoSono,
+  idioma: Idioma = 'pt',
+): { titulo: string; detalhe: string; cor: string } {
+  const t = textos(idioma).rotina.registro;
   const d = r.detalhe as Record<string, string | number | undefined>;
   const a = new Date(r.inicio).getTime();
   const b = r.fim ? new Date(r.fim).getTime() : null;
   if (r.tipo === 'sleep') {
     const min = ((b ?? agora) - a) / 60000;
     // Sono noturno ou soneca pela regra única (13/11/2026); sem o período, "Sono".
-    const nome = periodo === 'noite' ? 'Sono noturno' : periodo === 'soneca' ? 'Soneca' : 'Sono';
-    return { titulo: b ? nome : 'Dormindo', detalhe: `${hora(a)}${b ? ` – ${hora(b)}` : ' · em andamento'} · ${dur(min)}`, cor: '#9F86E0' };
+    const nome = periodo === 'noite' ? t.sonoNoturno : periodo === 'soneca' ? t.soneca : t.sono;
+    return { titulo: b ? nome : t.dormindo, detalhe: `${hora(a, idioma)}${b ? ` – ${hora(b, idioma)}` : t.emAndamento} · ${dur(min, idioma)}`, cor: '#9F86E0' };
   }
   if (r.tipo === 'feeding') {
     if (r.subtipo === 'bottle') {
-      return { titulo: 'Mamadeira', detalhe: [d.ml ? `${d.ml} ml` : null, d.leite ? String(d.leite) : null].filter(Boolean).join(' · ') || 'sem quantidade', cor: '#F38BA0' };
+      return { titulo: t.mamadeira, detalhe: [d.ml ? `${d.ml} ml` : null, d.leite ? String(d.leite) : null].filter(Boolean).join(' · ') || t.semQuantidade, cor: '#F38BA0' };
     }
-    const lado = d.lado === 'left' ? 'esquerdo' : d.lado === 'right' ? 'direito' : d.lado === 'both' ? 'os dois' : d.lado ? String(d.lado) : null;
-    return { titulo: 'Peito', detalhe: [lado ? `lado ${lado}` : null, d.minutos ? `${d.minutos} min` : null].filter(Boolean).join(' · ') || '—', cor: '#E85D6A' };
+    const lado = d.lado === 'left' ? t.ladoEsquerdo : d.lado === 'right' ? t.ladoDireito : d.lado === 'both' ? t.ladoAmbos : d.lado ? t.ladoOutro(String(d.lado)) : null;
+    return { titulo: t.peito, detalhe: [lado, d.minutos ? `${d.minutos} min` : null].filter(Boolean).join(' · ') || '—', cor: '#E85D6A' };
   }
   if (r.tipo === 'diaper') {
-    const f = d.fralda === 'wet' ? 'xixi' : d.fralda === 'dirty' ? 'cocô' : d.fralda === 'mixed' ? 'xixi e cocô' : d.fralda === 'dry' ? 'seca' : '—';
-    return { titulo: 'Fralda', detalhe: f, cor: '#8CC63F' };
+    const f = d.fralda === 'wet' ? t.xixi : d.fralda === 'dirty' ? t.coco : d.fralda === 'mixed' ? t.xixiCoco : d.fralda === 'dry' ? t.seca : '—';
+    return { titulo: t.fralda, detalhe: f, cor: '#8CC63F' };
   }
-  const refeicao = d.refeicao === 'lanche' ? 'lanche' : d.refeicao === 'refeicao' ? 'refeição' : null;
-  return { titulo: 'Comida', detalhe: [refeicao, d.comida, d.quantidade].filter(Boolean).join(' · ') || '—', cor: '#F5A33B' };
+  const refeicao = d.refeicao === 'lanche' ? t.lanche : d.refeicao === 'refeicao' ? t.refeicao : null;
+  return { titulo: t.comida, detalhe: [refeicao, d.comida, d.quantidade].filter(Boolean).join(' · ') || '—', cor: '#F5A33B' };
 }
 
 /** Idade em meses (calendário), a partir de yyyy-mm-dd. */
@@ -361,8 +375,8 @@ export interface DiaV3 {
   resumo: ResumoDia;
 }
 
-export function diaV3(regs: RegistroRotina[], dia: string, agora: number): DiaV3 {
-  const r = resumoDoDia(regs, dia, agora);
+export function diaV3(regs: RegistroRotina[], dia: string, agora: number, idioma: Idioma = 'pt'): DiaV3 {
+  const r = resumoDoDia(regs, dia, agora, idioma);
   const n = r.noite;
   const fimUltimaSoneca = r.sonecas.length ? r.sonecas[r.sonecas.length - 1].b : null;
   const inicioJanela = fimUltimaSoneca ?? r.acordou;
@@ -408,9 +422,10 @@ export function minutoDaNoite(t: number): number {
   return m < 12 * 60 ? m + 1440 : m;
 }
 
-/** "06:15" de minutos (aceita > 1440). */
-export function hhmm(min: number): string {
+/** "06:15" de minutos (aceita > 1440); "6:15 AM" no inglês. */
+export function hhmm(min: number, idioma: Idioma = 'pt'): string {
   const m = ((Math.round(min) % 1440) + 1440) % 1440;
+  if (idioma === 'en') return fmtHora(idioma, Date.UTC(2000, 0, 1, Math.floor(m / 60), m % 60), 'UTC');
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 }
 
@@ -418,7 +433,12 @@ function media(xs: number[]): number | null {
   return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
 }
 
+/** Chave estável de cada faixa de horário (não muda com o idioma). */
+export type ChaveFaixa = 'acordou' | 'soneca1' | 'soneca2' | 'soneca3' | 'dormiu';
+
 export interface FaixaHorario {
+  /** Para achar a faixa no código use esta, não o rótulo (que é traduzido). */
+  chave: ChaveFaixa;
   rotulo: string;
   /** Um valor por dia (minutos, ver minutoDoDia/minutoDaNoite) ou null. */
   valores: (number | null)[];
@@ -449,17 +469,18 @@ export interface SemanaV3 {
   horarios: FaixaHorario[];
 }
 
-function faixa(rotulo: string, valores: (number | null)[]): FaixaHorario {
+function faixa(chave: ChaveFaixa, rotulo: string, valores: (number | null)[]): FaixaHorario {
   const v = valores.filter((x): x is number => x !== null);
   const min = v.length ? Math.min(...v) : null;
   const max = v.length ? Math.max(...v) : null;
   const variacao = min !== null && max !== null ? max - min : null;
-  return { rotulo, valores, min, max, variacao, irregular: (variacao ?? 0) >= 60, dias: v.length };
+  return { chave, rotulo, valores, min, max, variacao, irregular: (variacao ?? 0) >= 60, dias: v.length };
 }
 
 /** `n` dias terminando em `ultimoDia` (inclusive). */
-export function semanaV3(regs: RegistroRotina[], ultimoDia: string, agora: number, n = 7): SemanaV3 {
-  const dias = Array.from({ length: n }, (_, i) => diaV3(regs, somarDias(ultimoDia, i - (n - 1)), agora));
+export function semanaV3(regs: RegistroRotina[], ultimoDia: string, agora: number, n = 7, idioma: Idioma = 'pt'): SemanaV3 {
+  const tf = textos(idioma).rotina.faixa;
+  const dias = Array.from({ length: n }, (_, i) => diaV3(regs, somarDias(ultimoDia, i - (n - 1)), agora, idioma));
   const completas = dias.filter((d) => d.noiteCompleta);
   const comDia = dias.filter((d) => d.temRegistro && d.acordou !== null && d.dormiu !== null);
   const melhores = [...completas]
@@ -480,24 +501,24 @@ export function semanaV3(regs: RegistroRotina[], ultimoDia: string, agora: numbe
     melhores,
     maiorJanela: todasJanelas.length ? Math.max(...todasJanelas) : null,
     horarios: [
-      faixa('Acordou', dias.map((d) => (d.acordou !== null ? minutoDoDia(d.acordou) : null))),
-      faixa('1ª soneca', sonecaN(0)),
-      faixa('2ª soneca', sonecaN(1)),
-      faixa('3ª soneca', sonecaN(2)),
-      faixa('Dormiu', dias.map((d) => (d.dormiu !== null ? minutoDaNoite(d.dormiu) : null))),
+      faixa('acordou', tf.acordou, dias.map((d) => (d.acordou !== null ? minutoDoDia(d.acordou) : null))),
+      faixa('soneca1', tf.soneca1, sonecaN(0)),
+      faixa('soneca2', tf.soneca2, sonecaN(1)),
+      faixa('soneca3', tf.soneca3, sonecaN(2)),
+      faixa('dormiu', tf.dormiu, dias.map((d) => (d.dormiu !== null ? minutoDaNoite(d.dormiu) : null))),
     ].filter((f) => f.dias > 0),
   };
 }
 
 /** "De costume" do próprio bebê: a semana antes do dia, para comparar o dia. */
-export function costumeAntes(regs: RegistroRotina[], dia: string, agora: number): SemanaV3 {
-  return semanaV3(regs, somarDias(dia, -1), agora, 7);
+export function costumeAntes(regs: RegistroRotina[], dia: string, agora: number, idioma: Idioma = 'pt'): SemanaV3 {
+  return semanaV3(regs, somarDias(dia, -1), agora, 7, idioma);
 }
 
 /** Texto curto de uma faixa: "06:15–06:50" (ou um horário só). */
-export function faixaTxt(f: FaixaHorario | undefined): string | null {
+export function faixaTxt(f: FaixaHorario | undefined, idioma: Idioma = 'pt'): string | null {
   if (!f || f.min === null || f.max === null) return null;
-  return f.min === f.max ? hhmm(f.min) : `${hhmm(f.min)}–${hhmm(f.max)}`;
+  return f.min === f.max ? hhmm(f.min, idioma) : `${hhmm(f.min, idioma)}–${hhmm(f.max, idioma)}`;
 }
 
 // ── Evolução do sono (dono, 12/11/2026) ───────────────────

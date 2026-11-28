@@ -1,4 +1,5 @@
 import { andamentoDoPrazo, diasAteTermino, semanaDoPrazo, textoDoPrazo } from '@/lib/consultoras';
+import { textos, type Idioma } from '@/lib/i18n-consultora';
 
 /**
  * A barrinha do prazo da consultoria (00186, pedido do dono de 17/11/2026).
@@ -8,15 +9,16 @@ import { andamentoDoPrazo, diasAteTermino, semanaDoPrazo, textoDoPrazo } from '@
  * família com consultora — nenhuma outra tela do painel usa isto.
  */
 
-function dataBrCurta(iso: string | null): string {
+/** "26/11" (en: "11/26"). */
+function dataCurta(iso: string | null, idioma: Idioma): string {
   if (!iso) return '—';
   const [, m, d] = iso.split('-');
-  return `${d}/${m}`;
+  return textos(idioma).rotina.dataCurta(d, m);
 }
 
-export function BarraDoPrazo({ inicio, termino, compacta = false }: { inicio: string | null; termino: string | null; compacta?: boolean }) {
+export function BarraDoPrazo({ inicio, termino, compacta = false, idioma = 'pt' }: { inicio: string | null; termino: string | null; compacta?: boolean; idioma?: Idioma }) {
   const dias = diasAteTermino(termino);
-  const texto = textoDoPrazo(termino);
+  const texto = textoDoPrazo(termino, undefined, idioma);
   const andamento = andamentoDoPrazo(inicio, termino);
   const semana = semanaDoPrazo(inicio, termino);
   if (dias === null) return null;
@@ -30,14 +32,14 @@ export function BarraDoPrazo({ inicio, termino, compacta = false }: { inicio: st
     <div className={compacta ? 'min-w-[190px]' : ''}>
       <div className="flex items-baseline justify-between gap-2">
         <b className="text-[12.5px]">{texto}</b>
-        {semana && <span className="text-[11.5px] font-bold text-ninho-cinza">semana {semana.atual} de {semana.total}</span>}
+        {semana && <span className="text-[11.5px] font-bold text-ninho-cinza">{textos(idioma).rotina.prazo.semana(semana.atual, semana.total)}</span>}
       </div>
       <div className="mt-1 h-2 overflow-hidden rounded-full bg-[#EFEAF8]">
         <div className={`h-full rounded-full bg-gradient-to-r ${cor}`} style={{ width: `${largura}%` }} />
       </div>
       <div className="mt-1 flex justify-between text-[11px] tabular-nums text-[#9A95AD]">
-        <span>{dataBrCurta(inicio)}</span>
-        <span>{dataBrCurta(termino)}</span>
+        <span>{dataCurta(inicio, idioma)}</span>
+        <span>{dataCurta(termino, idioma)}</span>
       </div>
     </div>
   );

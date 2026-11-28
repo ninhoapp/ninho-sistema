@@ -15,6 +15,7 @@
  * O p_consultora vem SEMPRE da sessão (consultoraDoPerfil), nunca do formulário.
  */
 import { appDb } from '@/lib/supabase/server';
+import { textos as textosPainel, type Idioma } from '@/lib/i18n-consultora';
 
 export const IA_PRECO_MENSAL = 49.9;
 export const IA_LIMITE_MES = 30;
@@ -22,6 +23,11 @@ export const IA_PERIODOS = [7, 14] as const;
 
 export const RODAPE_IA =
   'Relatório gerado por IA a partir dos registros do app. Não é avaliação de saúde e não substitui o pediatra.';
+
+/** O rodapé do relatório no idioma do painel (pt = RODAPE_IA). Mesmo texto do app. */
+export function rodapeIa(idioma: Idioma = 'pt'): string {
+  return textosPainel(idioma).acoes.ia.rodape;
+}
 
 export interface IaStatus {
   /** Assinatura ativa agora. */
@@ -164,12 +170,14 @@ export type ResultadoGerar =
  * Gera um relatório. PONTO ÚNICO de chamada ao backend: o contrato final da
  * edge function `relatorio-consultora` (Vitor) ainda vai ser fechado, e é só
  * aqui que muda. Hoje: invoke com o service role do painel, mandando a
- * consultora (da sessão), o bebê e os dias.
+ * consultora (da sessão), o bebê, os dias e o idioma (a função escreve o
+ * relatório em pt, en ou es). As mensagens de volta saem no mesmo idioma.
  */
-export async function gerarRelatorio(consultoraId: string, babyId: string, dias: 7 | 14): Promise<ResultadoGerar> {
+export async function gerarRelatorio(consultoraId: string, babyId: string, dias: 7 | 14, idioma: Idioma = 'pt'): Promise<ResultadoGerar> {
+  const t = textosPainel(idioma).acoes.ia;
   try {
     const { data, error } = await appDb().functions.invoke('relatorio-consultora', {
-      body: { consultora_id: consultoraId, baby_id: babyId, periodo_dias: dias, lang: 'pt' },
+      body: { consultora_id: consultoraId, baby_id: babyId, periodo_dias: dias, lang: idioma },
     });
     if (error) {
       const msg = error.message || '';
@@ -177,9 +185,9 @@ export async function gerarRelatorio(consultoraId: string, babyId: string, dias:
       const status = (error as { context?: { status?: number } }).context?.status;
       // Função ainda não publicada (404) ou sem rede até ela: indisponível, não erro.
       if (status === 404 || /not found|FunctionsRelayError|FunctionsFetchError/i.test(msg)) {
-        return { ok: false, motivo: 'indisponivel', mensagem: 'O Relatório IA ainda não está disponível no painel. Tente pelo app.' };
+        return { ok: false, motivo: 'indisponivel', mensagem: t.indisponivel };
       }
-      return { ok: false, motivo: 'erro', mensagem: 'Não consegui gerar agora. Tente de novo em instantes.' };
+      return { ok: false, motivo: 'erro', mensagem: t.erro };
     }
     const o = obj(data) ?? {};
     // Contrato da relatorio-consultora (Vitor, 00116): status pronto | sem_dados |
@@ -187,17 +195,18 @@ export async function gerarRelatorio(consultoraId: string, babyId: string, dias:
     let r = str(o.resultado) ?? str(o.status) ?? (o.id ? 'ok' : null);
     if (r === 'pronto' || r === 'ok' || o.ok === true) return { ok: true, id: str(o.id) ?? str(o.relatorio_id) };
     if (r === 'sem_cota') r = str(o.motivo) === 'limite_mes' ? 'limite' : 'sem_assinatura';
-    if (r === 'em_andamento') return { ok: false, motivo: 'erro', mensagem: 'Já há um relatório sendo gerado. Aguarde um instante.' };
+    if (r === 'em_andamento') return { ok: false, motivo: 'erro', mensagem: t.emAndamento };
     const motivos: Record<string, ResultadoGerar & { ok: false }> = {
-      sem_assinatura: { ok: false, motivo: 'sem_assinatura', mensagem: 'Seu relatório grátis já foi usado. Assine pelo app do Ninho para continuar.' },
-      limite: { ok: false, motivo: 'limite', mensagem: `Você chegou aos ${IA_LIMITE_MES} relatórios deste mês.` },
-      sem_dados: { ok: false, motivo: 'sem_dados', mensagem: 'Ainda não há registros suficientes para um relatório completo. Não contou como relatório usado.' },
-      sem_acesso: { ok: false, motivo: 'sem_acesso', mensagem: 'Sem acesso à rotina deste bebê agora.' },
+      sem_assinatura: { ok: false, motivo: 'sem_assinatura', mensagem: t.semAssinatura },
+      limite: { ok: false, motivo: 'limite', mensagem: t.limite(IA_LIMITE_MES) },
+      sem_dados: { ok: false, motivo: 'sem_dados', mensagem: t.semDados },
+      sem_acesso: { ok: false, motivo: 'sem_acesso', mensagem: t.semAcesso },
     };
-    return motivos[r ?? ''] ?? { ok: false, motivo: 'erro', mensagem: str(o.mensagem) ?? 'Não consegui gerar agora.' };
+    // `mensagem` da função já vem no idioma pedido (lang).
+    return motivos[r ?? ''] ?? { ok: false, motivo: 'erro', mensagem: str(o.mensagem) ?? t.erroCurto };
   } catch (e) {
     console.error('[consultoras-ia] gerar falhou:', e instanceof Error ? e.message : e);
-    return { ok: false, motivo: 'indisponivel', mensagem: 'O Relatório IA ainda não está disponível no painel. Tente pelo app.' };
+    return { ok: false, motivo: 'indisponivel', mensagem: t.indisponivel };
   }
 }
 

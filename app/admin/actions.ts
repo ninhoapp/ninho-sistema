@@ -12,6 +12,9 @@ import {
 import { findPerfilByLogin, getPerfil, setPassword, updatePerfil } from '@/lib/painel/store';
 import { verifyPassword } from '@/lib/auth/password';
 import { erroSenhaFraca } from '@/lib/auth/senha-forte';
+import { idiomaDoParametro } from '@/lib/idioma';
+import { textos } from '@/lib/i18n-consultora';
+import { idiomaDaConsultora, idiomaDoLogin } from '@/lib/i18n-consultora/servidor';
 import {
   setSessionCookie,
   clearSessionCookie,
@@ -93,35 +96,40 @@ async function renovarCookieDepoisDaTroca(session: { sub: string; pv?: string })
 /** 1º acesso com senha provisória: a pessoa cria a própria senha. */
 export async function trocarSenhaProvisoria(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const session = await getSession();
-  if (!session) return { error: 'Sessão expirada. Entre de novo.' };
+  // Consultora vê no idioma dela; os outros papéis em pt (idiomaDaConsultora devolve pt).
+  const ts = textos(await idiomaDaConsultora()).geral.trocarSenha;
+  if (!session) return { error: ts.sessaoExpirada };
   const nova = String(formData.get('nova') || '');
   const confirma = String(formData.get('confirma') || '');
-  if (nova !== confirma) return { error: 'A confirmação não confere.' };
+  if (nova !== confirma) return { error: ts.naoConfere };
   const perfil = await getPerfil(session.sub);
-  if (!perfil || !perfil.active) return { error: 'Sessão expirada. Entre de novo.' };
+  if (!perfil || !perfil.active) return { error: ts.sessaoExpirada };
   const fraca = erroSenhaFraca(nova, [perfil.username, perfil.display_name, perfil.email]);
   if (fraca) return { error: fraca };
-  if (verifyPassword(nova, perfil.password_hash)) return { error: 'Escolha uma senha diferente da provisória.' };
+  if (verifyPassword(nova, perfil.password_hash)) return { error: ts.diferente };
   const res = await setPassword(perfil.id, nova, false);
-  if (!res.ok) return { error: res.error || 'Falha ao salvar.' };
+  if (!res.ok) return { error: res.error || ts.falha };
   await renovarCookieDepoisDaTroca(session);
   redirect(homeForRole(perfil.role));
 }
 
 /** Consultora: e-mail liberado + código de 6 dígitos gerado no app. */
 export async function signInConsultora(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  // Idioma do login (campo escondido do form: ?lang=/cookie/navegador já resolvidos na página).
+  const idioma = idiomaDoParametro(String(formData.get('lang') || '')) ?? (await idiomaDoLogin());
+  const tl = textos(idioma).geral.login;
   const email = String(formData.get('email') || '');
   const codigo = String(formData.get('codigo') || '');
-  if (!email.trim() || !codigo.trim()) return { error: 'Preencha o e-mail e o código.' };
+  if (!email.trim() || !codigo.trim()) return { error: tl.preencha };
   let res;
   try {
     const { loginConsultora } = await import('@/lib/consultoras-login');
-    res = await loginConsultora(email, codigo);
+    res = await loginConsultora(email, codigo, idioma);
   } catch (e) {
     console.error('[admin/signInConsultora] falha no banco:', e);
-    return { error: 'Não consegui conferir agora. Tente de novo em instantes.' };
+    return { error: tl.falhaBanco };
   }
-  if (!res.perfil) return { error: res.error || 'Não consegui entrar.' };
+  if (!res.perfil) return { error: res.error || tl.naoEntrou };
   await setSessionCookie({
     sub: res.perfil.id,
     username: res.perfil.username,

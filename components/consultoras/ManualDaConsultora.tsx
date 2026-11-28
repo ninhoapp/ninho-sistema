@@ -1,6 +1,8 @@
 import { Aviso, Card } from '@/components/consultoras/ui';
 import { AcoesManual } from '@/components/consultoras/AcoesManual';
 import { codigoDe, type DadosManual } from '@/components/consultoras/manualTextos';
+import { Rico } from '@/components/consultoras/Celular';
+import { textos, type Idioma } from '@/lib/i18n-consultora';
 import {
   TelaApareca,
   TelaAprovado,
@@ -25,6 +27,9 @@ import {
  * conta ficaram de fora: quem está aqui já entrou. Para quem quer o PDF
  * inteiro, os dois caminhos continuam disponíveis nos botões do topo.
  * O mesmo texto está no app, em pt e en, em app/(app)/consultora/manual.tsx.
+ *
+ * Idioma (25/11/2026): `idioma` (padrão 'pt') escolhe os textos do
+ * dicionário (lib/i18n-consultora/{pt,en,es}/manual.ts) e as telas desenhadas.
  */
 
 function Passo({ n, titulo, children, telas }: { n: number; titulo: string; children: React.ReactNode; telas?: React.ReactNode }) {
@@ -42,139 +47,126 @@ function Passo({ n, titulo, children, telas }: { n: number; titulo: string; chil
   );
 }
 
-export function ManualDaConsultora({ dados }: { dados: DadosManual }) {
+export function ManualDaConsultora({ dados, idioma = 'pt' }: { dados: DadosManual; idioma?: Idioma }) {
+  const t = textos(idioma).manual.painel;
   const codigo = codigoDe(dados);
   const nome = dados.nome;
   return (
     <>
-      <Card titulo="Manual da consultora" direita="o mesmo passo a passo do PDF">
+      <Card titulo={t.titulo} direita={t.tituloDireita}>
         <p className="text-[13px] leading-relaxed text-ninho-cinza">
-          Aqui está o caminho completo, do convite ao acompanhamento, com as telas do app. É o mesmo manual que o Ninho manda em PDF:{' '}
-          <b>Baixar PDF</b> gera o arquivo com o seu nome, o seu e-mail e o seu código, para você guardar ou imprimir.
+          <Rico texto={t.intro} />
         </p>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
           <Aviso tom="lilas">
-            O seu código é <b>{codigo}</b>. É ele que a família digita no app dela.
+            <Rico texto={t.seuCodigo(codigo)} />
           </Aviso>
-          <AcoesManual tipo="com-conta" dados={dados} apenasPdf rotuloPdf="Baixar PDF" />
+          <AcoesManual tipo="com-conta" dados={dados} apenasPdf rotuloPdf={t.baixarPdf} />
         </div>
       </Card>
 
-      <Card className="mt-4" titulo="Passo a passo">
+      <Card className="mt-4" titulo={t.passoAPasso}>
         <Passo
           n={1}
-          titulo="Convide a família"
+          titulo={t.p1Titulo}
           telas={
             <>
-              <TelaInicioVazio />
-              <TelaConvidar codigo={codigo} />
-              <TelaWhatsAppConvite codigo={codigo} />
+              <TelaInicioVazio idioma={idioma} />
+              <TelaConvidar codigo={codigo} idioma={idioma} />
+              <TelaWhatsAppConvite codigo={codigo} idioma={idioma} />
             </>
           }
         >
           <p>
-            No app, toque em <b>Convidar</b>, na barra de baixo (se a barra estiver fechada, toque na setinha do meio), e depois em{' '}
-            <b>Enviar pelo WhatsApp</b>: a sua cliente recebe uma mensagem com o passo a passo e o seu código, <b>{codigo}</b>.
+            <Rico texto={t.p1a(codigo)} />
           </p>
           <p>
-            Se ela já usa o Ninho, você também pode convidar em <b>Convidar pelo e-mail da família</b>, com o e-mail exato da conta dela. Aqui
-            no computador, o mesmo fica em <b>Convidar família</b>.
+            <Rico texto={t.p1b} />
           </p>
         </Passo>
         <Passo
           n={2}
-          titulo="A família aceita"
+          titulo={t.p2Titulo}
           telas={
             <>
-              <TelaFamiliaAdicionar />
-              <TelaFamiliaCodigo codigo={codigo} nome={nome} />
-              <TelaSininho nome={nome} />
+              <TelaFamiliaAdicionar idioma={idioma} />
+              <TelaFamiliaCodigo codigo={codigo} nome={nome} idioma={idioma} />
+              <TelaSininho nome={nome} idioma={idioma} />
             </>
           }
         >
           <p>
-            <b>Pelo código:</b> no app dela, menu ☰ › <b>Cuidador ou Consultor</b> › <b>Adicionar</b> › <b>Consultora de sono</b>. Ela digita o
-            seu código, toca em <b>Buscar</b>, marca a caixa e toca em <b>Compartilhar a rotina</b>.
+            <Rico texto={t.p2a} />
           </p>
           <p>
-            <b>Pelo e-mail:</b> ela recebe no sininho o aviso <b>Pedido de consultora de sono</b>, escolhe o bebê e toca em <b>Aprovar</b>.
-            Nesse caminho já está pronto.
+            <Rico texto={t.p2b} />
           </p>
         </Passo>
         <Passo
           n={3}
-          titulo="Você aprova (só no caminho do código)"
+          titulo={t.p3Titulo}
           telas={
             <>
-              <TelaPedido />
-              <TelaAprovado />
+              <TelaPedido idioma={idioma} />
+              <TelaAprovado idioma={idioma} />
             </>
           }
         >
           <p>
-            Chega para você o aviso <b>Novo pedido de família</b>. No Início, em <b>Pedidos de famílias</b>, toque em <b>Aprovar</b> e depois em{' '}
-            <b>Aprovar e acompanhar</b>. Aqui no computador, o pedido aparece em <b>Famílias</b>.
+            <Rico texto={t.p3a} />
           </p>
           <p>
-            Pronto: o bebê aparece em <b>Suas famílias</b>.
+            <Rico texto={t.p3b} />
           </p>
         </Passo>
-        <Passo n={4} titulo="Acompanhe a rotina">
+        <Passo n={4} titulo={t.p4Titulo}>
           <p>
-            Em <b>Rotina</b> você vê o dia da família, com cada sono e a <b>janela de sono</b> entre eles. Em <b>Evolução</b>, as últimas noites
-            lado a lado.
+            <Rico texto={t.p4a} />
           </p>
           <p>
-            O <b>Relatório com IA</b> lê a rotina e escreve a análise para você. Na <b>ficha da família</b> ficam as suas anotações, que só você
-            vê.
+            <Rico texto={t.p4b} />
           </p>
         </Passo>
         <Passo
           n={5}
-          titulo="Complete o seu perfil público"
+          titulo={t.p5Titulo}
           telas={
             <>
-              <TelaApareca />
-              <TelaEditarPerfil nome={nome} />
-              <TelaListaConsultoras nome={nome} />
-              <TelaPerfilNaLista nome={nome} />
+              <TelaApareca idioma={idioma} />
+              <TelaEditarPerfil nome={nome} idioma={idioma} />
+              <TelaListaConsultoras nome={nome} idioma={idioma} />
+              <TelaPerfilNaLista nome={nome} idioma={idioma} />
             </>
           }
         >
           <p>
-            Em <b>Meu perfil na lista</b> (ou, no app, menu ☰ › <b>Editar perfil</b>), coloque foto, um texto sobre como você ajuda as famílias,
-            cidade, as idades que atende e o seu WhatsApp.
+            <Rico texto={t.p5a} />
           </p>
           <p>
-            O Ninho revisa e libera você na lista <b>Encontrar consultora de sono</b>, que as famílias veem dentro do app. A lista mostra até 10
-            consultoras, e quem traz mais famílias assinantes aparece primeiro.
+            <Rico texto={t.p5b} />
           </p>
         </Passo>
-        <Passo n={6} titulo="Trabalhe no computador">
+        <Passo n={6} titulo={t.p6Titulo}>
           <p>
-            No app, menu ☰ › <b>Código do painel web</b>: gere um código de 6 dígitos e use com o seu e-mail em{' '}
-            <b>useninho.com.br/admin/login</b>, na aba <b>Sou consultora</b>. O código vale 10 minutos.
+            <Rico texto={t.p6a} />
           </p>
-          <p>Aqui você tem as mesmas telas, este manual e o PDF.</p>
+          <p>{t.p6b}</p>
         </Passo>
       </Card>
 
-      <Card className="mt-4" titulo="Quando você começou do zero">
-        <p className="text-[13px] leading-relaxed text-ninho-cinza">
-          Estes são os dois manuais completos que o Ninho manda para uma consultora nova, com os passos de baixar o app e criar a conta. Servem
-          para você reler ou mostrar a uma amiga que você indicou.
-        </p>
+      <Card className="mt-4" titulo={t.doZeroTitulo}>
+        <p className="text-[13px] leading-relaxed text-ninho-cinza">{t.doZeroIntro}</p>
         <div className="mt-3 flex flex-wrap items-center gap-6">
           <div>
-            <p className="text-[12.5px] font-bold text-[#24164F]">Quem ainda não tem conta no Ninho</p>
+            <p className="text-[12.5px] font-bold text-[#24164F]">{t.semConta}</p>
             <div className="mt-1.5">
-              <AcoesManual tipo="sem-conta" dados={dados} apenasPdf rotuloPdf="Baixar este PDF" />
+              <AcoesManual tipo="sem-conta" dados={dados} apenasPdf rotuloPdf={t.baixarEste} />
             </div>
           </div>
           <div>
-            <p className="text-[12.5px] font-bold text-[#24164F]">Quem já tem conta no Ninho</p>
+            <p className="text-[12.5px] font-bold text-[#24164F]">{t.comConta}</p>
             <div className="mt-1.5">
-              <AcoesManual tipo="com-conta" dados={dados} apenasPdf rotuloPdf="Baixar este PDF" />
+              <AcoesManual tipo="com-conta" dados={dados} apenasPdf rotuloPdf={t.baixarEste} />
             </div>
           </div>
         </div>

@@ -3,9 +3,13 @@
  * o dia "do acordar ao acordar", a sequência com as janelas em tamanho real e
  * a semana em barras empilhadas, faixas das noites, horários e sonecas × noite.
  * Só mostram o que está nos registros; quem tira conclusão é a consultora.
+ *
+ * Idioma (25/11/2026): prop opcional `idioma` em cada desenho (padrão pt, o
+ * texto de antes). Textos em lib/i18n-consultora/{pt,en,es}/rotina.ts.
  */
 import type { DiaV3, SemanaV3, FaixaHorario, LinhaEvolucao } from '@/lib/consultoras-rotina';
 import { dur, hora, hhmm, inicioDoDia, minutoDoDia } from '@/lib/consultoras-rotina';
+import { textos, type Idioma } from '@/lib/i18n-consultora';
 
 const H = 3600 * 1000;
 const COR = {
@@ -20,15 +24,27 @@ const COR = {
   verde: '#4CAF74',
 };
 
-const DIAS_SEMANA = ['dom.', 'seg.', 'ter.', 'qua.', 'qui.', 'sex.', 'sáb.'];
+const tx = (idioma: Idioma) => textos(idioma).rotina;
 
-/** "sex. 6/11" */
-export function diaCurto(dia: string): string {
+/** "sex. 6/11" (en: "Fri 11/6"). Sempre UM espaço entre o dia da semana e a data. */
+export function diaCurto(dia: string, idioma: Idioma = 'pt'): string {
+  const t = tx(idioma);
   const d = new Date(`${dia}T12:00:00Z`);
-  return `${DIAS_SEMANA[d.getUTCDay()]} ${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
+  return t.diaCurto(t.diasSemana[d.getUTCDay()], d.getUTCDate(), d.getUTCMonth() + 1);
 }
 
-export function Legenda({ itens }: { itens: [string, string, boolean?][] }) {
+/** Rótulos de um eixo de horas cheias ("18h"; en "6 PM"). */
+function eixo(horas: number[], idioma: Idioma): string[] {
+  return horas.map((h) => tx(idioma).eixo(h));
+}
+
+/** "1,5" · "1.5" (uma casa). */
+function umaCasa(n: number | null, idioma: Idioma): string {
+  return n === null ? '—' : (Math.round(n * 10) / 10).toString().replace('.', tx(idioma).decimal);
+}
+
+/** Os textos vêm prontos de quem chama; `idioma` só existe para o contrato (não muda nada). */
+export function Legenda({ itens }: { itens: [string, string, boolean?][]; idioma?: Idioma }) {
   return (
     <div className="mt-2 flex flex-wrap gap-3.5 text-[11.5px] font-semibold text-ninho-cinza">
       {itens.map(([cor, txt, redondo]) => (
@@ -42,7 +58,8 @@ export function Legenda({ itens }: { itens: [string, string, boolean?][] }) {
 }
 
 // ── O dia num olhar ───────────────────────────────────────
-export function DiaStrip({ d, maiorJanela, agora }: { d: DiaV3; maiorJanela: number | null; agora: number }) {
+export function DiaStrip({ d, maiorJanela, agora, idioma = 'pt' }: { d: DiaV3; maiorJanela: number | null; agora: number; idioma?: Idioma }) {
+  const t = tx(idioma);
   const ini = d.acordou ?? inicioDoDia(d.dia) + 6 * H;
   const fim = d.acordouSeguinte ?? Math.max(ini + 24 * H, Math.min(agora, ini + 26 * H));
   const total = Math.max(fim - ini, H);
@@ -74,11 +91,11 @@ export function DiaStrip({ d, maiorJanela, agora }: { d: DiaV3; maiorJanela: num
         ))}
       </div>
       <div className="relative mt-1 h-4 text-[10.5px] font-semibold tabular-nums text-[#9A95AD]">
-        {marcas.map((t) => (
-          <span key={t} className="absolute -translate-x-1/2" style={{ left: pos(t) }}>{hora(t).slice(0, 2).replace(/^0/, '')}h</span>
+        {marcas.map((m) => (
+          <span key={m} className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: pos(m) }}>{t.eixo(Math.floor(minutoDoDia(m) / 60))}</span>
         ))}
       </div>
-      <Legenda itens={[[COR.soneca, 'Soneca'], [COR.noite, 'Noite'], [COR.bloco1, '1º bloco'], [COR.acordado, 'Acordado'], [COR.maior, 'Maior janela da semana'], [COR.mamada, 'Mamada', true]]} />
+      <Legenda itens={[[COR.soneca, t.leg.soneca], [COR.noite, t.leg.noite], [COR.bloco1, t.leg.bloco1], [COR.acordado, t.leg.acordado], [COR.maior, t.leg.maiorJanelaSemana], [COR.mamada, t.leg.mamada, true]]} />
     </>
   );
 }
@@ -92,15 +109,7 @@ export function DiaStrip({ d, maiorJanela, agora }: { d: DiaV3; maiorJanela: num
 // cada soneca e os despertares da noite. Só chegam quando a família aceitou
 // as novidades (lib/consultoras.ts, rotinaDe). As anotações livres dos
 // registros NÃO aparecem (decisão do dono, 12/11/2026).
-const MARCA_TXT: Record<string, string> = {
-  adormeceu_rapido: 'Adormeceu rápido',
-  demorou_adormecer: 'Demorou para adormecer',
-  no_colo: 'No colo',
-  fora_do_colo: 'Fora do colo',
-  acordou_feliz: 'Acordou feliz',
-  acordou_irritado: 'Acordou irritado(a)',
-  acordou_no_meio: 'Acordou no meio',
-};
+// Rótulos das marcas por idioma: rotina.marca (mesmos textos do app).
 const MARCA_ATENCAO = new Set(['demorou_adormecer', 'acordou_no_meio']);
 const PROLONGADO_MIN = 30;
 
@@ -125,7 +134,12 @@ function Etiqueta({ txt, atencao }: { txt: string; atencao?: boolean }) {
   );
 }
 
-export function Sequencia({ d , etiqueta }: { d: DiaV3; etiqueta?: (inicio: number, antesMin: number) => { ok: boolean; texto: string } | null }) {
+export function Sequencia({ d, idioma = 'pt' , etiqueta }: { d: DiaV3; etiqueta?: (inicio: number, antesMin: number) => { ok: boolean; texto: string } | null; idioma?: Idioma }) {
+  const t = tx(idioma);
+  const hr = (ms: number) => hora(ms, idioma);
+  const du = (min: number) => dur(min, idioma);
+  // "10:30 PM – 11:45 PM" (en) não cabe na coluna de 104px do 24h.
+  const colHora = idioma === 'en' ? 'w-[150px]' : 'w-[104px]';
   // Sonos do dia com os extras, pelo início (mesmo instante da linha).
   const sonosReg = d.resumo.registros.filter((r) => r.tipo === 'sleep');
   const porInicio = new Map(sonosReg.map((r) => [new Date(r.inicio).getTime(), r.detalhe]));
@@ -154,7 +168,7 @@ export function Sequencia({ d , etiqueta }: { d: DiaV3; etiqueta?: (inicio: numb
   const linhas: Linha[] = [];
   const na = d.resumo.noiteAnterior;
   if (na.dormiu !== null) {
-    linhas.push({ de: na.dormiu, ate: na.acordou, cor: COR.noite, titulo: 'Fim do sono noturno', min: na.acordou !== null ? na.totalMin : null, pedacos: pedacosDe(na.trechos), antes: null, desp: temNovidades ? despertaresEntre(na.dormiu, na.acordou) : null, notas: notasEntre(na.dormiu, na.acordou) });
+    linhas.push({ de: na.dormiu, ate: na.acordou, cor: COR.noite, titulo: t.seq.fimSonoNoturno, min: na.acordou !== null ? na.totalMin : null, pedacos: pedacosDe(na.trechos), antes: null, desp: temNovidades ? despertaresEntre(na.dormiu, na.acordou) : null, notas: notasEntre(na.dormiu, na.acordou) });
   }
   let cursor = d.acordou;
   d.sonecas.forEach((sn, i) => {
@@ -162,7 +176,7 @@ export function Sequencia({ d , etiqueta }: { d: DiaV3; etiqueta?: (inicio: numb
       de: sn.a,
       ate: sn.emAndamento ? null : sn.b,
       cor: COR.soneca,
-      titulo: `${i + 1}ª soneca`,
+      titulo: t.seq.sonecaN(i + 1),
       min: sn.emAndamento ? null : sn.min,
       pedacos: [],
       antes: cursor !== null && sn.a > cursor ? (sn.a - cursor) / 60000 : null,
@@ -177,7 +191,7 @@ export function Sequencia({ d , etiqueta }: { d: DiaV3; etiqueta?: (inicio: numb
       de: n.dormiu,
       ate: n.acordou,
       cor: COR.noite,
-      titulo: 'Sono noturno',
+      titulo: t.seq.sonoNoturno,
       min: n.acordou !== null ? n.totalMin : null,
       pedacos: pedacosDe(n.trechos),
       antes: cursor !== null && n.dormiu > cursor ? (n.dormiu - cursor) / 60000 : null,
@@ -185,7 +199,7 @@ export function Sequencia({ d , etiqueta }: { d: DiaV3; etiqueta?: (inicio: numb
       notas: notasEntre(n.dormiu, n.acordou),
     });
   }
-  if (!linhas.length) return <p className="py-6 text-center text-sm text-ninho-cinza">Sem registros de sono neste dia.</p>;
+  if (!linhas.length) return <p className="py-6 text-center text-sm text-ninho-cinza">{t.seq.semSono}</p>;
   return (
     <div className="mt-2">
       {linhas.map((l, i) => (
@@ -195,11 +209,11 @@ export function Sequencia({ d , etiqueta }: { d: DiaV3; etiqueta?: (inicio: numb
             // outro (pedido de consultora pelo dono, 13/11/2026; ele escolheu
             // o nome "Janela de sono", que é como as consultoras falam).
             <div className="flex items-center gap-2.5">
-              <span className="w-[104px] shrink-0" />
+              <span className={`${colHora} shrink-0`} />
               <span className="flex w-[18px] justify-center" style={{ height: Math.max(16, Math.min(40, 10 + l.antes / 8)) }}>
                 <span className="h-full border-l-2 border-dotted border-[#D9D3EA]" />
               </span>
-              <span className="text-[11.5px] font-semibold tabular-nums text-[#9A95AD]">Janela de sono {dur(l.antes)}</span>
+              <span className="text-[11.5px] font-semibold tabular-nums text-[#9A95AD]">{t.seq.janelaDeSono(du(l.antes))}</span>
               {etiqueta && (() => {
                 // Comparação com as sonecas boas da semana (dono, 26/11/2026).
                 const e = etiqueta(l.de, l.antes as number);
@@ -208,27 +222,27 @@ export function Sequencia({ d , etiqueta }: { d: DiaV3; etiqueta?: (inicio: numb
             </div>
           )}
           <div className="flex gap-2.5 py-1 text-[13px]">
-            <span className="w-[104px] shrink-0 text-right font-extrabold tabular-nums">
-              {hora(l.de)} – {l.ate !== null ? hora(l.ate) : <span className="text-ninho-cinza">agora</span>}
+            <span className={`${colHora} shrink-0 text-right font-extrabold tabular-nums`}>
+              {hr(l.de)} – {l.ate !== null ? hr(l.ate) : <span className="text-ninho-cinza">{t.seq.agora}</span>}
             </span>
             <span className="flex w-[18px] justify-center pt-[3px]">
               <i className="h-3 w-3 rounded-full" style={{ background: l.cor }} />
             </span>
             <span className="flex-1">
               <b className="text-[13.5px]">{l.titulo}</b>{' '}
-              <b className="text-[#7C5CD6]">({l.min !== null ? dur(l.min) : 'em andamento'})</b>
+              <b className="text-[#7C5CD6]">({l.min !== null ? du(l.min) : t.seq.emAndamento})</b>
               {l.pedacos.length > 1 && (
                 <span className="mt-0.5 block text-[11.5px] leading-snug text-ninho-cinza">
-                  {l.pedacos.length} pedaços: {l.pedacos.map((x) => `${hora(x.a)}–${x.b !== null ? hora(x.b) : 'agora'} (${dur(x.min)})`).join(' · ')}
+                  {t.seq.pedacos(l.pedacos.length, l.pedacos.map((x) => `${hr(x.a)}–${x.b !== null ? hr(x.b) : t.seq.agora} (${du(x.min)})`).join(' · '))}
                 </span>
               )}
               {l.marcas && l.marcas.length > 0 && (
                 <span className="mt-1 flex flex-wrap gap-1">
-                  {l.marcas.map((m) => <Etiqueta key={m} txt={MARCA_TXT[m] ?? m} atencao={MARCA_ATENCAO.has(m)} />)}
+                  {l.marcas.map((m) => <Etiqueta key={m} txt={t.marca[m] ?? m} atencao={MARCA_ATENCAO.has(m)} />)}
                 </span>
               )}
               {l.marcas && l.marcas.length === 0 && l.ate !== null && (
-                <span className="mt-0.5 block text-[11.5px] text-ninho-cinza">Sem resposta da família</span>
+                <span className="mt-0.5 block text-[11.5px] text-ninho-cinza">{t.seq.semResposta}</span>
               )}
               {l.desp && l.desp.length > 0 && (() => {
                 const mins = l.desp.map((x) => ((x.ate ?? x.de) - x.de) / 60000);
@@ -237,11 +251,11 @@ export function Sequencia({ d , etiqueta }: { d: DiaV3; etiqueta?: (inicio: numb
                 return (
                   <span className="mt-1 block">
                     <span className="block text-[11.5px] text-ninho-cinza">
-                      {l.desp.length} {l.desp.length === 1 ? 'despertar' : 'despertares'} · {dur(total)} acordado{prolongados > 0 ? ` · ${prolongados} prolongado${prolongados > 1 ? 's' : ''}` : ''}
+                      {t.seq.despertares(l.desp.length)} · {t.seq.acordadoTempo(du(total))}{prolongados > 0 ? ` · ${t.seq.prolongados(prolongados)}` : ''}
                     </span>
                     <span className="mt-1 flex flex-wrap gap-1">
                       {l.desp.map((x, j) => (
-                        <Etiqueta key={j} txt={`${hora(x.de)} · ${x.ate !== null ? dur(mins[j]) : 'acordado agora'}${mins[j] >= PROLONGADO_MIN ? ' · prolongado' : ''}`} atencao={mins[j] >= PROLONGADO_MIN} />
+                        <Etiqueta key={j} txt={`${hr(x.de)} · ${x.ate !== null ? du(mins[j]) : t.seq.acordadoAgora}${mins[j] >= PROLONGADO_MIN ? ` · ${t.seq.prolongado}` : ''}`} atencao={mins[j] >= PROLONGADO_MIN} />
                       ))}
                     </span>
                   </span>
@@ -249,7 +263,7 @@ export function Sequencia({ d , etiqueta }: { d: DiaV3; etiqueta?: (inicio: numb
               })()}
               {(l.notas ?? []).map((nota, j) => (
                 <span key={`n${j}`} className="mt-1.5 block whitespace-pre-wrap rounded-xl bg-[#F6F2FE] px-2.5 py-1.5 text-[12px] italic leading-snug text-ninho-grafite">
-                  <span className="mb-0.5 block text-[10.5px] font-bold not-italic text-[#7C5CD6]">Comentário da família</span>
+                  <span className="mb-0.5 block text-[10.5px] font-bold not-italic text-[#7C5CD6]">{t.seq.comentario}</span>
                   {nota}
                 </span>
               ))}
@@ -262,29 +276,29 @@ export function Sequencia({ d , etiqueta }: { d: DiaV3; etiqueta?: (inicio: numb
 }
 
 // ── Evolução do sono: um dia por linha (dono, 12/11/2026) ──
-export function EvolucaoSono({ linhas, inicioVinculo, href }: { linhas: LinhaEvolucao[]; inicioVinculo: string | null; href: (dia: string) => string }) {
+export function EvolucaoSono({ linhas, inicioVinculo, href, idioma = 'pt' }: { linhas: LinhaEvolucao[]; inicioVinculo: string | null; href: (dia: string) => string; idioma?: Idioma }) {
+  const t = tx(idioma);
   const comSono = linhas.filter((l) => l.totalMin !== null);
   const med = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
   const bloco = (ls: LinhaEvolucao[]) => ({ sono: med(ls.map((l) => l.totalMin ?? 0)), desp: med(ls.filter((l) => l.despertares !== null).map((l) => l.despertares ?? 0)) });
   const a = bloco(comSono.slice(0, 7));
   const b = bloco(comSono.slice(-7));
-  const um = (n: number | null) => (n === null ? '—' : (Math.round(n * 10) / 10).toString().replace('.', ','));
   const alto = linhas.length > 20 ? 'h-3' : 'h-5';
   return (
     <div className="mt-2">
       <div className="mb-1 ml-[78px] mr-[72px] flex justify-between text-[10px] font-bold text-[#9A95AD]">
-        {['18h', '21h', '0h', '3h', '6h', '9h', '12h', '15h', '18h'].map((h, i) => <span key={i}>{h}</span>)}
+        {eixo([18, 21, 0, 3, 6, 9, 12, 15, 18], idioma).map((h, i) => <span key={i} className="whitespace-nowrap">{h}</span>)}
       </div>
       {linhas.map((l, i) => (
         <div key={l.dia}>
           {inicioVinculo === l.dia && i > 0 && (
             <div className="mb-0.5 mt-2 flex items-center gap-1.5 text-[10.5px] font-extrabold text-[#7C5CD6]">
-              começou com você · {diaCurto(l.dia).split(' ')[1]}
+              {t.evo.comecouComVoce(diaCurto(l.dia, idioma).split(' ')[1])}
               <span className="h-px flex-1 bg-[#EDE4FB]" />
             </div>
           )}
           <a href={href(l.dia)} className="my-[3px] flex items-center gap-2 rounded-md hover:bg-[#FAF8FE]">
-            <span className="w-[70px] shrink-0 whitespace-nowrap text-[11px] font-bold tabular-nums text-ninho-cinza">{diaCurto(l.dia)}</span>
+            <span className="w-[70px] shrink-0 whitespace-nowrap text-[11px] font-bold tabular-nums text-ninho-cinza">{diaCurto(l.dia, idioma)}</span>
             <span className={`relative flex-1 overflow-hidden rounded-[5px] ${alto}`} style={{ background: COR.trilho }}>
               {l.sonos.map((s, j) => (
                 <i key={j} className="absolute bottom-0 top-0 rounded-[3px]" style={{ left: `${s.de * 100}%`, width: `${Math.max(0.4, (s.ate - s.de) * 100)}%`, background: s.tipo === 'noite' ? COR.noite : COR.soneca }} />
@@ -294,26 +308,23 @@ export function EvolucaoSono({ linhas, inicioVinculo, href }: { linhas: LinhaEvo
               ))}
             </span>
             <span className="w-16 shrink-0 text-right text-[11px] font-extrabold tabular-nums">
-              {l.totalMin !== null ? dur(l.totalMin) : '—'}
-              {l.despertares !== null && <span className="block text-[9.5px] font-bold text-[#9A95AD]">{l.despertares} desp.</span>}
+              {l.totalMin !== null ? dur(l.totalMin, idioma) : '—'}
+              {l.despertares !== null && <span className="block text-[9.5px] font-bold text-[#9A95AD]">{t.evo.desp(l.despertares)}</span>}
             </span>
           </a>
         </div>
       ))}
-      <Legenda itens={[[COR.noite, 'Noite'], [COR.soneca, 'Soneca'], [COR.mamada, 'Mamada', true], [COR.trilho, 'Acordado']]} />
+      <Legenda itens={[[COR.noite, t.leg.noite], [COR.soneca, t.leg.soneca], [COR.mamada, t.leg.mamada, true], [COR.trilho, t.leg.acordado]]} />
       {comSono.length >= 10 && (
         <div className="mt-3.5 flex gap-2.5">
-          {[['Primeiros 7 dias', a], ['Últimos 7 dias', b]].map(([k, r]) => {
-            const x = r as { sono: number | null; desp: number | null };
-            return (
-              <div key={k as string} className="flex-1 rounded-[14px] bg-[#F5F1FB] px-3 py-2.5">
-                <div className="text-[11px] font-bold text-ninho-cinza">{k as string}</div>
-                <div className="mt-0.5 text-[15px] font-extrabold">
-                  {x.sono !== null ? dur(Math.round(x.sono)) : '—'} <span className="text-[11.5px] font-bold text-ninho-cinza">/dia · {um(x.desp)} desp.</span>
-                </div>
+          {([[t.evo.primeiros, a], [t.evo.ultimos, b]] as const).map(([k, x]) => (
+            <div key={k} className="flex-1 rounded-[14px] bg-[#F5F1FB] px-3 py-2.5">
+              <div className="text-[11px] font-bold text-ninho-cinza">{k}</div>
+              <div className="mt-0.5 text-[15px] font-extrabold">
+                {x.sono !== null ? dur(Math.round(x.sono), idioma) : '—'} <span className="text-[11.5px] font-bold text-ninho-cinza">{t.evo.porDia} · {t.evo.desp(umaCasa(x.desp, idioma))}</span>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -329,18 +340,19 @@ const ALTURA_ROTULO = 16;
  * (dono, 16/11/2026): antes só havia o total em cima, e não dava para ler
  * quanto foi de soneca e quanto foi de noite. Pedaço baixo fica sem o número.
  */
-function Pedaco({ minutos, altura, cor }: { minutos: number; altura: number; cor: string }) {
+function Pedaco({ minutos, altura, cor, idioma }: { minutos: number; altura: number; cor: string; idioma: Idioma }) {
   if (minutos <= 0) return null;
   return (
     <div className="flex items-center justify-center overflow-hidden" style={{ height: `${altura}px`, background: cor }}>
       {altura >= ALTURA_ROTULO && (
-        <span className="whitespace-nowrap text-[10px] font-extrabold tabular-nums text-white">{dur(minutos)}</span>
+        <span className="whitespace-nowrap text-[10px] font-extrabold tabular-nums text-white">{dur(minutos, idioma)}</span>
       )}
     </div>
   );
 }
 
-export function BarrasSemana({ s, href }: { s: SemanaV3; href: (dia: string) => string }) {
+export function BarrasSemana({ s, href, idioma = 'pt' }: { s: SemanaV3; href: (dia: string) => string; idioma?: Idioma }) {
+  const t = tx(idioma);
   const tot = s.dias.map((d) => d.sonecasMin + (d.noiteCompleta ? d.noite.totalMin ?? 0 : 0));
   const mx = Math.max(...tot, 1);
   return (
@@ -355,32 +367,34 @@ export function BarrasSemana({ s, href }: { s: SemanaV3; href: (dia: string) => 
           const alt = tot[i] > 0 ? (tot[i] / mx) * 150 : 4;
           const altSon = tot[i] > 0 ? (d.sonecasMin / tot[i]) * alt : 0;
           const altNoite = tot[i] > 0 ? (noite / tot[i]) * alt : 0;
+          const [sem, data] = diaCurto(d.dia, idioma).split(' ');
           return (
             <a key={d.dia} href={href(d.dia)} className="flex flex-1 flex-col items-center gap-1 text-[11px] font-bold text-ninho-cinza">
-              <span className="text-[11.5px] font-extrabold tabular-nums text-ninho-grafite">{tot[i] > 0 ? dur(tot[i]) : '—'}</span>
+              <span className="text-[11.5px] font-extrabold tabular-nums text-ninho-grafite">{tot[i] > 0 ? dur(tot[i], idioma) : '—'}</span>
               <div
                 className="flex w-full max-w-[52px] flex-col overflow-hidden rounded-[10px]"
                 style={{ height: `${alt}px`, background: tot[i] > 0 ? undefined : '#EEE', boxShadow: melhor ? `0 0 0 2.5px ${COR.verde}` : undefined }}
               >
-                <Pedaco minutos={d.sonecasMin} altura={altSon} cor={COR.soneca} />
-                <Pedaco minutos={noite} altura={altNoite} cor={COR.noite} />
+                <Pedaco minutos={d.sonecasMin} altura={altSon} cor={COR.soneca} idioma={idioma} />
+                <Pedaco minutos={noite} altura={altNoite} cor={COR.noite} idioma={idioma} />
               </div>
-              <span>{diaCurto(d.dia).split(' ')[0]}</span>
-              <span className="text-[10.5px] font-semibold text-[#9A95AD]">{diaCurto(d.dia).split(' ')[1]}</span>
-              {!melhor && (d.noite.despertares ?? 0) >= 3 && <span className="text-[10px] font-extrabold" style={{ color: COR.laranja }}>{d.noite.despertares} desp.</span>}
+              <span>{sem}</span>
+              <span className="text-[10.5px] font-semibold text-[#9A95AD]">{data}</span>
+              {!melhor && (d.noite.despertares ?? 0) >= 3 && <span className="text-[10px] font-extrabold" style={{ color: COR.laranja }}>{t.evo.desp(d.noite.despertares ?? 0)}</span>}
             </a>
           );
         })}
       </div>
-      <Legenda itens={[[COR.soneca, 'Sonecas'], [COR.noite, 'Noite'], ['#fff', '2 melhores noites']]} />
+      <Legenda itens={[[COR.soneca, t.leg.sonecas], [COR.noite, t.leg.noite], ['#fff', t.leg.melhores]]} />
     </>
   );
 }
 
 // ── Semana: faixas das noites ─────────────────────────────
-export function FaixasNoites({ s }: { s: SemanaV3 }) {
+export function FaixasNoites({ s, idioma = 'pt' }: { s: SemanaV3; idioma?: Idioma }) {
+  const t = tx(idioma);
   const comNoite = s.dias.filter((d) => d.dormiu !== null);
-  if (!comNoite.length) return <p className="py-6 text-center text-sm text-ninho-cinza">Sem noites registradas nesta semana.</p>;
+  if (!comNoite.length) return <p className="py-6 text-center text-sm text-ninho-cinza">{t.semNoites}</p>;
   return (
     <>
       <div className="mt-3 flex flex-col gap-2">
@@ -392,15 +406,15 @@ export function FaixasNoites({ s }: { s: SemanaV3 }) {
           const melhor = s.melhores.includes(d.dia);
           return (
             <div key={d.dia} className="flex items-center gap-2 text-[12px]">
-              <span className={`w-[74px] shrink-0 font-bold ${melhor ? 'text-[#2F8A55]' : ''}`}>{diaCurto(d.dia)}</span>
-              <span className="w-10 shrink-0 tabular-nums text-ninho-cinza">{d.dormiu !== null ? hora(d.dormiu) : ''}</span>
+              <span className={`w-[74px] shrink-0 font-bold ${melhor ? 'text-[#2F8A55]' : ''}`}>{diaCurto(d.dia, idioma)}</span>
+              <span className={`${idioma === 'en' ? 'w-14' : 'w-10'} shrink-0 whitespace-nowrap tabular-nums text-ninho-cinza`}>{d.dormiu !== null ? hora(d.dormiu, idioma) : ''}</span>
               <div className="relative h-5 flex-1 overflow-hidden rounded-md" style={{ background: d.dormiu !== null ? COR.acordado : COR.trilho }}>
                 {/* Trechos = segmentos quebrados nos despertares anotados
                     dentro do sono (dono, 17/11/2026: o despertar tem que
                     abrir brecha, como no app). */}
                 {d.noite.trechos.map((sg, i) => (
                   <i key={i} className="absolute bottom-0 top-0 flex items-center justify-center overflow-hidden rounded-[4px] text-[10px] font-bold not-italic text-white" style={{ left: pos(sg.a), width: larg(sg.a, sg.b), background: i === 0 ? COR.bloco1 : COR.noite }}>
-                    {i === 0 && sg.b - sg.a >= 110 * 60000 ? dur((sg.b - sg.a) / 60000) : ''}
+                    {i === 0 && sg.b - sg.a >= 110 * 60000 ? dur((sg.b - sg.a) / 60000, idioma) : ''}
                   </i>
                 ))}
                 {/* A brecha, por cima, com largura mínima para um despertar
@@ -414,11 +428,11 @@ export function FaixasNoites({ s }: { s: SemanaV3 }) {
               </div>
               <span className="w-[86px] shrink-0 text-right tabular-nums">
                 {d.dormiu === null ? (
-                  <span className="text-[#9A95AD]">sem registro</span>
+                  <span className="text-[#9A95AD]">{t.semRegistro}</span>
                 ) : (
                   <>
-                    <b style={{ color: (d.noite.despertares ?? 0) >= 3 ? COR.laranja : undefined }}>{d.noite.despertares ?? 0} desp.</b>{' '}
-                    {d.noiteCompleta && d.noite.totalMin !== null ? dur(d.noite.totalMin) : ''}
+                    <b style={{ color: (d.noite.despertares ?? 0) >= 3 ? COR.laranja : undefined }}>{t.evo.desp(d.noite.despertares ?? 0)}</b>{' '}
+                    {d.noiteCompleta && d.noite.totalMin !== null ? dur(d.noite.totalMin, idioma) : ''}
                   </>
                 )}
               </span>
@@ -426,17 +440,19 @@ export function FaixasNoites({ s }: { s: SemanaV3 }) {
           );
         })}
       </div>
-      <div className="ml-[124px] mr-[94px] mt-1 flex justify-between text-[10px] font-semibold text-[#9A95AD]">
-        {['18h', '20h', '22h', '0h', '2h', '4h', '6h', '8h'].map((x) => <span key={x}>{x}</span>)}
+      {/* Hora de dormir em 12h (en) ocupa mais: a coluna e o eixo andam juntos. */}
+      <div className={`${idioma === 'en' ? 'ml-[140px]' : 'ml-[124px]'} mr-[94px] mt-1 flex justify-between text-[10px] font-semibold text-[#9A95AD]`}>
+        {eixo([18, 20, 22, 0, 2, 4, 6, 8], idioma).map((x) => <span key={x} className="whitespace-nowrap">{x}</span>)}
       </div>
-      <Legenda itens={[[COR.bloco1, '1º bloco'], [COR.noite, 'Dormindo'], [COR.acordado, 'Acordado'], [COR.mamada, 'Mamada', true]]} />
+      <Legenda itens={[[COR.bloco1, t.leg.bloco1], [COR.noite, t.leg.dormindo], [COR.acordado, t.leg.acordado], [COR.mamada, t.leg.mamada, true]]} />
     </>
   );
 }
 
 // ── Semana: horários (ponto = dia, faixa = variação) ──────
-export function Horarios({ s }: { s: SemanaV3 }) {
-  if (!s.horarios.length) return <p className="py-6 text-center text-sm text-ninho-cinza">Sem horários registrados.</p>;
+export function Horarios({ s, idioma = 'pt' }: { s: SemanaV3; idioma?: Idioma }) {
+  const t = tx(idioma);
+  if (!s.horarios.length) return <p className="py-6 text-center text-sm text-ninho-cinza">{t.semHorarios}</p>;
   return (
     <div className="mt-3 flex flex-col gap-3">
       {s.horarios.map((f: FaixaHorario) => {
@@ -444,11 +460,12 @@ export function Horarios({ s }: { s: SemanaV3 }) {
         const hi = (f.max ?? 0) + 40;
         const p = (m: number) => `${((m - lo) / Math.max(hi - lo, 1)) * 100}%`;
         return (
-          <div key={f.rotulo} className="text-[12px]">
+          <div key={f.chave} className="text-[12px]">
             <div className="flex justify-between">
-              <b>{f.rotulo}{f.dias < s.dias.length ? <span className="font-semibold text-[#9A95AD]"> · {f.dias} de {s.dias.length} dias</span> : ''}</b>
+              {/* Rótulo pelo idioma do desenho (a semana pode ter sido montada em outro). */}
+              <b>{t.faixa[f.chave]}{f.dias < s.dias.length ? <span className="font-semibold text-[#9A95AD]"> · {t.diasDe(f.dias, s.dias.length)}</span> : ''}</b>
               <span className="tabular-nums" style={{ color: f.irregular ? COR.laranja : undefined, fontWeight: f.irregular ? 800 : 600 }}>
-                {f.min !== null && f.max !== null ? (f.min === f.max ? hhmm(f.min) : `${hhmm(f.min)}–${hhmm(f.max)} · varia ${dur(f.variacao ?? 0)}`) : '—'}
+                {f.min !== null && f.max !== null ? (f.min === f.max ? hhmm(f.min, idioma) : `${hhmm(f.min, idioma)}–${hhmm(f.max, idioma)} · ${t.varia(dur(f.variacao ?? 0, idioma))}`) : '—'}
               </span>
             </div>
             <div className="relative mt-1 h-4 rounded-full" style={{ background: COR.trilho }}>
@@ -465,7 +482,8 @@ export function Horarios({ s }: { s: SemanaV3 }) {
 }
 
 // ── Semana: sonecas × noite seguinte ──────────────────────
-export function SonecasNoite({ s }: { s: SemanaV3 }) {
+export function SonecasNoite({ s, idioma = 'pt' }: { s: SemanaV3; idioma?: Idioma }) {
+  const t = tx(idioma);
   const janelas = s.dias.map((d) => d.janelaAntesDeDormir).filter((x): x is number => x !== null);
   const maior = janelas.length ? Math.max(...janelas) : null;
   const th = 'border-b border-[#F0ECF6] px-1.5 py-2 text-left text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[#9A95AD]';
@@ -474,7 +492,7 @@ export function SonecasNoite({ s }: { s: SemanaV3 }) {
     <div className="overflow-x-auto">
       <table className="mt-2 w-full text-[12.5px]">
         <thead>
-          <tr><th className={th}>Dia</th><th className={th}>Sonecas</th><th className={th}>Última até</th><th className={th}>Janela até dormir</th><th className={th}>Noite seguinte</th></tr>
+          <tr><th className={th}>{t.tabela.dia}</th><th className={th}>{t.tabela.sonecas}</th><th className={th}>{t.tabela.ultima}</th><th className={th}>{t.tabela.janela}</th><th className={th}>{t.tabela.noite}</th></tr>
         </thead>
         <tbody>
           {s.dias.map((d) => {
@@ -482,11 +500,11 @@ export function SonecasNoite({ s }: { s: SemanaV3 }) {
             const longa = maior !== null && d.janelaAntesDeDormir !== null && Math.round(d.janelaAntesDeDormir) === Math.round(maior) && janelas.length > 1;
             return (
               <tr key={d.dia} style={{ background: melhor ? '#EEF8F1' : undefined }}>
-                <td className={`${td} font-bold`}>{diaCurto(d.dia)}</td>
-                <td className={td}>{d.temRegistro ? `${d.sonecas.length} · ${dur(d.sonecasMin)}` : '—'}</td>
-                <td className={td}>{d.fimUltimaSoneca !== null ? hora(d.fimUltimaSoneca) : '—'}</td>
-                <td className={td} style={{ color: longa ? COR.laranja : undefined, fontWeight: longa ? 800 : undefined }}>{d.janelaAntesDeDormir !== null ? dur(d.janelaAntesDeDormir) : '—'}</td>
-                <td className={td}>{d.noiteCompleta && d.noite.totalMin !== null ? `${dur(d.noite.totalMin)} · ${d.noite.despertares} desp.` : '—'}</td>
+                <td className={`${td} font-bold`}>{diaCurto(d.dia, idioma)}</td>
+                <td className={td}>{d.temRegistro ? `${d.sonecas.length} · ${dur(d.sonecasMin, idioma)}` : '—'}</td>
+                <td className={td}>{d.fimUltimaSoneca !== null ? hora(d.fimUltimaSoneca, idioma) : '—'}</td>
+                <td className={td} style={{ color: longa ? COR.laranja : undefined, fontWeight: longa ? 800 : undefined }}>{d.janelaAntesDeDormir !== null ? dur(d.janelaAntesDeDormir, idioma) : '—'}</td>
+                <td className={td}>{d.noiteCompleta && d.noite.totalMin !== null ? `${dur(d.noite.totalMin, idioma)} · ${t.evo.desp(d.noite.despertares ?? 0)}` : '—'}</td>
               </tr>
             );
           })}
@@ -497,7 +515,7 @@ export function SonecasNoite({ s }: { s: SemanaV3 }) {
 }
 
 // ── Semana: janela antes de dormir ────────────────────────
-export function JanelaAntesDeDormir({ s }: { s: SemanaV3 }) {
+export function JanelaAntesDeDormir({ s, idioma = 'pt' }: { s: SemanaV3; idioma?: Idioma }) {
   const vals = s.dias.map((d) => d.janelaAntesDeDormir);
   const mx = Math.max(...vals.filter((x): x is number => x !== null), 1);
   const maior = Math.max(...vals.filter((x): x is number => x !== null), 0);
@@ -505,11 +523,11 @@ export function JanelaAntesDeDormir({ s }: { s: SemanaV3 }) {
     <div className="mt-2 flex flex-col gap-1.5">
       {s.dias.map((d, i) => (
         <div key={d.dia} className="flex items-center gap-2 text-[12px]">
-          <span className="w-[74px] shrink-0 font-bold">{diaCurto(d.dia)}</span>
+          <span className="w-[74px] shrink-0 font-bold">{diaCurto(d.dia, idioma)}</span>
           <div className="h-3.5 flex-1 overflow-hidden rounded-full" style={{ background: COR.trilho }}>
             {vals[i] !== null && <i className="block h-full rounded-full" style={{ width: `${(vals[i]! / mx) * 100}%`, background: Math.round(vals[i]!) === Math.round(maior) && maior > 0 ? COR.maior : COR.soneca }} />}
           </div>
-          <span className="w-12 shrink-0 text-right font-bold tabular-nums">{vals[i] !== null ? dur(vals[i]!) : '—'}</span>
+          <span className="w-12 shrink-0 text-right font-bold tabular-nums">{vals[i] !== null ? dur(vals[i]!, idioma) : '—'}</span>
         </div>
       ))}
     </div>
@@ -517,7 +535,8 @@ export function JanelaAntesDeDormir({ s }: { s: SemanaV3 }) {
 }
 
 /** Mini-noites para a lista de famílias: 7 barrinhas (lilás calma, laranja ≥3 despertares, cinza sem registro). */
-export function MiniNoites({ s }: { s: SemanaV3 }) {
+export function MiniNoites({ s, idioma = 'pt' }: { s: SemanaV3; idioma?: Idioma }) {
+  const t = tx(idioma);
   return (
     <span className="inline-flex items-end gap-[3px]">
       {s.dias.map((d) => {
@@ -526,7 +545,7 @@ export function MiniNoites({ s }: { s: SemanaV3 }) {
         return (
           <i
             key={d.dia}
-            title={`${diaCurto(d.dia)}: ${sem ? 'sem registro' : `${desp} despertar(es)`}`}
+            title={`${diaCurto(d.dia, idioma)}: ${sem ? t.semRegistro : t.despertaresMini(desp)}`}
             className="inline-block w-[7px] rounded-[2px]"
             style={{ height: sem ? 8 : 18, background: sem ? '#E4E1EA' : desp >= 3 ? '#F0B456' : COR.soneca }}
           />

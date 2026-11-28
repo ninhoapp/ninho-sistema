@@ -16,17 +16,10 @@
  */
 import { useEffect, useState } from 'react';
 import './relatorio.css';
+import { useTextos } from '@/components/consultoras/IdiomaConsultora';
 
-const SECOES: [number, string][] = [
-  [1, 'Resumo'],
-  [2, 'Sono da noite'],
-  [3, 'Sonecas e janelas'],
-  [4, 'Antes dos despertares'],
-  [5, 'Melhores e piores noites'],
-  [6, 'Horários'],
-  [7, 'Perguntas para a família'],
-  [8, 'O que observar'],
-];
+/** Números das seções do relatório (os nomes vêm de rotina.compartilhar.secoes). */
+const SECOES = [1, 2, 3, 4, 5, 6, 7, 8];
 
 export function CompartilharRelatorio({
   whatsapp,
@@ -37,6 +30,7 @@ export function CompartilharRelatorio({
   mensagem: string;
   children: React.ReactNode;
 }) {
+  const t = useTextos().rotina.compartilhar;
   const [aberto, setAberto] = useState(false);
   const [marcadas, setMarcadas] = useState<Set<number>>(() => new Set([1, 2, 3, 4, 5, 6, 8]));
   const [paraFamilia, setParaFamilia] = useState(false);
@@ -55,7 +49,7 @@ export function CompartilharRelatorio({
     setTimeout(() => window.print(), 60);
   }
 
-  const ocultas = paraFamilia ? SECOES.map(([n]) => n).filter((n) => !marcadas.has(n)) : [];
+  const ocultas = paraFamilia ? SECOES.filter((n) => !marcadas.has(n)) : [];
   const numero = (whatsapp ?? '').replace(/\D/g, '');
   const wa = `https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`;
   const btn = 'inline-flex h-10 items-center justify-center gap-2 rounded-pill px-4 text-[13.5px] font-bold';
@@ -63,16 +57,16 @@ export function CompartilharRelatorio({
   return (
     <div className={ocultas.map((n) => `oculta-${n}`).join(' ')}>
       <div className="no-print mb-4 flex flex-wrap gap-2">
-        <button type="button" onClick={() => imprimir(false)} className={`${btn} bg-[#F1EBFC] text-[#7C5CD6]`}>Baixar PDF</button>
-        <button type="button" onClick={() => setAberto((x) => !x)} className={`${btn} bg-gradient-primary text-white`}>Compartilhar com a família</button>
+        <button type="button" onClick={() => imprimir(false)} className={`${btn} bg-[#F1EBFC] text-[#7C5CD6]`}>{t.baixarPdf}</button>
+        <button type="button" onClick={() => setAberto((x) => !x)} className={`${btn} bg-gradient-primary text-white`}>{t.titulo}</button>
       </div>
       {aberto && (
         <div className="no-print mb-4 rounded-[22px] bg-white p-5 shadow-[0_10px_30px_-22px_rgba(80,40,160,.35)]">
-          <p className="text-[15px] font-extrabold">Compartilhar com a família</p>
-          <p className="mt-1 text-[13px] text-ninho-cinza">Você revisa antes. A família recebe o PDF com o seu nome, a sua foto e o rodapé de saúde.</p>
-          <p className="mt-3 text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#9A95AD]">1 · O que vai no PDF</p>
+          <p className="text-[15px] font-extrabold">{t.titulo}</p>
+          <p className="mt-1 text-[13px] text-ninho-cinza">{t.intro}</p>
+          <p className="mt-3 text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#9A95AD]">{t.passo1}</p>
           <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
-            {SECOES.map(([n, t]) => (
+            {SECOES.map((n) => (
               <label key={n} className="flex items-center gap-2 text-[13px]">
                 <input
                   type="checkbox"
@@ -85,18 +79,18 @@ export function CompartilharRelatorio({
                   }}
                   className="h-4 w-4 accent-[#4CAF74]"
                 />
-                {n}. {t}{n === 7 ? ' (roteiro seu: vem desmarcada)' : ''}
+                {n}. {t.secoes[n - 1]}{n === 7 ? t.roteiro : ''}
               </label>
             ))}
           </div>
-          <p className="mt-4 text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#9A95AD]">2 · Baixe o PDF da família</p>
-          <button type="button" onClick={() => imprimir(true)} className={`${btn} mt-1.5 bg-[#F1EBFC] text-[#7C5CD6]`}>Baixar PDF da família</button>
-          <p className="mt-1 text-[12px] text-ninho-cinza">Na janela que abrir, escolha <b>Salvar como PDF</b>.</p>
-          <p className="mt-4 text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#9A95AD]">3 · Mande pelo WhatsApp</p>
+          <p className="mt-4 text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#9A95AD]">{t.passo2}</p>
+          <button type="button" onClick={() => imprimir(true)} className={`${btn} mt-1.5 bg-[#F1EBFC] text-[#7C5CD6]`}>{t.baixarPdfFamilia}</button>
+          <p className="mt-1 text-[12px] text-ninho-cinza">{t.salvarAntes}<b>{t.salvarComoPdf}</b>{t.salvarDepois}</p>
+          <p className="mt-4 text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#9A95AD]">{t.passo3}</p>
           <p className="mt-1 rounded-xl bg-[#F5F2FB] p-3 text-[13px]">{mensagem}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <a href={wa} target="_blank" rel="noopener" className={`${btn} bg-[#4CAF74] text-white`}>
-              Abrir WhatsApp{numero ? ' da família' : ''}
+              {t.abrirWhatsapp}{numero ? t.daFamilia : ''}
             </a>
             <button
               type="button"
@@ -111,11 +105,11 @@ export function CompartilharRelatorio({
               }}
               className={`${btn} bg-[#F0EEF4] text-ninho-cinza`}
             >
-              {copiado ? 'Copiado!' : 'Copiar mensagem'}
+              {copiado ? t.copiado : t.copiar}
             </button>
           </div>
           <p className="mt-1.5 text-[12px] text-ninho-cinza">
-            No WhatsApp, toque no clipe › Documento e escolha o PDF que você baixou. {numero ? '' : 'Cadastre o WhatsApp da família na ficha para abrir direto na conversa dela.'}
+            {t.anexar}{numero ? '' : t.semWhatsapp}
           </p>
         </div>
       )}

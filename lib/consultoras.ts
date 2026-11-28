@@ -18,6 +18,7 @@ import { mesNoPainel } from '@/lib/dashboard-charts';
 import { lerTudo } from '@/lib/supabase/paginar';
 import { fetchAppUsersTodos as fetchAppUsers, type AppUser } from '@/lib/app-users';
 import { mesesComCobranca, priceForUser, planoLabel, cicloDoUsuario, isPagante } from '@/lib/metrics';
+import { fmtData, textos as textosPainel, type Idioma } from '@/lib/i18n-consultora';
 import {
   calcularLinhas,
   somar,
@@ -216,18 +217,24 @@ export const FOTO_MAX_BYTES = 2 * 1024 * 1024;
  * do arquivo dela) e devolve a URL pública. `pasta` = 'pendentes' (mandada pela
  * consultora, espera o dono) ou 'aprovadas' (o dono subiu).
  */
-export async function subirFoto(arquivo: File, pasta: 'pendentes' | 'aprovadas'): Promise<{ url?: string; error?: string }> {
+export async function subirFoto(arquivo: File, pasta: 'pendentes' | 'aprovadas', idioma: Idioma = 'pt'): Promise<{ url?: string; error?: string }> {
+  const t = textosPainel(idioma).acoes.foto;
   const ext = TIPOS_FOTO[arquivo.type];
-  if (!ext) return { error: 'A foto precisa ser JPG, PNG ou WebP.' };
-  if (arquivo.size <= 0) return { error: 'Escolha uma foto.' };
-  if (arquivo.size > FOTO_MAX_BYTES) return { error: 'A foto passa de 2 MB. Mande uma menor.' };
+  if (!ext) return { error: t.formato };
+  if (arquivo.size <= 0) return { error: t.escolha };
+  if (arquivo.size > FOTO_MAX_BYTES) return { error: t.grande };
   const caminho = `${pasta}/${randomUUID()}.${ext}`;
   const bytes = Buffer.from(await arquivo.arrayBuffer());
   const { error } = await appDb().storage.from(BUCKET_FOTOS).upload(caminho, bytes, {
     contentType: arquivo.type,
     upsert: false,
   });
-  if (error) return { error: `Não consegui guardar a foto: ${error.message}` };
+  if (error) {
+    // pt (o dono também usa) continua com o detalhe; nos outros idiomas o detalhe vai só para o log.
+    if (idioma === 'pt') return { error: `Não consegui guardar a foto: ${error.message}` };
+    console.error('[consultoras] subirFoto:', error.message);
+    return { error: t.erroGuardar };
+  }
   return { url: prefixoFotos() + caminho };
 }
 
@@ -383,13 +390,14 @@ export interface FamiliaAtribuida extends FamiliaComissao {
 export type SituacaoFamilia = 'ativa' | 'cancelada' | 'teste' | 'reembolsada' | 'sem_cobranca';
 
 /** "cancelou em 12/11", "em teste grátis até 14/11"... para explicar um R$ 0. */
-export function situacaoTxt(s: SituacaoFamilia, desde: string | null): string {
-  const d = desde ? new Date(desde).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' }) : null;
-  if (s === 'ativa') return d ? `assinatura ativa desde ${d}` : 'assinatura ativa';
-  if (s === 'cancelada') return d ? `cancelou em ${d}` : 'cancelou';
-  if (s === 'teste') return d ? `em teste grátis até ${d}` : 'em teste grátis';
-  if (s === 'reembolsada') return d ? `reembolsada em ${d}` : 'reembolsada';
-  return 'ainda não cobrada';
+export function situacaoTxt(s: SituacaoFamilia, desde: string | null, idioma: Idioma = 'pt'): string {
+  const t = textosPainel(idioma).acoes.situacao;
+  const d = desde ? fmtData(idioma, desde, { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' }) : null;
+  if (s === 'ativa') return d ? t.ativaDesde(d) : t.ativa;
+  if (s === 'cancelada') return d ? t.canceladaEm(d) : t.cancelada;
+  if (s === 'teste') return d ? t.testeAte(d) : t.teste;
+  if (s === 'reembolsada') return d ? t.reembolsadaEm(d) : t.reembolsada;
+  return t.semCobranca;
 }
 
 function situacaoDa(pagador: AppUser | null, atribuida: AppUser | undefined, cobrancas: Cobranca[]): { situacao: SituacaoFamilia; desde: string | null } {
@@ -555,7 +563,9 @@ function funilJson(m: Omit<MesFunil, 'mes'>): FunilGanhos {
   };
 }
 
-export async function montarGanhos(c: Consultora): Promise<Ganhos> {
+/** `idioma` só muda os rótulos ("Família da rede", "Família 1", o texto da situação); o app (API) usa pt. */
+export async function montarGanhos(c: Consultora, idioma: Idioma = 'pt'): Promise<Ganhos> {
+  const tg = textosPainel(idioma).acoes.ganhos;
   const [base, vinculos, eventos] = await Promise.all([baseComissoes(), listVinculosAtivos(), eventosDosLinks()]);
   const nomePorId = new Map(base.consultoras.map((x) => [x.id, x.nome ?? 'Consultora']));
   const minhas = base.linhas.filter((l) => l.consultoraId === c.id);
@@ -570,11 +580,11 @@ export async function montarGanhos(c: Consultora): Promise<Ganhos> {
   const vivos = await bebesPorId(babyIds);
   const apelido = new Map<string, string>();
   const rotulo = (l: LinhaComissao): string => {
-    if (l.viaId) return 'Família da rede';
+    if (l.viaId) return tg.familiaDaRede;
     const baby = babyDaFamilia.get(l.familiaId);
     const nome = baby && comVinculo.has(baby) ? vivos.get(baby)?.name : null;
     if (nome) return nome;
-    if (!apelido.has(l.familiaId)) apelido.set(l.familiaId, `Família ${apelido.size + 1}`);
+    if (!apelido.has(l.familiaId)) apelido.set(l.familiaId, tg.familiaN(apelido.size + 1));
     return apelido.get(l.familiaId)!;
   };
   // Numeração estável: pela data da atribuição, não pela ordem do extrato.
@@ -652,7 +662,7 @@ export async function montarGanhos(c: Consultora): Promise<Ganhos> {
         bebe: rotuloFamilia(f.id),
         situacao: f.situacao,
         situacao_desde: f.situacaoDesde,
-        texto: situacaoTxt(f.situacao, f.situacaoDesde),
+        texto: situacaoTxt(f.situacao, f.situacaoDesde, idioma),
       })),
   };
 }
@@ -1027,15 +1037,16 @@ export function diasAteTermino(termino: string | null, hoje: Date = new Date()):
 }
 
 /** "Faltam 3 semanas", "Faltam 9 dias", "Acaba amanhã", "Terminou em 26/11". */
-export function textoDoPrazo(termino: string | null, hoje: Date = new Date()): string | null {
+export function textoDoPrazo(termino: string | null, hoje: Date = new Date(), idioma: Idioma = 'pt'): string | null {
+  const t = textosPainel(idioma).acoes.prazo;
   const dias = diasAteTermino(termino, hoje);
   if (dias === null) return null;
-  if (dias < 0) return 'Terminou';
-  if (dias === 0) return 'Termina hoje';
-  if (dias === 1) return 'Acaba amanhã';
-  if (dias < 14) return `Faltam ${dias} dias`;
+  if (dias < 0) return t.terminou;
+  if (dias === 0) return t.terminaHoje;
+  if (dias === 1) return t.acabaAmanha;
+  if (dias < 14) return t.faltamDias(dias);
   const semanas = Math.round(dias / 7);
-  return `Faltam ${semanas} semanas`;
+  return t.faltamSemanas(semanas);
 }
 
 /** Quanto da consultoria já passou, de 0 a 1. Null sem as duas datas. */
@@ -1098,11 +1109,13 @@ export async function orientacaoAceiteOk(consultoraId: string): Promise<boolean 
   return data === true;
 }
 
-export async function aceitarTermoOrientacao(consultoraId: string): Promise<'ok' | 'versao_invalida' | 'nao_e_consultora' | 'indisponivel' | 'erro'> {
+export async function aceitarTermoOrientacao(consultoraId: string, idioma: 'pt' | 'en' | 'es' = 'pt'): Promise<'ok' | 'versao_invalida' | 'nao_e_consultora' | 'indisponivel' | 'erro'> {
   const { data, error } = await appDb().rpc('_consultora_aceitar_orientacao', {
     p_consultora: consultoraId,
     p_versao: ACEITE_VINCULO_CONSULTORA_VERSAO,
-    p_idioma: 'pt',
+    // Idioma em que ela leu o termo: o banco (00198) guarda o hash do texto
+    // desse idioma em aceite_textos (pt, en e es) — exigência do jurídico.
+    p_idioma: idioma,
     p_app_versao: null,
     p_plataforma: 'painel',
   });

@@ -42,10 +42,12 @@ import {
   somar,
   valorComissao,
   COMISSAO_VISIVEL,
-  TEXTO_QUEM_GERA_COMISSAO,
-  ACEITE_VINCULO_CONSULTORA_TEXTO,
-  COMO_SOUBE_OPCOES,
+  textoQuemGeraComissao,
+  textoAceiteVinculo,
+  comoSoubeOpcoes,
 } from '@/lib/consultoras-regras';
+import { textos, fmtData, fmtDataHora, fmtNumero, fmtPct, type Idioma } from '@/lib/i18n-consultora';
+import { idiomaDaConsultora } from '@/lib/i18n-consultora/servidor';
 import {
   costumeAntes,
   descreverRegistro,
@@ -71,7 +73,7 @@ import { JanelasDasSonecas, textoEtiqueta } from '@/components/consultoras/Janel
 import { compararJanela, janelasDoPeriodo, lerCorte, lerPeriodo, posicaoPorInicio } from '@/lib/consultoras-janelas';
 import { CompartilharRelatorio } from '@/components/consultoras/CompartilharRelatorio';
 import { ManualDaConsultora } from '@/components/consultoras/ManualDaConsultora';
-import { IA_LIMITE_MES, IA_PERIODOS, IA_PRECO_MENSAL, RODAPE_IA, iaStatus, lerRelatorio, listarRelatorios, secoes, type IaStatus } from '@/lib/consultoras-ia';
+import { IA_LIMITE_MES, IA_PERIODOS, IA_PRECO_MENSAL, rodapeIa, iaStatus, lerRelatorio, listarRelatorios, secoes, type IaStatus } from '@/lib/consultoras-ia';
 import { Avatar, Aviso, Card, Kpi, Retorno, Selo, botao, brl, campo, rotuloCampo, td, th } from '@/components/consultoras/ui';
 import { CodigoConsultora, LinkConsultoria, LinkDivulgacao } from '@/components/consultoras/LinksConsultora';
 import { consultoriaLiberada } from '@/lib/link-consultora';
@@ -84,7 +86,7 @@ export const dynamic = 'force-dynamic';
 
 const BASE = '/admin/consultora';
 const H = 3600 * 1000;
-const pctTxt = (p: number) => `${String(p).replace('.', ',')}%`;
+const pctTxt = (p: number, idioma: Idioma) => fmtPct(idioma, p);
 const primeiro = (n: string | null) => (n || '').split(' ')[0];
 
 type Busca = { jan?: string; corte?: string; ficha?: string; aba?: string; bebe?: string; dia?: string; evo?: string; dias?: string; id?: string; mes?: string; filtro?: string; q?: string; ok?: string; erro?: string };
@@ -104,23 +106,25 @@ export default async function ConsultoraPage(props: { searchParams: Promise<Busc
   // 'inicio' (padrão) e 'familias' (pedidos, convites, famílias e fichas) são abas diferentes.
   const aba = searchParams.aba || 'inicio';
   const pausada = c.estado === 'pausada';
+  const idioma = await idiomaDaConsultora();
+  const t = textos(idioma).pagina;
 
   let corpo: React.ReactNode;
-  if (aba === 'rotina' || aba === 'semana') corpo = await Rotina({ c, sp: searchParams, semana: aba === 'semana' });
-  else if (aba === 'convidar') corpo = await Convidar({ c, ok: searchParams.ok, erro: searchParams.erro });
+  if (aba === 'rotina' || aba === 'semana') corpo = await Rotina({ c, sp: searchParams, semana: aba === 'semana', idioma });
+  else if (aba === 'convidar') corpo = await Convidar({ c, ok: searchParams.ok, erro: searchParams.erro, idioma });
   // Com a comissão escondida, Ganhos e Indicar não abrem nem pelo endereço
   // direto: o link some do menu, mas o favorito continuaria funcionando.
-  else if (aba === 'ganhos') corpo = COMISSAO_VISIVEL ? await Ganhos({ c, mes: searchParams.mes }) : await Familias({ c, sp: searchParams });
-  else if (aba === 'indicar') corpo = COMISSAO_VISIVEL ? await Indicar({ c }) : await Familias({ c, sp: searchParams });
-  else if (aba === 'perfil') corpo = await Perfil({ c });
-  else if (aba === 'relatorio') corpo = await RelatorioIA({ c, sp: searchParams });
-  else if (aba === 'assinatura') corpo = await AssinaturaIA({ c });
-  else if (aba === 'ajuda') corpo = <Ajuda c={c} />;
-  else if (aba === 'manual') corpo = <Manual c={c} />;
-  else if (aba === 'sugestoes') corpo = await Sugestoes({ c });
-  else if (aba === 'ficha') corpo = await AbaFicha({ c, sp: searchParams });
-  else if (aba === 'familias') corpo = await PedidosEConvites({ c, sp: searchParams });
-  else corpo = await Familias({ c, sp: searchParams });
+  else if (aba === 'ganhos') corpo = COMISSAO_VISIVEL ? await Ganhos({ c, mes: searchParams.mes, idioma }) : await Familias({ c, sp: searchParams, idioma });
+  else if (aba === 'indicar') corpo = COMISSAO_VISIVEL ? await Indicar({ c, idioma }) : await Familias({ c, sp: searchParams, idioma });
+  else if (aba === 'perfil') corpo = await Perfil({ c, idioma });
+  else if (aba === 'relatorio') corpo = await RelatorioIA({ c, sp: searchParams, idioma });
+  else if (aba === 'assinatura') corpo = await AssinaturaIA({ c, idioma });
+  else if (aba === 'ajuda') corpo = <Ajuda c={c} idioma={idioma} />;
+  else if (aba === 'manual') corpo = <Manual c={c} idioma={idioma} />;
+  else if (aba === 'sugestoes') corpo = await Sugestoes({ c, idioma });
+  else if (aba === 'ficha') corpo = await AbaFicha({ c, sp: searchParams, idioma });
+  else if (aba === 'familias') corpo = await PedidosEConvites({ c, sp: searchParams, idioma });
+  else corpo = await Familias({ c, sp: searchParams, idioma });
 
   return (
     <>
@@ -128,14 +132,14 @@ export default async function ConsultoraPage(props: { searchParams: Promise<Busc
         <Avatar id={c.id} nome={c.nome} foto={c.foto_url} tamanho={40} />
         <div className="flex-1 leading-tight">
           <b className="text-[14px]">{c.nome}</b>
-          <p className="text-[12px] text-ninho-cinza">Consultora independente · código {c.codigo}</p>
+          <p className="text-[12px] text-ninho-cinza">{t.topo.consultoraCodigo(c.codigo ?? '')}</p>
         </div>
-        <span className="rounded-pill bg-[#E7F5EC] px-3 py-1 text-[11.5px] font-extrabold text-[#2F8A55]">Mesmos dados do app</span>
+        <span className="rounded-pill bg-[#E7F5EC] px-3 py-1 text-[11.5px] font-extrabold text-[#2F8A55]">{t.topo.mesmosDados}</span>
       </div>
       {pausada && (
         <Aviso tom="vermelho">
-          Sua conta de consultora está pausada pelo Ninho. Você não vê a rotina das famílias até ser reativada.
-          {COMISSAO_VISIVEL ? ' A comissão das famílias que já assinam continua.' : ''}
+          {t.topo.pausada}
+          {COMISSAO_VISIVEL ? t.topo.pausadaComissao : ''}
         </Aviso>
       )}
       <div className="mt-4">
@@ -162,28 +166,35 @@ function hojeSP(): string {
   return diaLocalDe(Date.now());
 }
 
-function idadeTxt(nasc: string | null): string {
+function idadeTxt(nasc: string | null, idioma: Idioma): string {
+  const t = textos(idioma).pagina.comum;
   const m = idadeMeses(nasc, hojeSP());
   if (m === null) return '';
-  if (m < 0) return 'ainda não nasceu';
-  if (m === 0) return 'menos de 1 mês';
-  return `${m} ${m === 1 ? 'mês' : 'meses'}`;
+  if (m < 0) return t.naoNasceu;
+  if (m === 0) return t.menosDe1Mes;
+  return t.meses(m);
 }
 
-function desdeTxt(iso: string): string {
-  return new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' });
+function desdeTxt(iso: string, idioma: Idioma): string {
+  return fmtData(idioma, iso, { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' });
 }
 
-async function SeloAgora({ f }: { f: FamiliaDaConsultora }) {
-  if (!f.plano_ok) return <Selo cor="cinza">Família sem plano</Selo>;
-  if (f.dormindo_desde) return <Selo cor="noite">Dormindo · {dur((Date.now() - new Date(f.dormindo_desde).getTime()) / 60000)}</Selo>;
-  if (!f.ultimo_registro_em) return <Selo cor="vermelho">Sem registro</Selo>;
+/** dd/mm/aaaa → hh:mm de São Paulo, no idioma (as listas de convites, relatórios e fichas). */
+function quandoTxt(iso: string | number | Date, idioma: Idioma, ano = false): string {
+  return fmtDataHora(idioma, iso, { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', ...(ano ? { year: 'numeric' } : {}), hour: '2-digit', minute: '2-digit' });
+}
+
+async function SeloAgora({ f, idioma }: { f: FamiliaDaConsultora; idioma: Idioma }) {
+  const t = textos(idioma).pagina.selo;
+  if (!f.plano_ok) return <Selo cor="cinza">{t.semPlano}</Selo>;
+  if (f.dormindo_desde) return <Selo cor="noite">{t.dormindo(dur((Date.now() - new Date(f.dormindo_desde).getTime()) / 60000, idioma))}</Selo>;
+  if (!f.ultimo_registro_em) return <Selo cor="vermelho">{t.semRegistro}</Selo>;
   const h = (Date.now() - new Date(f.ultimo_registro_em).getTime()) / H;
-  if (h >= 12) return <Selo cor="vermelho">Sem registro há {Math.floor(h)}h</Selo>;
+  if (h >= 12) return <Selo cor="vermelho">{t.semRegistroHa(Math.floor(h))}</Selo>;
   // Na hora da família (dono, 15/11/2026).
   const ms = new Date(f.ultimo_registro_em).getTime();
   const rel = await relogioDaFamilia(f.baby_id, ms);
-  return <Selo cor="ambar">Último registro às {hora(ms + rel.delta)}</Selo>;
+  return <Selo cor="ambar">{t.ultimoAs(hora(ms + rel.delta, idioma))}</Selo>;
 }
 
 // ── Início (v3) ───────────────────────────────────────────
@@ -202,7 +213,9 @@ function waLink(digitos: string | null | undefined, texto: string): string {
   return n ? `https://wa.me/${n}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`;
 }
 
-async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
+async function Familias({ c, sp, idioma }: { c: Consultora; sp: Busca; idioma: Idioma }) {
+  const tp = textos(idioma).pagina;
+  const t = tp.inicio;
   const [todas, pv, ia] = await Promise.all([
     c.estado === 'ativa' ? familiasDa(c.id) : Promise.resolve([] as FamiliaDaConsultora[]),
     c.estado === 'ativa' ? pedidosVinculoDa(c.id) : Promise.resolve({ pedidos: [], indisponivel: false }),
@@ -222,7 +235,7 @@ async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
         f.plano_ok ? rotinaDe(c.id, f.baby_id, new Date(inicioDoDia(somarDias(hojeF, -7)) - 12 * H), new Date(rel.agora + 60_000), rel) : Promise.resolve({ registros: [], semAcesso: true }),
         fichaDe(c.id, f.baby_id),
       ]);
-      return { f, semana: rot.semAcesso ? null : semanaV3(rot.registros, somarDias(hojeF, -1), rel.agora), ficha: fi.ficha, ontem: somarDias(hojeF, -1) };
+      return { f, semana: rot.semAcesso ? null : semanaV3(rot.registros, somarDias(hojeF, -1), rel.agora, 7, idioma), ficha: fi.ficha, ontem: somarDias(hojeF, -1) };
     }),
   );
   const porBebe = new Map(dados.map((d) => [d.f.baby_id, d]));
@@ -252,54 +265,51 @@ async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
     const peso = (f: FamiliaDaConsultora, d?: FamiliaComSemana) => (d && agitada(d) ? 2 : 0) + (semReg(f) ? 1 : 0);
     return peso(b, pb) - peso(a, pa) || (a.bebe_nome ?? '').localeCompare(b.bebe_nome ?? '');
   });
-  const chip = (k: string, t: string) => (
-    <Link key={k} href={`${BASE}?aba=inicio&filtro=${k}${q ? `&q=${encodeURIComponent(q)}` : ''}`} className={`rounded-pill px-3 py-1.5 text-xs font-bold ${filtro === k ? 'bg-[#24164F] text-white' : 'bg-white text-ninho-cinza shadow-[inset_0_0_0_1.5px_#ECE6F5]'}`}>{t}</Link>
+  const chip = (k: string, rotulo: string) => (
+    <Link key={k} href={`${BASE}?aba=inicio&filtro=${k}${q ? `&q=${encodeURIComponent(q)}` : ''}`} className={`rounded-pill px-3 py-1.5 text-xs font-bold ${filtro === k ? 'bg-[#24164F] text-white' : 'bg-white text-ninho-cinza shadow-[inset_0_0_0_1.5px_#ECE6F5]'}`}>{rotulo}</Link>
   );
   const horaDoDia = new Date(agora + FUSO_MS).getUTCHours();
-  const saudacao = horaDoDia < 12 ? 'Bom dia' : horaDoDia < 18 ? 'Boa tarde' : 'Boa noite';
-  const dataHoje = new Date(agora).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: 'numeric', month: 'long' });
-  const iaTxt = !ia ? { v: '—', s: 'ainda não disponível' } : ia.assinante ? { v: `${ia.usadosMes} de ${ia.limiteMes}`, s: 'usados neste mês' } : ia.gratisUsado ? { v: 'grátis usado', s: 'assine pelo app' } : { v: '1 grátis', s: 'ainda não usado' };
+  const saudacao = horaDoDia < 12 ? t.bomDia : horaDoDia < 18 ? t.boaTarde : t.boaNoite;
+  const dataHoje = fmtData(idioma, agora, { timeZone: 'America/Sao_Paulo', weekday: 'long', day: 'numeric', month: 'long' });
+  const iaTxt = !ia ? { v: '—', s: t.iaIndisponivel } : ia.assinante ? { v: tp.comum.deTotal(ia.usadosMes, ia.limiteMes), s: t.iaUsados } : ia.gratisUsado ? { v: t.iaGratisUsadoV, s: t.iaGratisUsadoS } : { v: t.iaUmGratisV, s: t.iaUmGratisS };
 
   return (
     <>
       <Titulo
-        t={`${saudacao}, ${primeiro(c.nome)}`}
-        sub={`${todas.length} família${todas.length === 1 ? '' : 's'} compartilha${todas.length === 1 ? '' : 'm'} a rotina com você · ${dataHoje}`}
+        t={saudacao(primeiro(c.nome))}
+        sub={t.sub(todas.length, dataHoje)}
         direita={
           <form className="flex h-10 items-center gap-2 rounded-pill bg-white px-4 shadow-[inset_0_0_0_1.5px_#ECE6F5]">
             <input type="hidden" name="aba" value="inicio" />
             <input type="hidden" name="filtro" value={filtro} />
-            <input name="q" defaultValue={sp.q} placeholder="Buscar bebê ou mãe" className="w-48 bg-transparent text-[13.5px] outline-none" />
+            <input name="q" defaultValue={sp.q} placeholder={tp.comum.buscarBebeOuMae} className="w-48 bg-transparent text-[13.5px] outline-none" />
           </form>
         }
       />
       {pv.pedidos.length > 0 && (
-        <Card titulo="Pedidos de famílias" direita={`${pv.pedidos.length} esperando você`} className="mb-4">
-          <p className="text-[12.5px] text-ninho-cinza">
-            A família digitou seu código e já aceitou compartilhar a rotina. A rotina só aparece para você depois que
-            você aprovar.
-          </p>
+        <Card titulo={t.pedidosTitulo} direita={tp.comum.esperandoVoce(pv.pedidos.length)} className="mb-4">
+          <p className="text-[12.5px] text-ninho-cinza">{tp.comum.pedidoExplica}</p>
           {pv.pedidos.map((p) => (
             <div key={p.id} className="mt-3 rounded-2xl bg-[#F3EEFC] px-4 py-3">
               <p className="text-[13.5px]">
-                <b>{p.responsavel_nome ?? 'Uma família'}</b>
-                {p.bebe_nome ? <> quer compartilhar a rotina de <b>{p.bebe_nome}</b></> : ' quer compartilhar a rotina do bebê'}
-                <span className="text-ninho-cinza"> · {desdeTxt(p.criado_em)}</span>
+                <b>{p.responsavel_nome ?? tp.comum.umaFamilia}</b>
+                {p.bebe_nome ? <>{tp.comum.querCompartilharDe}<b>{p.bebe_nome}</b></> : tp.comum.querCompartilharBebe}
+                <span className="text-ninho-cinza"> · {desdeTxt(p.criado_em, idioma)}</span>
               </p>
               <details className="mt-2">
-                <summary className="cursor-pointer text-[13px] font-bold text-[#7C5CD6]">Aprovar</summary>
+                <summary className="cursor-pointer text-[13px] font-bold text-[#7C5CD6]">{tp.comum.aprovar}</summary>
                 <form action={responderPedidoFamilia} className="mt-2 rounded-xl bg-white p-3">
                   <input type="hidden" name="pedido" value={p.id} />
                   <label className="flex items-start gap-2.5 text-[13px] leading-relaxed">
                     <input type="checkbox" name="aceite" required className="mt-1 h-4 w-4 shrink-0 accent-[#4CAF74]" />
-                    <span>{ACEITE_VINCULO_CONSULTORA_TEXTO}</span>
+                    <span>{textoAceiteVinculo(idioma)}</span>
                   </label>
-                  <button name="decisao" value="aprovar" className={`${botao.verde} mt-3`}>Aprovar e ver a rotina</button>
+                  <button name="decisao" value="aprovar" className={`${botao.verde} mt-3`}>{tp.comum.aprovarEVer}</button>
                 </form>
               </details>
               <form action={responderPedidoFamilia} className="mt-2">
                 <input type="hidden" name="pedido" value={p.id} />
-                <button name="decisao" value="recusar" className={botao.cinza}>Recusar</button>
+                <button name="decisao" value="recusar" className={botao.cinza}>{tp.comum.recusar}</button>
               </form>
             </div>
           ))}
@@ -307,58 +317,58 @@ async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card titulo="Olhe primeiro" direita="o que mudou desde ontem">
-          {prioridade.length === 0 && <p className="py-5 text-center text-sm text-ninho-cinza">Nada pedindo atenção agora.</p>}
+        <Card titulo={t.olhePrimeiro} direita={t.olheDireita}>
+          {prioridade.length === 0 && <p className="py-5 text-center text-sm text-ninho-cinza">{t.nadaAtencao}</p>}
           {prioridade.map((d) => {
             const n = noiteOntem(d);
             if (agitada(d) && n) {
               return (
                 <div key={d.f.baby_id} className="mt-2 flex flex-wrap items-center gap-3 rounded-2xl bg-[#FFF8EC] px-3 py-2.5">
                   <Link href={`${BASE}?aba=rotina&bebe=${d.f.baby_id}&dia=${d.ontem ?? ontem}`} className="min-w-[200px] flex-1">
-                    <p className="text-[13.5px] font-extrabold">{d.f.bebe_nome} · noite agitada</p>
+                    <p className="text-[13.5px] font-extrabold">{t.noiteAgitada(d.f.bebe_nome ?? '')}</p>
                     <p className="text-xs tabular-nums text-ninho-cinza">
-                      {n.noite.despertares} despertares{n.noite.primeiroTrechoMin !== null ? `, 1º bloco de ${dur(n.noite.primeiroTrechoMin)}` : ''}. Dia com {n.sonecas.length} soneca{n.sonecas.length === 1 ? '' : 's'}.
+                      {t.agitadaDetalhe(n.noite.despertares ?? 0, n.noite.primeiroTrechoMin !== null ? dur(n.noite.primeiroTrechoMin, idioma) : null, n.sonecas.length)}
                     </p>
                   </Link>
-                  <Link href={`${BASE}?aba=relatorio&bebe=${d.f.baby_id}`} className={botao.suave}>Relatório IA</Link>
+                  <Link href={`${BASE}?aba=relatorio&bebe=${d.f.baby_id}`} className={botao.suave}>{t.relatorioIa}</Link>
                 </div>
               );
             }
-            const desde = d.f.ultimo_registro_em ? `desde ${desdeTxt(d.f.ultimo_registro_em)}, ${hora(new Date(d.f.ultimo_registro_em).getTime())}` : 'ainda';
+            const desde = d.f.ultimo_registro_em ? t.nadaMarcadoDesde(desdeTxt(d.f.ultimo_registro_em, idioma), hora(new Date(d.f.ultimo_registro_em).getTime(), idioma)) : t.nadaMarcadoAinda;
             return (
               <div key={d.f.baby_id} className="mt-2 flex flex-wrap items-center gap-3 rounded-2xl bg-[#F4F2F8] px-3 py-2.5">
                 <div className="min-w-[200px] flex-1">
-                  <p className="text-[13.5px] font-extrabold">{d.f.bebe_nome} · sem registro</p>
-                  <p className="text-xs text-ninho-cinza">Nada marcado {desde}.</p>
+                  <p className="text-[13.5px] font-extrabold">{t.semRegistroTitulo(d.f.bebe_nome ?? '')}</p>
+                  <p className="text-xs text-ninho-cinza">{desde}</p>
                 </div>
                 <a
-                  href={waLink(d.ficha?.whatsapp, `Oi! Tudo bem? Vi que não tem registro do ${d.ficha?.bebe_apelido || d.f.bebe_nome || 'bebê'} no Ninho desde ontem. Consegue marcar o sono e as mamadas de hoje? Assim eu acompanho direitinho.`)}
+                  href={waLink(d.ficha?.whatsapp, t.msgWhatsapp(d.ficha?.bebe_apelido || d.f.bebe_nome || tp.comum.bebeMinusculo))}
                   target="_blank"
                   rel="noopener"
                   className={botao.cinza}
-                  title="Abre o WhatsApp com a mensagem pronta. Você revisa e envia."
+                  title={t.lembrarTitle}
                 >
-                  Lembrar no WhatsApp
+                  {t.lembrarWhatsapp}
                 </a>
               </div>
             );
           })}
         </Card>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Kpi rotulo="Noites calmas ontem" valor={comNoite.length ? `${calmas.length} de ${comNoite.length}` : '—'} sub="famílias com registro" />
-          <Kpi rotulo="Dormindo agora" valor={dormindo.length} sub={dormindo.slice(0, 3).map((f) => f.bebe_nome).join(', ') || 'ninguém'} />
-          <Kpi rotulo="Relatórios IA" valor={iaTxt.v} sub={iaTxt.s} />
+          <Kpi rotulo={t.kpiNoitesCalmas} valor={comNoite.length ? tp.comum.deTotal(calmas.length, comNoite.length) : '—'} sub={t.kpiComRegistro} />
+          <Kpi rotulo={t.kpiDormindo} valor={dormindo.length} sub={dormindo.slice(0, 3).map((f) => f.bebe_nome).join(', ') || t.ninguem} />
+          <Kpi rotulo={t.kpiRelatorios} valor={iaTxt.v} sub={iaTxt.s} />
         </div>
       </div>
 
       <Card
         className="mt-4"
-        titulo={<div className="flex flex-wrap gap-1.5">{chip('todas', 'Todas')}{chip('agitada', 'Noite agitada')}{chip('dorme', 'Dormindo agora')}{chip('semreg', 'Sem registro')}{chip('semplano', 'Sem plano')}</div>}
-        direita={`${fs.length} de ${todas.length} · atenção primeiro`}
+        titulo={<div className="flex flex-wrap gap-1.5">{chip('todas', t.chipTodas)}{chip('agitada', t.chipAgitada)}{chip('dorme', t.chipDorme)}{chip('semreg', t.chipSemReg)}{chip('semplano', t.chipSemPlano)}</div>}
+        direita={t.listaDireita(fs.length, todas.length)}
       >
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead><tr><th className={th}>Bebê</th><th className={th}>Mãe</th><th className={th}>7 noites</th><th className={th}>Agora</th><th className={th}>Com você desde</th><th className={th} /></tr></thead>
+            <thead><tr><th className={th}>{tp.comum.bebe}</th><th className={th}>{tp.comum.mae}</th><th className={th}>{t.col7Noites}</th><th className={th}>{tp.comum.agora}</th><th className={th}>{t.colComVoceDesde}</th><th className={th} /></tr></thead>
             <tbody>
               {fs.map((f) => {
                 const d = porBebe.get(f.baby_id);
@@ -367,14 +377,14 @@ async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
                     <td className={td}>
                       <Link href={`${BASE}?aba=rotina&bebe=${f.baby_id}`} className="flex items-center gap-2.5">
                         <Avatar id={f.baby_id} nome={f.bebe_nome} tamanho={34} />
-                        <span><b>{f.bebe_nome}</b><small className="block text-[11.5px] text-ninho-cinza">{idadeTxt(f.nascimento)}</small></span>
+                        <span><b>{f.bebe_nome}</b><small className="block text-[11.5px] text-ninho-cinza">{idadeTxt(f.nascimento, idioma)}</small></span>
                       </Link>
                     </td>
                     <td className={td}>{f.mae_nome ?? '—'}</td>
-                    <td className={td}>{d?.semana ? <Link href={`${BASE}?aba=semana&bebe=${f.baby_id}`}><MiniNoites s={d.semana} /></Link> : <span className="text-xs text-[#9A95AD]">—</span>}</td>
-                    <td className={td}><SeloAgora f={f} /></td>
-                    <td className={td}>{desdeTxt(f.vinculado_em)}</td>
-                    <td className={td}>{d && agitada(d) ? <Link href={`${BASE}?aba=relatorio&bebe=${f.baby_id}`} className={botao.suave}>Relatório</Link> : <Link href={`${BASE}?aba=rotina&bebe=${f.baby_id}`} className="text-[#BDB8CC]">›</Link>}</td>
+                    <td className={td}>{d?.semana ? <Link href={`${BASE}?aba=semana&bebe=${f.baby_id}`}><MiniNoites s={d.semana} idioma={idioma} /></Link> : <span className="text-xs text-[#9A95AD]">—</span>}</td>
+                    <td className={td}><SeloAgora f={f} idioma={idioma} /></td>
+                    <td className={td}>{desdeTxt(f.vinculado_em, idioma)}</td>
+                    <td className={td}>{d && agitada(d) ? <Link href={`${BASE}?aba=relatorio&bebe=${f.baby_id}`} className={botao.suave}>{t.relatorio}</Link> : <Link href={`${BASE}?aba=rotina&bebe=${f.baby_id}`} className="text-[#BDB8CC]">›</Link>}</td>
                   </tr>
                 );
               })}
@@ -382,19 +392,20 @@ async function Familias({ c, sp }: { c: Consultora; sp: Busca }) {
           </table>
           {fs.length === 0 && (
             <p className="py-6 text-center text-sm text-ninho-cinza">
-              {todas.length === 0 ? (c.estado === 'ativa' ? 'Nenhuma família ainda. Mande seu link em Convidar família.' : 'Sem famílias para mostrar.') : 'Nenhuma família com esse filtro.'}
+              {todas.length === 0 ? (c.estado === 'ativa' ? t.vazioAtiva : t.vazioPausada) : t.vazioFiltro}
             </p>
           )}
         </div>
-        <Legenda itens={[['#9F86E0', 'noite calma (até 2 despertares)'], ['#F0B456', '3 ou mais'], ['#E4E1EA', 'sem registro']]} />
+        <Legenda itens={[['#9F86E0', t.legCalma], ['#F0B456', t.legTresOuMais], ['#E4E1EA', t.legSemRegistro]]} idioma={idioma} />
       </Card>
-      <ConviteSugestao />
+      <ConviteSugestao idioma={idioma} />
     </>
   );
 }
 
 // ── Sugestões para o Ninho (00123) ────────────────────────
-function ConviteSugestao() {
+function ConviteSugestao({ idioma }: { idioma: Idioma }) {
+  const t = textos(idioma).pagina.sugestoes;
   return (
     <Link
       href={`${BASE}?aba=sugestoes`}
@@ -402,33 +413,35 @@ function ConviteSugestao() {
     >
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-xl shadow-[0_6px_14px_-8px_rgba(140,92,248,.6)]" aria-hidden>💡</span>
       <span className="min-w-[200px] flex-1 leading-snug">
-        <b className="block text-[15px] text-[#24164F]">O que você gostaria de ter por aqui?</b>
-        <span className="text-[12.5px] text-ninho-cinza">Conte sua ideia. A gente lê todas e é assim que o Ninho melhora para você.</span>
+        <b className="block text-[15px] text-[#24164F]">{t.pergunta}</b>
+        <span className="text-[12.5px] text-ninho-cinza">{t.conviteTexto}</span>
       </span>
-      <span className={botao.suave}>Dar uma sugestão</span>
+      <span className={botao.suave}>{t.conviteBotao}</span>
     </Link>
   );
 }
 
-const ROTULO_SUGESTAO: Record<StatusSugestao, { t: string; cor: 'ambar' | 'verde' | 'cinza' }> = {
-  nova: { t: 'Enviada', cor: 'cinza' },
-  lida: { t: 'Lida pelo Ninho', cor: 'ambar' },
-  feita: { t: 'Virou melhoria', cor: 'verde' },
+// O texto de cada status mora no dicionário (sugestoes.status); aqui só a cor.
+const COR_SUGESTAO: Record<StatusSugestao, 'ambar' | 'verde' | 'cinza'> = {
+  nova: 'cinza',
+  lida: 'ambar',
+  feita: 'verde',
 };
 
-async function Sugestoes({ c }: { c: Consultora }) {
+async function Sugestoes({ c, idioma }: { c: Consultora; idioma: Idioma }) {
+  const t = textos(idioma).pagina.sugestoes;
   const { lista, indisponivel } = await sugestoesDa(c.id);
   return (
     <>
-      <Titulo t="Sugestões" sub="Este espaço é seu para dizer o que falta, o que atrapalha e o que você gostaria de ver." />
+      <Titulo t={t.titulo} sub={t.sub} />
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <section className="rounded-[22px] bg-gradient-to-br from-[#A46DFF] to-[#8C5CF8] p-[3px] shadow-[0_14px_34px_-22px_rgba(140,92,248,.9)]">
           <div className="rounded-[20px] bg-white p-5">
             <div className="flex items-center gap-3">
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#F3EEFC] text-2xl" aria-hidden>💡</span>
               <div className="leading-tight">
-                <h2 className="text-[18px] font-black text-[#24164F]">O que você gostaria de ter por aqui?</h2>
-                <p className="mt-0.5 text-[12.5px] text-ninho-cinza">Uma tela, um botão, um relatório, um jeito mais fácil de fazer algo. Vale tudo.</p>
+                <h2 className="text-[18px] font-black text-[#24164F]">{t.pergunta}</h2>
+                <p className="mt-0.5 text-[12.5px] text-ninho-cinza">{t.dica}</p>
               </div>
             </div>
             <form action={mandarSugestao} className="mt-4">
@@ -438,28 +451,28 @@ async function Sugestoes({ c }: { c: Consultora }) {
                 minLength={3}
                 maxLength={SUGESTAO_MAX}
                 rows={6}
-                placeholder="Ex.: queria ver a soma das sonecas da semana de todas as famílias numa tela só."
+                placeholder={t.placeholder}
                 className="w-full resize-y rounded-2xl border-[1.5px] border-transparent bg-[#F5F2FB] px-4 py-3 text-[14px] leading-relaxed outline-none focus:border-ninho-roxo"
                 disabled={indisponivel}
               />
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-[12px] text-ninho-cinza">Só o time do Ninho lê. Não coloque dados das famílias.</p>
-                <button className={botao.grad} disabled={indisponivel}>Enviar sugestão</button>
+                <p className="text-[12px] text-ninho-cinza">{t.soTime}</p>
+                <button className={botao.grad} disabled={indisponivel}>{t.enviar}</button>
               </div>
-              {indisponivel && <p className="mt-2 text-[12.5px] font-semibold text-[#B7791F]">As sugestões abrem em breve.</p>}
+              {indisponivel && <p className="mt-2 text-[12.5px] font-semibold text-[#B7791F]">{t.emBreve}</p>}
             </form>
           </div>
         </section>
-        <Card titulo="Suas sugestões" direita={lista.length ? `${lista.length}` : undefined}>
+        <Card titulo={t.suas} direita={lista.length ? `${lista.length}` : undefined}>
           {lista.length === 0 ? (
-            <p className="py-6 text-center text-sm text-ninho-cinza">Você ainda não mandou nenhuma. A primeira pode ser a próxima melhoria do Ninho.</p>
+            <p className="py-6 text-center text-sm text-ninho-cinza">{t.nenhuma}</p>
           ) : (
             <ul className="mt-1 space-y-2.5">
               {lista.map((s) => (
                 <li key={s.id} className="rounded-2xl bg-[#FAF8FE] px-4 py-3">
                   <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className="text-[11.5px] font-semibold text-[#9A95AD]">{new Date(s.criado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>
-                    <Selo cor={ROTULO_SUGESTAO[s.status].cor}>{ROTULO_SUGESTAO[s.status].t}</Selo>
+                    <span className="text-[11.5px] font-semibold text-[#9A95AD]">{fmtData(idioma, s.criado_em, { timeZone: 'America/Sao_Paulo' })}</span>
+                    <Selo cor={COR_SUGESTAO[s.status]}>{t.status[s.status]}</Selo>
                   </div>
                   <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-ninho-grafite">{s.texto}</p>
                 </li>
@@ -473,15 +486,18 @@ async function Sugestoes({ c }: { c: Consultora }) {
 }
 
 // ── Famílias: pedidos, convites e quem você acompanha (00109, 00118) ──
-const ROTULO_CONVITE: Record<ConviteEnviado['status'], { t: string; cor: 'ambar' | 'verde' | 'cinza' }> = {
-  // Nunca dizer se o e-mail tem conta no Ninho.
-  aguardando: { t: 'Aguardando a família', cor: 'ambar' },
-  aceito: { t: 'Aceito', cor: 'verde' },
-  encerrado: { t: 'Encerrado', cor: 'cinza' },
-  cancelado: { t: 'Cancelado', cor: 'cinza' },
+// O texto de cada status mora no dicionário (familias.statusConvite); aqui só a cor.
+// Nunca dizer se o e-mail tem conta no Ninho.
+const COR_CONVITE: Record<ConviteEnviado['status'], 'ambar' | 'verde' | 'cinza'> = {
+  aguardando: 'ambar',
+  aceito: 'verde',
+  encerrado: 'cinza',
+  cancelado: 'cinza',
 };
 
-async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
+async function PedidosEConvites({ c, sp, idioma }: { c: Consultora; sp: Busca; idioma: Idioma }) {
+  const tp = textos(idioma).pagina;
+  const t = tp.familias;
   const ativa = c.estado === 'ativa';
   const [fams, pv, convites, continuar] = await Promise.all([
     ativa ? familiasDa(c.id) : Promise.resolve([] as FamiliaDaConsultora[]),
@@ -499,66 +515,66 @@ async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
   // de anotação logo abaixo (00186).
   const fichasDaLista = await Promise.all(acompanha.slice(0, 60).map((f) => fichaDe(c.id, f.baby_id)));
   const fichaDaLinha = new Map(acompanha.slice(0, 60).map((f, i) => [f.baby_id, fichasDaLista[i].ficha]));
-  const chip = (k: string, t: string, n: number) => (
-    <Link key={k} href={`${BASE}?aba=familias&filtro=${k}`} className={`rounded-pill px-3 py-1.5 text-xs font-bold ${filtroConv === k ? 'bg-[#24164F] text-white' : 'bg-white text-ninho-cinza shadow-[inset_0_0_0_1.5px_#ECE6F5]'}`}>{t} · {n}</Link>
+  const chip = (k: string, rotulo: string, n: number) => (
+    <Link key={k} href={`${BASE}?aba=familias&filtro=${k}`} className={`rounded-pill px-3 py-1.5 text-xs font-bold ${filtroConv === k ? 'bg-[#24164F] text-white' : 'bg-white text-ninho-cinza shadow-[inset_0_0_0_1.5px_#ECE6F5]'}`}>{rotulo} · {n}</Link>
   );
   const conta = (st: string) => (convites ?? []).filter((x) => st === 'todos' || x.status === st).length;
   return (
     <>
-      <Titulo t="Famílias" sub="Pedidos para aprovar, convites que você mandou e as famílias que você acompanha." direita={<Link href={`${BASE}?aba=convidar`} className={botao.grad}>Convidar família</Link>} />
+      <Titulo t={t.titulo} sub={t.sub} direita={<Link href={`${BASE}?aba=convidar`} className={botao.grad}>{t.convidarFamilia}</Link>} />
 
       {continuar.lista.length > 0 && (
         <Card
           className="mb-4 ring-2 ring-[#4CAF74]"
-          titulo="Querem continuar com você"
-          direita={<span className="rounded-pill bg-[#E3F4EA] px-3 py-1 text-[11.5px] font-extrabold text-[#2F8A55]">{continuar.lista.length} pedido{continuar.lista.length > 1 ? 's' : ''}</span>}
+          titulo={t.continuarTitulo}
+          direita={<span className="rounded-pill bg-[#E3F4EA] px-3 py-1 text-[11.5px] font-extrabold text-[#2F8A55]">{t.continuarPedidos(continuar.lista.length)}</span>}
         >
-          <p className="text-[12.5px] text-ninho-cinza">A família tocou em “Quero continuar” no app. O Ninho não combina valor nem prazo: é com você.</p>
+          <p className="text-[12.5px] text-ninho-cinza">{t.continuarExplica}</p>
           {continuar.lista.map((p) => (
             <div key={p.id} className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl bg-[#F2FAF5] px-4 py-3">
               <div className="min-w-[220px] flex-1">
-                <b className="text-[13.5px]">A família {p.bebe_nome ? `de ${p.bebe_nome}` : ''} quer continuar</b>
+                <b className="text-[13.5px]">{t.querContinuar(p.bebe_nome || null)}</b>
                 <small className="block text-[11.5px] text-ninho-cinza">
-                  pedido {desdeTxt(p.pedido_em)}
-                  {p.termino ? ` · a consultoria termina em ${dataBr(p.termino)}` : ''}
+                  {t.pedidoEm(desdeTxt(p.pedido_em, idioma))}
+                  {p.termino ? t.terminaEm(dataBr(p.termino, idioma)) : ''}
                 </small>
               </div>
-              <Link href={`${BASE}?aba=ficha&bebe=${p.baby_id}`} className={botao.suave}>Abrir ficha</Link>
+              <Link href={`${BASE}?aba=ficha&bebe=${p.baby_id}`} className={botao.suave}>{t.abrirFicha}</Link>
               <form action={marcarContinuarFalei}>
                 <input type="hidden" name="pedido" value={p.id} />
-                <button className={botao.verde}>Já falei com ela</button>
+                <button className={botao.verde}>{t.jaFalei}</button>
               </form>
             </div>
           ))}
         </Card>
       )}
 
-      <Card titulo="1 · Pedidos para você aprovar" direita={pv.pedidos.length ? `${pv.pedidos.length} esperando você` : undefined}>
-        {pv.pedidos.length === 0 && <p className="py-4 text-center text-sm text-ninho-cinza">{pv.indisponivel ? 'Os pedidos aparecem aqui assim que o Ninho liberar.' : 'Nenhum pedido esperando você.'}</p>}
+      <Card titulo={t.pedidosTitulo} direita={pv.pedidos.length ? tp.comum.esperandoVoce(pv.pedidos.length) : undefined}>
+        {pv.pedidos.length === 0 && <p className="py-4 text-center text-sm text-ninho-cinza">{pv.indisponivel ? t.pedidosEmBreve : t.nenhumPedido}</p>}
         {pv.pedidos.length > 0 && (
-          <p className="text-[12.5px] text-ninho-cinza">A família digitou seu código e já aceitou compartilhar a rotina. A rotina só aparece para você depois que você aprovar.</p>
+          <p className="text-[12.5px] text-ninho-cinza">{tp.comum.pedidoExplica}</p>
         )}
         {pv.pedidos.map((p) => (
           <div key={p.id} className="mt-3 rounded-2xl bg-[#F3EEFC] px-4 py-3">
             <p className="text-[13.5px]">
-              <b>{p.responsavel_nome ?? 'Uma família'}</b>
-              {p.bebe_nome ? <> quer compartilhar a rotina de <b>{p.bebe_nome}</b></> : ' quer compartilhar a rotina do bebê'}
-              <span className="text-ninho-cinza"> · {desdeTxt(p.criado_em)}</span>
+              <b>{p.responsavel_nome ?? tp.comum.umaFamilia}</b>
+              {p.bebe_nome ? <>{tp.comum.querCompartilharDe}<b>{p.bebe_nome}</b></> : tp.comum.querCompartilharBebe}
+              <span className="text-ninho-cinza"> · {desdeTxt(p.criado_em, idioma)}</span>
             </p>
             <details className="mt-2">
-              <summary className="cursor-pointer text-[13px] font-bold text-[#7C5CD6]">Aprovar</summary>
+              <summary className="cursor-pointer text-[13px] font-bold text-[#7C5CD6]">{tp.comum.aprovar}</summary>
               <form action={responderPedidoFamilia} className="mt-2 rounded-xl bg-white p-3">
                 <input type="hidden" name="pedido" value={p.id} />
                 <label className="flex items-start gap-2.5 text-[13px] leading-relaxed">
                   <input type="checkbox" name="aceite" required className="mt-1 h-4 w-4 shrink-0 accent-[#4CAF74]" />
-                  <span>{ACEITE_VINCULO_CONSULTORA_TEXTO}</span>
+                  <span>{textoAceiteVinculo(idioma)}</span>
                 </label>
-                <button name="decisao" value="aprovar" className={`${botao.verde} mt-3`}>Aprovar e ver a rotina</button>
+                <button name="decisao" value="aprovar" className={`${botao.verde} mt-3`}>{tp.comum.aprovarEVer}</button>
               </form>
             </details>
             <form action={responderPedidoFamilia} className="mt-2">
               <input type="hidden" name="pedido" value={p.id} />
-              <button name="decisao" value="recusar" className={botao.cinza}>Recusar</button>
+              <button name="decisao" value="recusar" className={botao.cinza}>{tp.comum.recusar}</button>
             </form>
           </div>
         ))}
@@ -566,29 +582,29 @@ async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
 
       <Card
         className="mt-4"
-        titulo="2 · Convites que você enviou"
-        direita={convites && convites.length > 0 ? <div className="flex flex-wrap gap-1.5">{chip('todos', 'Todos', conta('todos'))}{chip('aguardando', 'Aguardando', conta('aguardando'))}{chip('aceito', 'Aceitos', conta('aceito'))}{chip('encerrado', 'Encerrados', conta('encerrado'))}{chip('cancelado', 'Cancelados', conta('cancelado'))}</div> : undefined}
+        titulo={t.convitesTitulo}
+        direita={convites && convites.length > 0 ? <div className="flex flex-wrap gap-1.5">{chip('todos', t.chipTodos, conta('todos'))}{chip('aguardando', t.chipAguardando, conta('aguardando'))}{chip('aceito', t.chipAceito, conta('aceito'))}{chip('encerrado', t.chipEncerrado, conta('encerrado'))}{chip('cancelado', t.chipCancelado, conta('cancelado'))}</div> : undefined}
       >
         {convites === null ? (
-          <p className="py-4 text-center text-sm text-ninho-cinza">A lista de convites aparece aqui assim que o Ninho liberar.</p>
+          <p className="py-4 text-center text-sm text-ninho-cinza">{t.convitesEmBreve}</p>
         ) : conv.length === 0 ? (
-          <p className="py-4 text-center text-sm text-ninho-cinza">{convites.length ? 'Nenhum convite com esse filtro.' : 'Nenhum convite enviado nos últimos 90 dias. Convide pelo e-mail em Convidar família.'}</p>
+          <p className="py-4 text-center text-sm text-ninho-cinza">{convites.length ? t.nenhumConviteFiltro : t.nenhumConvite90}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr><th className={th}>E-mail</th><th className={th}>Enviado em</th><th className={th}>Situação</th><th className={th} /></tr></thead>
+              <thead><tr><th className={th}>{t.colEmail}</th><th className={th}>{t.colEnviado}</th><th className={th}>{t.colSituacao}</th><th className={th} /></tr></thead>
               <tbody>
                 {conv.map((x) => (
                   <tr key={`${x.email}-${x.enviado_em}`}>
                     <td className={`${td} break-all`}>{x.email}</td>
-                    <td className={`${td} tabular-nums`}>{new Date(x.enviado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+                    <td className={`${td} tabular-nums`}>{quandoTxt(x.enviado_em, idioma)}</td>
                     <td className={td}>
-                      <Selo cor={ROTULO_CONVITE[x.status]?.cor ?? 'cinza'}>{ROTULO_CONVITE[x.status]?.t ?? x.status}</Selo>
-                      {x.status === 'aguardando' && <small className="mt-0.5 block text-[11.5px] text-ninho-cinza">Se ainda não tem conta, chega quando ela criar.</small>}
+                      <Selo cor={COR_CONVITE[x.status] ?? 'cinza'}>{t.statusConvite[x.status] ?? x.status}</Selo>
+                      {x.status === 'aguardando' && <small className="mt-0.5 block text-[11.5px] text-ninho-cinza">{t.semContaAinda}</small>}
                     </td>
                     <td className={td}>
                       {x.status === 'aguardando' && (
-                        <ConfirmButton action={cancelarConviteFamilia} hidden={{ email: x.email }} label="Cancelar envio" message={`Cancelar o convite para ${x.email}? Ela não vai mais conseguir aceitar este convite.`} />
+                        <ConfirmButton action={cancelarConviteFamilia} hidden={{ email: x.email }} label={t.cancelarEnvio} message={t.cancelarMsg(x.email)} />
                       )}
                     </td>
                   </tr>
@@ -601,27 +617,27 @@ async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
 
       <Card
         className="mt-4"
-        titulo="3 · Famílias que você acompanha"
+        titulo={t.acompanhaTitulo}
         direita={
           <form className="flex h-9 items-center gap-2 rounded-pill bg-white px-3 shadow-[inset_0_0_0_1.5px_#ECE6F5]">
             <input type="hidden" name="aba" value="familias" />
-            <input name="q" defaultValue={sp.q} placeholder="Buscar bebê ou mãe" className="w-40 bg-transparent text-[13px] outline-none" />
+            <input name="q" defaultValue={sp.q} placeholder={tp.comum.buscarBebeOuMae} className="w-40 bg-transparent text-[13px] outline-none" />
           </form>
         }
       >
         {acompanha.length === 0 ? (
-          <p className="py-4 text-center text-sm text-ninho-cinza">{fams.length ? 'Nenhuma família com essa busca.' : ativa ? 'Nenhuma família ainda.' : 'Conta pausada: as famílias voltam quando o Ninho reativar.'}</p>
+          <p className="py-4 text-center text-sm text-ninho-cinza">{fams.length ? t.nenhumaBusca : ativa ? tp.comum.nenhumaFamilia : t.pausadaVoltam}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr><th className={th}>Bebê</th><th className={th}>Mãe</th><th className={th}>Consultoria</th><th className={th}>Agora</th><th className={th} /></tr></thead>
+              <thead><tr><th className={th}>{tp.comum.bebe}</th><th className={th}>{tp.comum.mae}</th><th className={th}>{t.colConsultoria}</th><th className={th}>{tp.comum.agora}</th><th className={th} /></tr></thead>
               <tbody>
                 {acompanha.map((f) => (
                   <tr key={f.baby_id} className="hover:bg-[#FAF8FE]">
                     <td className={td}>
                       <Link href={`${BASE}?aba=rotina&bebe=${f.baby_id}`} className="flex items-center gap-2.5">
                         <Avatar id={f.baby_id} nome={f.bebe_nome} tamanho={32} />
-                        <span><b>{f.bebe_nome}</b><small className="block text-[11.5px] text-ninho-cinza">{idadeTxt(f.nascimento)}</small></span>
+                        <span><b>{f.bebe_nome}</b><small className="block text-[11.5px] text-ninho-cinza">{idadeTxt(f.nascimento, idioma)}</small></span>
                       </Link>
                     </td>
                     <td className={td}>{f.mae_nome ?? '—'}</td>
@@ -629,24 +645,24 @@ async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
                       {/* 00186: a barra já diz quando começou, então ela
                           substitui o antigo "com você desde". */}
                       {fichaDaLinha.get(f.baby_id)?.termino ? (
-                        <BarraDoPrazo inicio={fichaDaLinha.get(f.baby_id)?.inicio ?? null} termino={fichaDaLinha.get(f.baby_id)?.termino ?? null} compacta />
+                        <BarraDoPrazo inicio={fichaDaLinha.get(f.baby_id)?.inicio ?? null} termino={fichaDaLinha.get(f.baby_id)?.termino ?? null} compacta idioma={idioma} />
                       ) : (
                         <>
-                          <Selo cor="lilas">Com você desde {desdeTxt(f.vinculado_em)}</Selo>
-                          <small className="mt-0.5 block text-[11.5px] text-[#9A95AD]">sem datas na ficha</small>
+                          <Selo cor="lilas">{t.comVoceDesde(desdeTxt(f.vinculado_em, idioma))}</Selo>
+                          <small className="mt-0.5 block text-[11.5px] text-[#9A95AD]">{t.semDatas}</small>
                         </>
                       )}
                     </td>
-                    <td className={td}><SeloAgora f={f} /></td>
+                    <td className={td}><SeloAgora f={f} idioma={idioma} /></td>
                     <td className={td}>
                       <Link href={`${BASE}?aba=ficha&bebe=${f.baby_id}`} className={`${botao.suave} mr-2`}>
-                        {fichaDaLinha.get(f.baby_id)?.termino ? 'Ficha' : 'Preencher ficha'}
+                        {fichaDaLinha.get(f.baby_id)?.termino ? t.ficha : t.preencherFicha}
                       </Link>
                       <ConfirmButton
                         action={encerrarAcompanhamento}
                         hidden={{ baby: f.baby_id }}
-                        label="Encerrar acompanhamento"
-                        message={`Encerrar o acompanhamento de ${f.bebe_nome ?? 'este bebê'}? A família é avisada e você deixa de ver a rotina na hora. Para voltar, ela precisa aprovar de novo.`}
+                        label={t.encerrar}
+                        message={t.encerrarMsg(f.bebe_nome ?? t.esteBebe)}
                       />
                     </td>
                   </tr>
@@ -656,7 +672,7 @@ async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
           </div>
         )}
       </Card>
-      {acompanha.length > 0 && <Fichas familias={acompanha} fichas={fichasDaLista} aberta={sp.ficha} />}
+      {acompanha.length > 0 && <Fichas familias={acompanha} fichas={fichasDaLista} aberta={sp.ficha} idioma={idioma} />}
     </>
   );
 }
@@ -665,16 +681,18 @@ async function PedidosEConvites({ c, sp }: { c: Consultora; sp: Busca }) {
 // No app, a aba Ficha do bebê junta as anotações da consultora e a orientação
 // que ela manda para a família. No painel só existiam as anotações, soltas no
 // fim da aba Famílias: aqui ficam as duas coisas, uma família por vez.
-async function AbaFicha({ c, sp }: { c: Consultora; sp: Busca }) {
+async function AbaFicha({ c, sp, idioma }: { c: Consultora; sp: Busca; idioma: Idioma }) {
+  const tp = textos(idioma).pagina;
+  const t = tp.ficha;
   const fams = c.estado === 'ativa' ? await familiasDa(c.id) : [];
   const f = fams.find((x) => x.baby_id === sp.bebe) ?? fams[0];
   if (!f) {
     return (
       <>
-        <Titulo t="Ficha da família" />
+        <Titulo t={t.titulo} />
         <Card>
           <p className="py-8 text-center text-sm text-ninho-cinza">
-            {c.estado === 'pausada' ? 'Conta pausada: as fichas voltam quando o Ninho reativar.' : 'Nenhuma família ainda.'}
+            {c.estado === 'pausada' ? t.pausada : tp.comum.nenhumaFamilia}
           </p>
         </Card>
       </>
@@ -694,53 +712,46 @@ async function AbaFicha({ c, sp }: { c: Consultora; sp: Busca }) {
       <select name="bebe" defaultValue={f.baby_id} className="h-10 rounded-pill bg-white px-4 text-sm font-bold shadow-[inset_0_0_0_1.5px_#ECE6F5]">
         {fams.map((x) => <option key={x.baby_id} value={x.baby_id}>{x.bebe_nome} · {primeiro(x.mae_nome) || '—'}</option>)}
       </select>
-      <button className={botao.suave}>Abrir</button>
+      <button className={botao.suave}>{tp.comum.abrir}</button>
     </form>
   );
-  const sub = `Mãe: ${f.mae_nome ?? '—'} · com você desde ${desdeTxt(f.vinculado_em)}${idadeTxt(f.nascimento) ? ` · ${idadeTxt(f.nascimento)}` : ''}`;
+  const sub = tp.comum.maeSub(f.mae_nome ?? '—', desdeTxt(f.vinculado_em, idioma), idadeTxt(f.nascimento, idioma));
 
   // Por que o campo pode não abrir. A ordem importa: o motivo mais forte primeiro.
   const bloqueio = !f.plano_ok
-    ? `A família da ${primeiro(f.mae_nome) || 'mãe'} está sem plano. Sem plano você não vê a rotina nem envia orientação.`
+    ? t.bloqueioSemPlano(primeiro(f.mae_nome) || t.maeGenerico)
     : aceiteOk === null || enviadas.indisponivel
-      ? 'As orientações ainda não estão disponíveis. Assim que o Ninho liberar, o campo aparece aqui.'
+      ? t.bloqueioIndisponivel
       : estado !== 'aceito'
-        ? 'Esta família ainda não aceitou receber orientações pelo Ninho. Ela vê o pedido ao abrir o app; assim que aceitar, o campo abre aqui.'
+        ? t.bloqueioSemAceite
         : undefined;
 
-  const quando = (iso: string) =>
-    new Date(new Date(iso).getTime() + rel.delta).toLocaleString('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const quando = (iso: string) => quandoTxt(new Date(iso).getTime() + rel.delta, idioma);
 
   return (
     <>
       <Titulo t={f.bebe_nome} sub={sub} direita={seletor} />
       <Card
-        titulo="Orientação para a família"
-        direita={<span className="rounded-pill bg-[#E3F4EA] px-3 py-1 text-[11.5px] font-extrabold text-[#2F8A55]">A família vê</span>}
+        titulo={t.orientacaoTitulo}
+        direita={<span className="rounded-pill bg-[#E3F4EA] px-3 py-1 text-[11.5px] font-extrabold text-[#2F8A55]">{t.familiaVe}</span>}
       >
         <OrientacaoFamilia
           babyId={f.baby_id}
           acao={enviarOrientacaoFamilia}
           precisaAceite={aceiteOk === false}
-          termo={ACEITE_VINCULO_CONSULTORA_TEXTO}
+          termo={textoAceiteVinculo(idioma)}
           bloqueio={bloqueio}
         />
       </Card>
 
       {enviadas.lista.length > 0 && (
-        <Card className="mt-4" titulo="Já enviadas" direita={`${enviadas.lista.length}`}>
+        <Card className="mt-4" titulo={t.jaEnviadas} direita={`${enviadas.lista.length}`}>
           {enviadas.lista.map((o) => (
             <div key={o.id} className="border-b border-[#F3F0F8] py-3 last:border-0">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <b className="text-[12.5px] tabular-nums">{quando(o.enviada_em)}</b>
                 <span className={`text-[11.5px] font-bold ${o.lida_em ? 'text-[#2F8A55]' : 'text-ninho-cinza'}`}>
-                  {o.lida_em ? `lida em ${quando(o.lida_em)}` : 'ainda não lida'}
+                  {o.lida_em ? t.lidaEm(quando(o.lida_em)) : t.naoLida}
                 </span>
               </div>
               <p className="mt-1 whitespace-pre-wrap text-[13.5px] leading-relaxed">{o.texto}</p>
@@ -749,11 +760,11 @@ async function AbaFicha({ c, sp }: { c: Consultora; sp: Busca }) {
         </Card>
       )}
 
-      <Card className="mt-4" titulo="Ficha da consultoria" direita="Datas e encontros a família vê">
+      <Card className="mt-4" titulo={t.fichaConsultoria} direita={t.datasEncontrosVe}>
         {fi.indisponivel ? (
-          <p className="py-4 text-center text-sm text-ninho-cinza">As fichas ainda não estão disponíveis.</p>
+          <p className="py-4 text-center text-sm text-ninho-cinza">{t.indisponivel}</p>
         ) : (
-          <FormDaFicha f={f} fi={fi.ficha} naAbaFicha />
+          <FormDaFicha f={f} fi={fi.ficha} naAbaFicha idioma={idioma} />
         )}
       </Card>
     </>
@@ -761,7 +772,8 @@ async function AbaFicha({ c, sp }: { c: Consultora; sp: Busca }) {
 }
 
 /** O mesmo formulário da ficha nas duas abas: Famílias (lista) e Ficha. */
-function FormDaFicha({ f, fi, naAbaFicha = false }: { f: FamiliaDaConsultora; fi: Ficha | null; naAbaFicha?: boolean }) {
+function FormDaFicha({ f, fi, naAbaFicha = false, idioma }: { f: FamiliaDaConsultora; fi: Ficha | null; naAbaFicha?: boolean; idioma: Idioma }) {
+  const t = textos(idioma).pagina.ficha;
   return (
         <form action={salvarFicha} className="mt-3">
             {naAbaFicha && <input type="hidden" name="volta" value="ficha" />}
@@ -770,42 +782,42 @@ function FormDaFicha({ f, fi, naAbaFicha = false }: { f: FamiliaDaConsultora; fi
                 misturados na mesma linha, e a família passa a ver as duas
                 datas e a contagem de encontros na tela dela. */}
             <div className="rounded-2xl border border-[#ECE6F5] px-4 py-3">
-              <p className="mb-2 text-[11.5px] font-extrabold uppercase tracking-wide text-[#9A95AD]">Datas <span className="ml-1 rounded-pill bg-[#E3F4EA] px-2 py-0.5 text-[10.5px] text-[#2F8A55]">a família vê</span></p>
+              <p className="mb-2 text-[11.5px] font-extrabold uppercase tracking-wide text-[#9A95AD]">{t.datas} <span className="ml-1 rounded-pill bg-[#E3F4EA] px-2 py-0.5 text-[10.5px] text-[#2F8A55]">{t.aFamiliaVe}</span></p>
               <div className="grid gap-2 sm:grid-cols-2">
-                <div><label className={rotuloCampo}>Início da consultoria</label><input type="date" name="inicio" defaultValue={fi?.inicio ?? ''} className={campo} /></div>
-                <div><label className={rotuloCampo}>Término da consultoria</label><input type="date" name="termino" defaultValue={fi?.termino ?? ''} className={campo} /></div>
+                <div><label className={rotuloCampo}>{t.inicio}</label><input type="date" name="inicio" defaultValue={fi?.inicio ?? ''} className={campo} /></div>
+                <div><label className={rotuloCampo}>{t.termino}</label><input type="date" name="termino" defaultValue={fi?.termino ?? ''} className={campo} /></div>
               </div>
               {fi?.termino && (
-                <div className="mt-3 max-w-[320px]"><BarraDoPrazo inicio={fi.inicio} termino={fi.termino} /></div>
+                <div className="mt-3 max-w-[320px]"><BarraDoPrazo inicio={fi.inicio} termino={fi.termino} idioma={idioma} /></div>
               )}
               <small className="mt-2 block text-[11.5px] text-ninho-cinza">
-                Sem o término, a família não recebe os avisos de “está acabando” e a barra não aparece.
+                {t.semTermino}
               </small>
             </div>
             <div className="mt-3 rounded-2xl border border-[#ECE6F5] px-4 py-3">
-              <p className="mb-2 text-[11.5px] font-extrabold uppercase tracking-wide text-[#9A95AD]">Encontros <span className="ml-1 rounded-pill bg-[#E3F4EA] px-2 py-0.5 text-[10.5px] text-[#2F8A55]">a família vê</span></p>
+              <p className="mb-2 text-[11.5px] font-extrabold uppercase tracking-wide text-[#9A95AD]">{t.encontros} <span className="ml-1 rounded-pill bg-[#E3F4EA] px-2 py-0.5 text-[10.5px] text-[#2F8A55]">{t.aFamiliaVe}</span></p>
               <div className="grid gap-2 sm:grid-cols-2">
-                <div><label className={rotuloCampo}>Encontros combinados</label><input type="number" min={0} max={999} name="encontros_total" defaultValue={fi?.encontros_total ?? ''} className={campo} /></div>
-                <div><label className={rotuloCampo}>Encontros já feitos</label><input type="number" min={0} max={999} name="encontros_feitos" defaultValue={fi?.encontros_feitos ?? ''} className={campo} /></div>
+                <div><label className={rotuloCampo}>{t.encontrosCombinados}</label><input type="number" min={0} max={999} name="encontros_total" defaultValue={fi?.encontros_total ?? ''} className={campo} /></div>
+                <div><label className={rotuloCampo}>{t.encontrosFeitos}</label><input type="number" min={0} max={999} name="encontros_feitos" defaultValue={fi?.encontros_feitos ?? ''} className={campo} /></div>
               </div>
             </div>
             <div className="mt-3 rounded-2xl border border-[#ECE6F5] px-4 py-3">
-              <p className="mb-2 text-[11.5px] font-extrabold uppercase tracking-wide text-[#9A95AD]">Nomes</p>
+              <p className="mb-2 text-[11.5px] font-extrabold uppercase tracking-wide text-[#9A95AD]">{t.nomes}</p>
               <div className="grid gap-2 sm:grid-cols-2">
-                <div><label className={rotuloCampo}>Nomes dos pais</label><input name="pais_nomes" maxLength={120} defaultValue={fi?.pais_nomes ?? ''} className={campo} /></div>
-                <div><label className={rotuloCampo}>Como você chama o bebê</label><input name="bebe_apelido" maxLength={60} defaultValue={fi?.bebe_apelido ?? ''} className={campo} /></div>
+                <div><label className={rotuloCampo}>{t.nomesPais}</label><input name="pais_nomes" maxLength={120} defaultValue={fi?.pais_nomes ?? ''} className={campo} /></div>
+                <div><label className={rotuloCampo}>{t.apelido}</label><input name="bebe_apelido" maxLength={60} defaultValue={fi?.bebe_apelido ?? ''} className={campo} /></div>
               </div>
             </div>
-            <label className={`${rotuloCampo} mt-3`}>WhatsApp da família</label>
+            <label className={`${rotuloCampo} mt-3`}>{t.whatsappFamilia}</label>
             <TelefonePais name="whatsapp" valor={fi?.whatsapp} classeSelect={campo} classeInput={campo} />
-            <label className={rotuloCampo}>Observações</label>
+            <label className={rotuloCampo}>{t.observacoes}</label>
             <textarea name="observacoes" maxLength={2000} rows={3} defaultValue={fi?.observacoes ?? ''} className={`${campo} h-auto py-2`} />
-            <small className="mt-1 block text-[11.5px] text-ninho-cinza">Anote só o que precisa para o atendimento. Não registre diagnóstico, remédio nem dado de saúde.</small>
+            <small className="mt-1 block text-[11.5px] text-ninho-cinza">{t.obsDica}</small>
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              <button className={botao.suave}>Salvar ficha</button>
+              <button className={botao.suave}>{t.salvar}</button>
               <span className="text-[11.5px] text-ninho-cinza">
-                A família vê as datas e os encontros na tela dela; o WhatsApp e as observações são só seus. Tudo some se a família tirar o seu acesso.
-                {fi?.atualizado_em ? ` Salva em ${new Date(fi.atualizado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.` : ''}
+                {t.rodape}
+                {fi?.atualizado_em ? t.salvaEm(quandoTxt(fi.atualizado_em, idioma)) : ''}
               </span>
             </div>
           </form>
@@ -813,33 +825,34 @@ function FormDaFicha({ f, fi, naAbaFicha = false }: { f: FamiliaDaConsultora; fi
 }
 
 // ── Fichas (anotações da consultora sobre cada família, 00111) ──
-function Fichas({ familias, fichas, aberta }: { familias: FamiliaDaConsultora[]; fichas: { ficha: Ficha | null; indisponivel: boolean }[]; aberta?: string }) {
+function Fichas({ familias, fichas, aberta, idioma }: { familias: FamiliaDaConsultora[]; fichas: { ficha: Ficha | null; indisponivel: boolean }[]; aberta?: string; idioma: Idioma }) {
+  const t = textos(idioma).pagina.ficha;
   const lista = familias.slice(0, 60);
   if (fichas.some((x) => x.indisponivel)) {
     return (
-      <Card titulo="Fichas das famílias" className="mt-4">
-        <p className="py-4 text-center text-sm text-ninho-cinza">As fichas ainda não estão disponíveis. Assim que o Ninho liberar, aparecem aqui.</p>
+      <Card titulo={t.fichasTitulo} className="mt-4">
+        <p className="py-4 text-center text-sm text-ninho-cinza">{t.fichasIndisponivel}</p>
       </Card>
     );
   }
-  const dataBrOuVazio = (d: string | null) => (d ? dataBr(d) : null);
+  const dataBrOuVazio = (d: string | null) => (d ? dataBr(d, idioma) : '');
   return (
-    <Card titulo="Fichas das famílias" direita="Datas e encontros a família vê." className="mt-4">
+    <Card titulo={t.fichasTitulo} direita={t.fichasDireita} className="mt-4">
       {lista.map((f, i) => {
         const fi: Ficha | null = fichas[i].ficha;
-        const encontros = fi?.encontros_total ? `${fi.encontros_feitos ?? 0} de ${fi.encontros_total} encontros` : fi?.encontros_feitos ? `${fi.encontros_feitos} encontros feitos` : null;
+        const encontros = fi?.encontros_total ? t.encontrosDe(fi.encontros_feitos ?? 0, fi.encontros_total) : fi?.encontros_feitos ? t.encontrosSoFeitos(fi.encontros_feitos) : null;
         return (
           <details key={f.baby_id} id={`ficha-${f.baby_id}`} open={aberta === f.baby_id} className="mt-2 rounded-2xl bg-[#F8F6FC] px-4 py-3">
             <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px]">
               <b>{f.bebe_nome}{fi?.bebe_apelido ? ` (${fi.bebe_apelido})` : ''}</b>
               <span className="text-ninho-cinza">{fi?.pais_nomes || f.mae_nome || '—'}</span>
-              {fi?.inicio && <Selo cor="lilas">desde {dataBrOuVazio(fi.inicio)}</Selo>}
-              {fi?.termino && <Selo cor={(diasAteTermino(fi.termino) ?? 99) <= 14 ? 'ambar' : 'lilas'}>até {dataBrOuVazio(fi.termino)}</Selo>}
+              {fi?.inicio && <Selo cor="lilas">{t.desde(dataBrOuVazio(fi.inicio))}</Selo>}
+              {fi?.termino && <Selo cor={(diasAteTermino(fi.termino) ?? 99) <= 14 ? 'ambar' : 'lilas'}>{t.ate(dataBrOuVazio(fi.termino))}</Selo>}
               {encontros && <Selo cor="verde">{encontros}</Selo>}
               {fi?.whatsapp && <span className="text-xs text-ninho-cinza">{telefoneLegivel(fi.whatsapp)}</span>}
-              {!fi && <span className="text-xs text-[#9A95AD]">sem ficha ainda</span>}
+              {!fi && <span className="text-xs text-[#9A95AD]">{t.semFicha}</span>}
             </summary>
-            <FormDaFicha f={f} fi={fi} />
+            <FormDaFicha f={f} fi={fi} idioma={idioma} />
           </details>
         );
       })}
@@ -848,10 +861,11 @@ function Fichas({ familias, fichas, aberta }: { familias: FamiliaDaConsultora[];
 }
 
 // ── Rotina e semana (v3) ──────────────────────────────────
-function diaRotulo(dia: string, hoje: string = hojeSP()): string {
-  if (dia === hoje) return 'Hoje';
-  if (dia === somarDias(hoje, -1)) return `Ontem, ${diaCurto(dia)}`;
-  return diaCurto(dia).replace(/^./, (x) => x.toUpperCase());
+function diaRotulo(dia: string, hoje: string, idioma: Idioma): string {
+  const t = textos(idioma).pagina.rotina;
+  if (dia === hoje) return t.hoje;
+  if (dia === somarDias(hoje, -1)) return t.ontem(diaCurto(dia, idioma));
+  return diaCurto(dia, idioma).replace(/^./, (x) => x.toUpperCase());
 }
 
 function KpiDelta({ rotulo, valor, sub, grande = false }: { rotulo: string; valor: React.ReactNode; sub?: React.ReactNode; grande?: boolean }) {
@@ -865,10 +879,10 @@ function KpiDelta({ rotulo, valor, sub, grande = false }: { rotulo: string; valo
 }
 
 /** Comparação com a semana anterior: seta verde quando melhora, cinza quando piora (nada de alarme). */
-function Delta({ agora, antes, melhorQuando, fmt }: { agora: number | null; antes: number | null; melhorQuando: 'maior' | 'menor'; fmt: (x: number) => string }) {
+function Delta({ agora, antes, melhorQuando, fmt, idioma }: { agora: number | null; antes: number | null; melhorQuando: 'maior' | 'menor'; fmt: (x: number) => string; idioma: Idioma }) {
   if (agora === null || antes === null) return null;
   const dif = agora - antes;
-  if (Math.abs(dif) < 0.05 * Math.max(Math.abs(antes), 1)) return <span className="mr-1 rounded-pill bg-[#F0EEF4] px-2 py-0.5 text-[11px] font-extrabold text-ninho-cinza">parecido</span>;
+  if (Math.abs(dif) < 0.05 * Math.max(Math.abs(antes), 1)) return <span className="mr-1 rounded-pill bg-[#F0EEF4] px-2 py-0.5 text-[11px] font-extrabold text-ninho-cinza">{textos(idioma).pagina.rotina.parecido}</span>;
   const melhorou = melhorQuando === 'maior' ? dif > 0 : dif < 0;
   return (
     <span className={`mr-1 rounded-pill px-2 py-0.5 text-[11px] font-extrabold ${melhorou ? 'bg-[#E7F5EC] text-[#2F8A55]' : 'bg-[#F0EEF4] text-ninho-cinza'}`}>
@@ -877,17 +891,22 @@ function Delta({ agora, antes, melhorQuando, fmt }: { agora: number | null; ante
   );
 }
 
-const um = (x: number) => x.toFixed(1).replace('.', ',');
+/** Uma casa decimal no idioma ("1,5" · "1.5"). */
+const umDe = (idioma: Idioma) => (x: number) => fmtNumero(idioma, x, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boolean }) {
+async function Rotina({ c, sp, semana, idioma }: { c: Consultora; sp: Busca; semana: boolean; idioma: Idioma }) {
+  const tp = textos(idioma).pagina;
+  const t = tp.rotina;
+  const ts = tp.semana;
+  const um = umDe(idioma);
   const fams = c.estado === 'ativa' ? await familiasDa(c.id) : [];
   const f = fams.find((x) => x.baby_id === sp.bebe) ?? fams[0];
   const aba = semana ? 'semana' : 'rotina';
   if (!f) {
     return (
       <>
-        <Titulo t={semana ? 'Evolução' : 'Rotina do bebê'} />
-        <Card><p className="py-8 text-center text-sm text-ninho-cinza">{c.estado === 'pausada' ? 'Conta pausada: a rotina volta quando o Ninho reativar.' : 'Nenhuma família ainda.'}</p></Card>
+        <Titulo t={semana ? t.tituloEvolucao : t.tituloRotina} />
+        <Card><p className="py-8 text-center text-sm text-ninho-cinza">{c.estado === 'pausada' ? t.pausada : tp.comum.nenhumaFamilia}</p></Card>
       </>
     );
   }
@@ -902,11 +921,11 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
       <select name="bebe" defaultValue={f.baby_id} className="h-10 rounded-pill bg-white px-4 text-sm font-bold shadow-[inset_0_0_0_1.5px_#ECE6F5]">
         {fams.map((x) => <option key={x.baby_id} value={x.baby_id}>{x.bebe_nome} · {primeiro(x.mae_nome) || '—'}</option>)}
       </select>
-      <button className={botao.suave}>Abrir</button>
+      <button className={botao.suave}>{tp.comum.abrir}</button>
       {extra}
     </form>
   );
-  const sub = `Mãe: ${f.mae_nome ?? '—'} · com você desde ${desdeTxt(f.vinculado_em)}${idadeTxt(f.nascimento) ? ` · ${idadeTxt(f.nascimento)}` : ''}`;
+  const sub = tp.comum.maeSub(f.mae_nome ?? '—', desdeTxt(f.vinculado_em, idioma), idadeTxt(f.nascimento, idioma));
   const trava = (msg: React.ReactNode) => (
     <Card><div className="flex flex-col items-center px-5 py-10 text-center text-[13.5px] leading-relaxed text-ninho-cinza">{msg}</div></Card>
   );
@@ -914,7 +933,7 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
     return (
       <>
         <Titulo t={f.bebe_nome} sub={sub} direita={seletor()} />
-        {trava(<><b className="text-ninho-grafite">A família da {primeiro(f.mae_nome)} está sem plano</b>O teste grátis acabou e ela não assinou. A rotina volta a aparecer quando ela assinar o Básico ou o Premium.</>)}
+        {trava(<><b className="text-ninho-grafite">{t.semPlanoTitulo(primeiro(f.mae_nome))}</b>{t.semPlanoTexto}</>)}
       </>
     );
   }
@@ -932,26 +951,26 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
     const nav = (
       <div className="flex items-center gap-2 rounded-pill bg-white p-1 shadow-[inset_0_0_0_1.5px_#ECE6F5]">
         {dia > somarDias(hoje, -30) ? <Link href={`${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${somarDias(dia, -1)}`} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F3EEFC] text-[#7C5CD6]">‹</Link> : <span className="h-8 w-8" />}
-        <b className="min-w-[150px] text-center text-[13.5px]">{diaRotulo(dia, hoje)}</b>
+        <b className="min-w-[150px] text-center text-[13.5px]">{diaRotulo(dia, hoje, idioma)}</b>
         {dia < hoje ? <Link href={`${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${somarDias(dia, 1)}`} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F3EEFC] text-[#7C5CD6]">›</Link> : <span className="h-8 w-8" />}
       </div>
     );
     const head = <Titulo t={f.bebe_nome} sub={sub} direita={seletor(nav)} />;
-    if (semAcesso) return <>{head}{trava('Sem acesso à rotina deste bebê agora (vínculo removido, família sem plano ou conta pausada).')}</>;
-    const d = diaV3(registros, dia, agora);
+    if (semAcesso) return <>{head}{trava(t.semAcesso)}</>;
+    const d = diaV3(registros, dia, agora, idioma);
     const janelas = janLib ? janelasDoPeriodo(registros, dia, janDias, janCorte, agora) : null;
     const posJanela = posicaoPorInicio(d.sonecas);
     const etiquetaJanela = janelas
       ? (inicio: number, antes: number) => {
           const p = posJanela.get(inicio);
-          if (p === undefined) return d.dormiu === inicio ? textoEtiqueta(compararJanela(antes, janelas.noite), 'pt') : null;
-          return textoEtiqueta(compararJanela(antes, janelas.sonecas.find((x) => x.posicao === p)), 'pt');
+          if (p === undefined) return d.dormiu === inicio ? textoEtiqueta(compararJanela(antes, janelas.noite), idioma) : null;
+          return textoEtiqueta(compararJanela(antes, janelas.sonecas.find((x) => x.posicao === p)), idioma);
         }
       : undefined;
-    if (!d.temRegistro) return <>{head}{trava(<><b className="text-ninho-grafite">Nada registrado neste dia</b>Sem registro, sem número.</>)}</>;
-    const cost = costumeAntes(registros, dia, agora);
-    const ac = cost.horarios.find((h) => h.rotulo === 'Acordou');
-    const dm = cost.horarios.find((h) => h.rotulo === 'Dormiu');
+    if (!d.temRegistro) return <>{head}{trava(<><b className="text-ninho-grafite">{t.nadaNoDia}</b>{t.semRegistroSemNumero}</>)}</>;
+    const cost = costumeAntes(registros, dia, agora, idioma);
+    const ac = cost.horarios.find((h) => h.chave === 'acordou');
+    const dm = cost.horarios.find((h) => h.chave === 'dormiu');
     const fora = (v: number | null, faixaH: { min: number | null; max: number | null } | undefined) =>
       v !== null && faixaH && faixaH.min !== null && faixaH.max !== null && (v < faixaH.min - 15 || v > faixaH.max + 15);
     const acM = d.acordou !== null ? minutoDoDia(d.acordou) : null;
@@ -962,27 +981,27 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
       <>
         {head}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiDelta grande rotulo="Sono nas 24h" valor={d.sono24 !== null ? dur(d.sono24) : '—'} sub={<>{dur(d.sonecasMin)} de sonecas{d.noiteCompleta ? ` + ${dur(d.noite.totalMin ?? 0)} de noite` : ''}{cost.sono24Med !== null ? <> · média {dur(cost.sono24Med)}</> : null}</>} />
-          <KpiDelta rotulo="Noite" valor={d.noiteCompleta ? dur(d.noite.totalMin ?? 0) : d.dormiu !== null ? 'em curso' : '—'} sub={<>{cost.noiteMed !== null ? `média ${dur(cost.noiteMed)} · ` : ''}<span className={despFora ? laranja : ''}>{d.noite.despertares ?? 0} despertares</span>{cost.despertaresMed !== null ? ` (média ${um(cost.despertaresMed)})` : ''}{d.noite.primeiroTrechoMin !== null ? ` · 1º bloco ${dur(d.noite.primeiroTrechoMin)}` : ''}</>} />
-          <KpiDelta rotulo="Sonecas" valor={`${d.sonecas.length} · ${dur(d.sonecasMin)}`} sub={cost.sonecasPorDia !== null ? `de costume ${um(cost.sonecasPorDia)} · ${dur(cost.sonecasMinMed ?? 0)}` : 'sem semana anterior para comparar'} />
+          <KpiDelta grande rotulo={t.sono24} valor={d.sono24 !== null ? dur(d.sono24, idioma) : '—'} sub={<>{t.deSonecas(dur(d.sonecasMin, idioma))}{d.noiteCompleta ? t.maisNoite(dur(d.noite.totalMin ?? 0, idioma)) : ''}{cost.sono24Med !== null ? t.mediaFim(dur(cost.sono24Med, idioma)) : null}</>} />
+          <KpiDelta rotulo={t.noite} valor={d.noiteCompleta ? dur(d.noite.totalMin ?? 0, idioma) : d.dormiu !== null ? t.emCurso : '—'} sub={<>{cost.noiteMed !== null ? t.mediaInicio(dur(cost.noiteMed, idioma)) : ''}<span className={despFora ? laranja : ''}>{t.despertares(d.noite.despertares ?? 0)}</span>{cost.despertaresMed !== null ? t.mediaParen(um(cost.despertaresMed)) : ''}{d.noite.primeiroTrechoMin !== null ? t.primeiroBloco(dur(d.noite.primeiroTrechoMin, idioma)) : ''}</>} />
+          <KpiDelta rotulo={t.sonecas} valor={`${d.sonecas.length} · ${dur(d.sonecasMin, idioma)}`} sub={cost.sonecasPorDia !== null ? t.deCostume(um(cost.sonecasPorDia), dur(cost.sonecasMinMed ?? 0, idioma)) : t.semSemanaAnterior} />
           <KpiDelta
-            rotulo="Acordou · dormiu"
-            valor={`${d.acordou !== null ? hora(d.acordou) : '—'} · ${d.dormiu !== null ? hora(d.dormiu) : '—'}`}
-            sub={<>de costume <span className={fora(acM, ac) ? laranja : ''}>{faixaTxt(ac) ?? '—'}</span> · <span className={fora(dmM, dm) ? laranja : ''}>{faixaTxt(dm) ?? '—'}</span></>}
+            rotulo={t.acordouDormiu}
+            valor={`${d.acordou !== null ? hora(d.acordou, idioma) : '—'} · ${d.dormiu !== null ? hora(d.dormiu, idioma) : '—'}`}
+            sub={<>{t.deCostumePrefixo}<span className={fora(acM, ac) ? laranja : ''}>{faixaTxt(ac, idioma) ?? '—'}</span> · <span className={fora(dmM, dm) ? laranja : ''}>{faixaTxt(dm, idioma) ?? '—'}</span></>}
           />
         </div>
-        <Card className="mt-4" titulo="Do acordar ao acordar" direita={d.acordou !== null ? `${diaCurto(dia)}, ${hora(d.acordou)} → ${d.acordouSeguinte !== null ? `${diaCurto(somarDias(dia, 1))}, ${hora(d.acordouSeguinte)}` : 'agora'}` : 'sem a hora de acordar'}>
-          <DiaStrip d={d} maiorJanela={cost.maiorJanela !== null ? Math.max(cost.maiorJanela, ...d.janelas.map((j) => j.min)) : null} agora={agora} />
+        <Card className="mt-4" titulo={t.doAcordar} direita={d.acordou !== null ? `${diaCurto(dia, idioma)}, ${hora(d.acordou, idioma)} → ${d.acordouSeguinte !== null ? `${diaCurto(somarDias(dia, 1), idioma)}, ${hora(d.acordouSeguinte, idioma)}` : t.agora}` : t.semHoraAcordar}>
+          <DiaStrip d={d} maiorJanela={cost.maiorJanela !== null ? Math.max(cost.maiorJanela, ...d.janelas.map((j) => j.min)) : null} agora={agora} idioma={idioma} />
         </Card>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <Card titulo="Sequência do dia" direita="cada sono com início e fim">
-            <Sequencia d={d} etiqueta={etiquetaJanela} />
+          <Card titulo={t.sequencia} direita={t.sequenciaDireita}>
+            <Sequencia d={d} etiqueta={etiquetaJanela} idioma={idioma} />
           </Card>
-          <Card titulo="Registros" direita={`${d.resumo.registros.length}`}>
+          <Card titulo={t.registros} direita={`${d.resumo.registros.length}`}>
             <div className="max-h-[460px] overflow-auto">
               {/* Na ordem do dia, igual à Sequência ao lado (dono, 12/11/2026). */}
               {[...d.resumo.registros].reverse().map((reg) => {
-                const x = descreverRegistro(reg, agora, periodosDaRotina(registros, agora).periodos.get(new Date(reg.inicio).getTime()));
+                const x = descreverRegistro(reg, agora, periodosDaRotina(registros, agora).periodos.get(new Date(reg.inicio).getTime()), idioma);
                 return (
                   <div key={reg.id} className="flex items-center gap-3 border-b border-[#F3F0F8] py-2.5 last:border-0">
                     <span className="h-9 w-9 shrink-0 rounded-full" style={{ background: `${x.cor}33`, boxShadow: `inset 0 0 0 3px ${x.cor}` }} />
@@ -992,25 +1011,25 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
                       {/* Comentário da família (aceite v7; só leitura, sem link clicável). */}
                       {typeof reg.detalhe?.nota === 'string' && reg.detalhe.nota ? (
                         <p className="mt-1.5 whitespace-pre-wrap rounded-xl bg-[#F6F2FE] px-2.5 py-1.5 text-[12px] italic leading-snug text-ninho-grafite">
-                          <span className="mb-0.5 block text-[10.5px] font-bold not-italic text-[#7C5CD6]">Comentário da família</span>
+                          <span className="mb-0.5 block text-[10.5px] font-bold not-italic text-[#7C5CD6]">{t.comentarioFamilia}</span>
                           {reg.detalhe.nota as string}
                         </p>
                       ) : null}
                     </div>
                     <div className="text-right">
-                      <p className="text-[13px] font-extrabold tabular-nums">{hora(new Date(reg.inicio).getTime())}</p>
+                      <p className="text-[13px] font-extrabold tabular-nums">{hora(new Date(reg.inicio).getTime(), idioma)}</p>
                       <p className="text-[11px] text-ninho-cinza">{reg.registrado_por ?? ''}</p>
                     </div>
                   </div>
                 );
               })}
             </div>
-            <p className="mt-2.5 text-[11.5px] font-semibold text-[#9A95AD]">Só leitura. Fotos, momentos e chat ficam com a família. Horário da família{rel.fuso ? ` (${rel.fuso.replace(/_/g, ' ')})` : ''}.</p>
+            <p className="mt-2.5 text-[11.5px] font-semibold text-[#9A95AD]">{t.soLeitura(rel.fuso ? rel.fuso.replace(/_/g, ' ') : null)}</p>
           </Card>
         </div>
         {janelas && (
-          <Card className="mt-4" titulo={'Janela antes de cada soneca'}>
-            <JanelasDasSonecas dados={janelas} dias={janDias} corte={janCorte} diaAberto={dia} bebe={f.bebe_nome ?? ''} idioma={'pt'} href={(n, ct) => `${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${dia}&jan=${n}&corte=${ct}`} />
+          <Card className="mt-4" titulo={t.janelasSonecas}>
+            <JanelasDasSonecas dados={janelas} dias={janDias} corte={janCorte} diaAberto={dia} bebe={f.bebe_nome ?? ''} idioma={idioma} href={(n, ct) => `${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${dia}&jan=${n}&corte=${ct}`} />
           </Card>
         )}
       </>
@@ -1035,81 +1054,81 @@ async function Rotina({ c, sp, semana }: { c: Consultora; sp: Busca; semana: boo
   const nav = (
     <div className="flex items-center gap-2 rounded-pill bg-white p-1 shadow-[inset_0_0_0_1.5px_#ECE6F5]">
       {ultimo > somarDias(hoje, -60) ? <Link href={`${BASE}?aba=semana&bebe=${f.baby_id}&dia=${somarDias(ultimo, -evoDias)}${evoQ}`} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F3EEFC] text-[#7C5CD6]">‹</Link> : <span className="h-8 w-8" />}
-      <b className="min-w-[140px] text-center text-[13.5px]">{dataBr(ini).slice(0, 5)} – {dataBr(ultimo).slice(0, 5)}</b>
+      <b className="min-w-[140px] text-center text-[13.5px]">{dataBr(ini, idioma).slice(0, 5)} – {dataBr(ultimo, idioma).slice(0, 5)}</b>
       {ultimo < somarDias(hoje, -1) ? <Link href={`${BASE}?aba=semana&bebe=${f.baby_id}&dia=${somarDias(ultimo, evoDias) < hoje ? somarDias(ultimo, evoDias) : somarDias(hoje, -1)}${evoQ}`} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F3EEFC] text-[#7C5CD6]">›</Link> : <span className="h-8 w-8" />}
     </div>
   );
   const head = (
     <Titulo
-      t={`Semana de ${f.bebe_nome}`}
-      sub={`${dataBr(ini).slice(0, 5)} a ${dataBr(ultimo).slice(0, 5)} · comparado a ${dataBr(somarDias(ini, -evoDias)).slice(0, 5)} a ${dataBr(somarDias(ultimo, -evoDias)).slice(0, 5)}`}
-      direita={seletor(<>{nav}<Link href={`${BASE}?aba=relatorio&bebe=${f.baby_id}&dias=7`} className={botao.grad}>Relatório IA desta semana</Link></>)}
+      t={ts.titulo(f.bebe_nome ?? '')}
+      sub={ts.sub(dataBr(ini, idioma).slice(0, 5), dataBr(ultimo, idioma).slice(0, 5), dataBr(somarDias(ini, -evoDias), idioma).slice(0, 5), dataBr(somarDias(ultimo, -evoDias), idioma).slice(0, 5))}
+      direita={seletor(<>{nav}<Link href={`${BASE}?aba=relatorio&bebe=${f.baby_id}&dias=7`} className={botao.grad}>{ts.relatorioSemana}</Link></>)}
     />
   );
-  if (semAcesso) return <>{head}{trava('Sem acesso à rotina deste bebê agora.')}</>;
+  if (semAcesso) return <>{head}{trava(ts.semAcesso)}</>;
   // Os desenhos da semana continuam de 7 dias; os números de cima seguem o período.
-  const s = semanaV3(registros, ultimo, agora);
-  const sp_ = semanaV3(registros, ultimo, agora, evoDias);
-  const a = semanaV3(regsAntes, somarDias(ultimo, -evoDias), agora, evoDias);
+  const s = semanaV3(registros, ultimo, agora, 7, idioma);
+  const sp_ = semanaV3(registros, ultimo, agora, evoDias, idioma);
+  const a = semanaV3(regsAntes, somarDias(ultimo, -evoDias), agora, evoDias, idioma);
   const evoLib = evolucaoLiberada(c.email_liberado);
   const evo = evoLib ? evolucaoSono(registros, ultimo, evoDias, agora) : [];
   const vinculoDia = f.vinculado_em ? new Date(new Date(f.vinculado_em).getTime() + FUSO_MS).toISOString().slice(0, 10) : null;
+  const durI = (x: number) => dur(x, idioma);
   return (
     <>
       {head}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">
-        <KpiDelta grande rotulo="Noite, em média" valor={sp_.noiteMed !== null ? dur(sp_.noiteMed) : '—'} sub={<><Delta agora={sp_.noiteMed} antes={a.noiteMed} melhorQuando="maior" fmt={(x) => dur(x)} />{a.noiteMed !== null ? `antes ${dur(a.noiteMed)}` : ''} · {sp_.noitesCompletas} de {evoDias} noites completas</>} />
-        <KpiDelta rotulo="Despertares por noite" valor={sp_.despertaresMed !== null ? um(sp_.despertaresMed) : '—'} sub={<><Delta agora={sp_.despertaresMed} antes={a.despertaresMed} melhorQuando="menor" fmt={um} />{a.despertaresMed !== null ? `antes ${um(a.despertaresMed)}` : ''}</>} />
-        <KpiDelta rotulo="1º bloco" valor={sp_.blocoMed !== null ? dur(sp_.blocoMed) : '—'} sub={<><Delta agora={sp_.blocoMed} antes={a.blocoMed} melhorQuando="maior" fmt={(x) => dur(x)} />{a.blocoMed !== null ? `antes ${dur(a.blocoMed)}` : ''}</>} />
-        <KpiDelta rotulo="Sonecas por dia" valor={sp_.sonecasPorDia !== null ? `${um(sp_.sonecasPorDia)} · ${dur(sp_.sonecasMinMed ?? 0)}` : '—'} sub={a.sonecasPorDia !== null ? `antes ${um(a.sonecasPorDia)} · ${dur(a.sonecasMinMed ?? 0)}` : undefined} />
+        <KpiDelta grande rotulo={ts.noiteMedia} valor={sp_.noiteMed !== null ? durI(sp_.noiteMed) : '—'} sub={<><Delta agora={sp_.noiteMed} antes={a.noiteMed} melhorQuando="maior" fmt={durI} idioma={idioma} />{a.noiteMed !== null ? ts.antes(durI(a.noiteMed)) : ''} · {ts.noitesCompletas(sp_.noitesCompletas, evoDias)}</>} />
+        <KpiDelta rotulo={ts.despertaresPorNoite} valor={sp_.despertaresMed !== null ? um(sp_.despertaresMed) : '—'} sub={<><Delta agora={sp_.despertaresMed} antes={a.despertaresMed} melhorQuando="menor" fmt={um} idioma={idioma} />{a.despertaresMed !== null ? ts.antes(um(a.despertaresMed)) : ''}</>} />
+        <KpiDelta rotulo={ts.primeiroBloco} valor={sp_.blocoMed !== null ? durI(sp_.blocoMed) : '—'} sub={<><Delta agora={sp_.blocoMed} antes={a.blocoMed} melhorQuando="maior" fmt={durI} idioma={idioma} />{a.blocoMed !== null ? ts.antes(durI(a.blocoMed)) : ''}</>} />
+        <KpiDelta rotulo={ts.sonecasPorDia} valor={sp_.sonecasPorDia !== null ? `${um(sp_.sonecasPorDia)} · ${durI(sp_.sonecasMinMed ?? 0)}` : '—'} sub={a.sonecasPorDia !== null ? ts.antes(`${um(a.sonecasPorDia)} · ${durI(a.sonecasMinMed ?? 0)}`) : undefined} />
       </div>
       {evoLib && <Card
         className="mt-4"
-        titulo="Evolução do sono"
+        titulo={ts.evolucao}
         direita={
           <span className="flex gap-1.5">
             {[7, 14, 30].map((n) => (
               <Link key={n} href={`${BASE}?aba=semana&bebe=${f.baby_id}&evo=${n}`} className={`rounded-full px-3 py-1 text-[12px] font-bold ${n === evoDias ? 'bg-[#7C5CD6] text-white' : 'bg-[#F5F1FB] text-ninho-cinza'}`}>
-                {n} dias
+                {tp.comum.dias(n)}
               </Link>
             ))}
           </span>
         }
       >
-        <p className="text-[12px] text-ninho-cinza">Cada linha é um dia, de 18h a 18h · toque para abrir o dia</p>
-        <EvolucaoSono linhas={evo} inicioVinculo={vinculoDia} href={(dia) => `${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${dia}`} />
+        <p className="text-[12px] text-ninho-cinza">{ts.evolucaoDica}</p>
+        <EvolucaoSono linhas={evo} inicioVinculo={vinculoDia} href={(dia) => `${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${dia}`} idioma={idioma} />
       </Card>}
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.25fr]">
-        <Card titulo="Sono por dia" direita="sonecas do dia + a noite seguinte">
-          <BarrasSemana s={s} href={(dia) => `${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${dia}`} />
+        <Card titulo={ts.sonoPorDia} direita={ts.sonoPorDiaDireita}>
+          <BarrasSemana s={s} href={(dia) => `${BASE}?aba=rotina&bebe=${f.baby_id}&dia=${dia}`} idioma={idioma} />
         </Card>
-        <Card titulo="Noites" direita="de quando dormiu até quando acordou">
-          <FaixasNoites s={s} />
+        <Card titulo={ts.noites} direita={ts.noitesDireita}>
+          <FaixasNoites s={s} idioma={idioma} />
         </Card>
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.25fr_1fr]">
-        <Card titulo="Sonecas e a noite seguinte" direita="linhas verdes: 2 melhores noites">
-          <SonecasNoite s={s} />
+        <Card titulo={ts.sonecasNoite} direita={ts.sonecasNoiteDireita}>
+          <SonecasNoite s={s} idioma={idioma} />
         </Card>
-        <Card titulo="Horários" direita="ponto = cada dia · faixa = de onde a onde">
-          <Horarios s={s} />
-          <h3 className="mt-5 text-[15px] font-extrabold text-ninho-grafite">Janela antes de dormir</h3>
-          <JanelaAntesDeDormir s={s} />
+        <Card titulo={ts.horarios} direita={ts.horariosDireita}>
+          <Horarios s={s} idioma={idioma} />
+          <h3 className="mt-5 text-[15px] font-extrabold text-ninho-grafite">{ts.janela}</h3>
+          <JanelaAntesDeDormir s={s} idioma={idioma} />
         </Card>
       </div>
-      <p className="mt-3 text-[11.5px] text-ninho-cinza">
-        Sem registro, sem número: médias só com as noites completas e os dias com registro. Horário de Brasília. A tela só
-        mostra; quem tira conclusão é você.
-      </p>
+      <p className="mt-3 text-[11.5px] text-ninho-cinza">{ts.rodape}</p>
     </>
   );
 }
 
 // ── Relatório IA ──────────────────────────────────────────
-async function RelatorioIA({ c, sp }: { c: Consultora; sp: Busca & { dias?: string; id?: string; gerando?: string } }) {
+async function RelatorioIA({ c, sp, idioma }: { c: Consultora; sp: Busca & { dias?: string; id?: string; gerando?: string }; idioma: Idioma }) {
+  const tp = textos(idioma).pagina;
+  const t = tp.relatorio;
   const [status, fams] = await Promise.all([iaStatus(c.id), c.estado === 'ativa' ? familiasDa(c.id) : Promise.resolve([] as FamiliaDaConsultora[])]);
   const elegiveis = fams.filter((f) => f.plano_ok);
-  if (sp.id) return <RelatorioCompleto c={c} id={sp.id} status={status} fams={fams} />;
+  if (sp.id) return <RelatorioCompleto c={c} id={sp.id} status={status} fams={fams} idioma={idioma} />;
 
   const f = elegiveis.find((x) => x.baby_id === sp.bebe) ?? elegiveis[0];
   const dias: 7 | 14 = sp.dias === '14' ? 14 : 7;
@@ -1120,13 +1139,13 @@ async function RelatorioIA({ c, sp }: { c: Consultora; sp: Busca & { dias?: stri
     const ultimo = somarDias(diaLocalDe(rel.agora), -1);
     const { registros, semAcesso } = await rotinaDe(c.id, f.baby_id, new Date(inicioDoDia(somarDias(ultimo, -dias)) - 12 * H), new Date(rel.agora + 60_000), rel);
     if (!semAcesso) {
-      const s = semanaV3(registros, ultimo, rel.agora, dias);
+      const s = semanaV3(registros, ultimo, rel.agora, dias, idioma);
       const sonecas = s.dias.reduce((x, d) => x + d.sonecas.length, 0);
       const mamadas = registros.filter((r) => r.tipo === 'feeding' && new Date(r.inicio).getTime() >= inicioDoDia(somarDias(ultimo, -(dias - 1)))).length;
       chips = [
-        { ok: s.noitesCompletas >= Math.ceil(dias * 0.7), txt: `${s.noitesCompletas} de ${dias} noites completas` },
-        { ok: sonecas >= dias, txt: `${sonecas} sonecas` },
-        { ok: mamadas > 0, txt: `${mamadas} mamadas` },
+        { ok: s.noitesCompletas >= Math.ceil(dias * 0.7), txt: t.chipNoites(s.noitesCompletas, dias) },
+        { ok: sonecas >= dias, txt: t.chipSonecas(sonecas) },
+        { ok: mamadas > 0, txt: t.chipMamadas(mamadas) },
       ];
     }
   }
@@ -1136,61 +1155,59 @@ async function RelatorioIA({ c, sp }: { c: Consultora; sp: Busca & { dias?: stri
 
   return (
     <>
-      <Titulo t="Relatório IA" sub="Uma leitura dos registros de 7 ou 14 dias, para levar à conversa com a família. Fica salvo aqui e no app." />
+      <Titulo t={t.titulo} sub={t.sub} />
       {!status && (
-        <Aviso tom="ambar">O Relatório IA ainda não está disponível no painel. Assim que o Ninho liberar, ele aparece aqui. Enquanto isso, a Semana mostra os mesmos desenhos.</Aviso>
+        <Aviso tom="ambar">{t.indisponivel}</Aviso>
       )}
       <div className="mt-4 grid gap-4 lg:grid-cols-[380px_1fr]">
         <div className="flex flex-col gap-4">
           {semCota ? (
             <Card>
               <div className="py-2 text-center">
-                <p className="text-[20px] font-black leading-tight tracking-tight">Relatórios para todas as suas famílias</p>
+                <p className="text-[20px] font-black leading-tight tracking-tight">{t.semCotaTitulo}</p>
                 <p className="mt-1.5 text-[13px] text-ninho-cinza">
-                  {status!.assinante ? `Você usou os ${status!.limiteMes} relatórios deste mês. A cota volta no mês que vem.` : 'Seu relatório grátis continua salvo.'}
+                  {status!.assinante ? t.usouCota(status!.limiteMes) : t.gratisSalvo}
                 </p>
               </div>
               {!status!.assinante && (
                 <>
                   <ul className="mt-3 space-y-2 text-[13.5px]">
-                    <li>• Um relatório para cada bebê que você acompanha (até {IA_LIMITE_MES} por mês)</li>
-                    <li>• Períodos de 7 ou 14 dias, comparando com antes</li>
-                    <li>• PDF pronto para a conversa com a família</li>
+                    <li>{t.beneficio1(IA_LIMITE_MES)}</li>
+                    <li>{t.beneficio2}</li>
+                    <li>{t.beneficio3}</li>
                   </ul>
                   <div className="mt-4 rounded-2xl bg-[#EEF8F1] p-4 text-center">
-                    <p className="text-[13px] font-bold text-[#2F8A55]">Assinatura da consultora</p>
-                    <p className="text-[24px] font-black tabular-nums text-[#2F8A55]">{brl(IA_PRECO_MENSAL)}<span className="text-sm font-bold"> /mês</span></p>
+                    <p className="text-[13px] font-bold text-[#2F8A55]">{t.assinaturaConsultora}</p>
+                    <p className="text-[24px] font-black tabular-nums text-[#2F8A55]">{brl(IA_PRECO_MENSAL, idioma)}<span className="text-sm font-bold">{tp.comum.porMes}</span></p>
                   </div>
                   <Aviso>
-                    <b>Assine pelo app do Ninho</b>: na sua área de consultora, toque em Relatório IA › Assinar. A compra é pela
-                    App Store ou pelo Google Play e renova todo mês; cancele quando quiser nos ajustes da loja. Depois de
-                    assinar, os relatórios aparecem aqui também.
+                    <b>{t.assineAppNegrito}</b>{t.assineAppTexto}
                   </Aviso>
                 </>
               )}
             </Card>
           ) : (
-            <Card titulo="Pedir relatório" direita={status && !status.assinante && !status.gratisUsado ? <Selo cor="verde">1º grátis</Selo> : status?.assinante ? `${status.usadosMes} de ${status.limiteMes} no mês` : undefined}>
+            <Card titulo={t.pedir} direita={status && !status.assinante && !status.gratisUsado ? <Selo cor="verde">{t.primeiroGratis}</Selo> : status?.assinante ? t.noMes(status.usadosMes, status.limiteMes) : undefined}>
               {elegiveis.length === 0 ? (
-                <p className="py-4 text-center text-sm text-ninho-cinza">Nenhuma família com plano agora.</p>
+                <p className="py-4 text-center text-sm text-ninho-cinza">{t.nenhumaComPlano}</p>
               ) : (
                 <>
                   <form className="mt-1">
                     <input type="hidden" name="aba" value="relatorio" />
-                    <label className={rotuloCampo}>Para qual bebê?</label>
+                    <label className={rotuloCampo}>{t.paraQualBebe}</label>
                     <select name="bebe" defaultValue={f?.baby_id} className={campo}>
                       {elegiveis.map((x) => <option key={x.baby_id} value={x.baby_id}>{x.bebe_nome} · {primeiro(x.mae_nome) || '—'}</option>)}
                     </select>
-                    <label className={rotuloCampo}>Período</label>
+                    <label className={rotuloCampo}>{t.periodo}</label>
                     <div className="flex gap-2">
                       {IA_PERIODOS.map((p) => (
                         <label key={p} className={`flex-1 cursor-pointer rounded-xl px-3 py-2 text-center text-[13px] font-bold ${dias === p ? 'bg-[#24164F] text-white' : 'bg-[#F5F2FB] text-ninho-cinza'}`}>
                           <input type="radio" name="dias" value={p} defaultChecked={dias === p} className="sr-only" />
-                          {p} dias
+                          {tp.comum.dias(p)}
                         </label>
                       ))}
                     </div>
-                    <button className={`${botao.cinza} mt-3`}>Conferir os dados</button>
+                    <button className={`${botao.cinza} mt-3`}>{t.conferir}</button>
                   </form>
                   {chips.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
@@ -1199,31 +1216,31 @@ async function RelatorioIA({ c, sp }: { c: Consultora; sp: Busca & { dias?: stri
                       ))}
                     </div>
                   )}
-                  <p className="mt-2 text-[12px] leading-snug text-ninho-cinza">Usa sono, sonecas, mamadas, horários e as notas dos registros. Não usa fotos, momentos nem o chat da família.</p>
+                  <p className="mt-2 text-[12px] leading-snug text-ninho-cinza">{t.usaDados}</p>
                   <form action={pedirRelatorio} className="mt-3">
                     <input type="hidden" name="bebe" value={f?.baby_id ?? ''} />
                     <input type="hidden" name="dias" value={dias} />
-                    <button className={`${botao.grad} w-full`} disabled={!status || !f}>Gerar relatório de {f?.bebe_nome ?? '—'} ({dias} dias)</button>
+                    <button className={`${botao.grad} w-full`} disabled={!status || !f}>{t.gerar(f?.bebe_nome ?? '—', dias)}</button>
                   </form>
-                  <p className="mt-2 text-center text-[11.5px] text-ninho-cinza">Leva uns 20 segundos. Se faltar registro, ele diz o que falta e não conta como usado.</p>
+                  <p className="mt-2 text-center text-[11.5px] text-ninho-cinza">{t.leva20}</p>
                 </>
               )}
             </Card>
           )}
         </div>
-        <Card titulo="Seus relatórios" direita={lista ? `${lista.length}` : undefined}>
+        <Card titulo={t.seus} direita={lista ? `${lista.length}` : undefined}>
           {!lista || lista.length === 0 ? (
-            <p className="py-8 text-center text-sm text-ninho-cinza">{lista ? 'Nenhum relatório ainda.' : 'Os relatórios aparecem aqui quando o Relatório IA for liberado.'}</p>
+            <p className="py-8 text-center text-sm text-ninho-cinza">{lista ? t.nenhum : t.aparecemQuando}</p>
           ) : (
             <table className="w-full">
-              <thead><tr><th className={th}>Bebê</th><th className={th}>Período</th><th className={th}>Gerado em</th><th className={th} /></tr></thead>
+              <thead><tr><th className={th}>{tp.comum.bebe}</th><th className={th}>{t.periodo}</th><th className={th}>{t.colGerado}</th><th className={th} /></tr></thead>
               <tbody>
                 {lista.map((r) => (
                   <tr key={r.id} className="hover:bg-[#FAF8FE]">
-                    <td className={td}><b>{r.bebe ?? (r.babyId ? nomeBebe.get(r.babyId) : null) ?? 'Bebê'}</b></td>
-                    <td className={td}>{r.dias ? `${r.dias} dias` : ''}{r.de && r.ate ? ` · ${dataBr(r.de).slice(0, 5)} a ${dataBr(r.ate).slice(0, 5)}` : ''}</td>
-                    <td className={td}>{r.criadoEm ? new Date(r.criadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
-                    <td className={td}><Link href={`${BASE}?aba=relatorio&id=${r.id}`} className={botao.suave}>Abrir</Link></td>
+                    <td className={td}><b>{r.bebe ?? (r.babyId ? nomeBebe.get(r.babyId) : null) ?? tp.comum.bebe}</b></td>
+                    <td className={td}>{r.dias ? tp.comum.dias(r.dias) : ''}{r.de && r.ate ? ` · ${tp.comum.periodo(dataBr(r.de, idioma).slice(0, 5), dataBr(r.ate, idioma).slice(0, 5))}` : ''}</td>
+                    <td className={td}>{r.criadoEm ? quandoTxt(r.criadoEm, idioma) : '—'}</td>
+                    <td className={td}><Link href={`${BASE}?aba=relatorio&id=${r.id}`} className={botao.suave}>{tp.comum.abrir}</Link></td>
                   </tr>
                 ))}
               </tbody>
@@ -1235,18 +1252,20 @@ async function RelatorioIA({ c, sp }: { c: Consultora; sp: Busca & { dias?: stri
   );
 }
 
-async function RelatorioCompleto({ c, id, status, fams }: { c: Consultora; id: string; status: IaStatus | null; fams: FamiliaDaConsultora[] }) {
+async function RelatorioCompleto({ c, id, status, fams, idioma }: { c: Consultora; id: string; status: IaStatus | null; fams: FamiliaDaConsultora[]; idioma: Idioma }) {
+  const tp = textos(idioma).pagina;
+  const t = tp.relatorio;
   const r = await lerRelatorio(c.id, id);
   if (!r) {
     return (
       <>
-        <Titulo t="Relatório" direita={<Link href={`${BASE}?aba=relatorio`} className={botao.cinza}>Voltar</Link>} />
-        <Card><p className="py-8 text-center text-sm text-ninho-cinza">Relatório não encontrado ou ainda não disponível.</p></Card>
+        <Titulo t={t.relatorio} direita={<Link href={`${BASE}?aba=relatorio`} className={botao.cinza}>{tp.comum.voltar}</Link>} />
+        <Card><p className="py-8 text-center text-sm text-ninho-cinza">{t.naoEncontrado}</p></Card>
       </>
     );
   }
   const fam = fams.find((x) => x.baby_id === r.babyId) ?? null;
-  const bebe = r.bebe ?? fam?.bebe_nome ?? 'Bebê';
+  const bebe = r.bebe ?? fam?.bebe_nome ?? tp.comum.bebe;
   const sx = secoes(r.conteudo);
   // Desenhos do período do relatório, com os mesmos registros da Semana.
   let s: SemanaV3 | null = null;
@@ -1255,12 +1274,12 @@ async function RelatorioCompleto({ c, id, status, fams }: { c: Consultora; id: s
     const n = r.dias === 14 ? 14 : 7;
     const rel = await relogioDaFamilia(fam.baby_id);
     const rot = await rotinaDe(c.id, fam.baby_id, new Date(inicioDoDia(somarDias(ultimo, -n)) - 12 * H), new Date(Math.min(inicioDoDia(somarDias(ultimo, 1)) + 14 * H, rel.agora + 60_000)), rel);
-    if (!rot.semAcesso) s = semanaV3(rot.registros, ultimo, rel.agora, n);
+    if (!rot.semAcesso) s = semanaV3(rot.registros, ultimo, rel.agora, n, idioma);
   }
   const ficha = fam ? (await fichaDe(c.id, fam.baby_id)).ficha : null;
-  const periodo = `${r.dias ? `${r.dias} dias` : ''}${r.de && r.ate ? ` · ${dataBr(r.de).slice(0, 5)} a ${dataBr(r.ate).slice(0, 5)}` : ''}`;
-  const geradoEm = r.criadoEm ? new Date(r.criadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-  const msgFamilia = `Oi! Segue o relatório da rotina do ${ficha?.bebe_apelido || bebe} (${periodo.replace(/^ · /, '')}), feito a partir dos registros do Ninho. Vamos conversar sobre ele no nosso próximo encontro?`;
+  const periodo = `${r.dias ? tp.comum.dias(r.dias) : ''}${r.de && r.ate ? ` · ${tp.comum.periodo(dataBr(r.de, idioma).slice(0, 5), dataBr(r.ate, idioma).slice(0, 5))}` : ''}`;
+  const geradoEm = r.criadoEm ? quandoTxt(r.criadoEm, idioma, true) : '';
+  const msgFamilia = t.msgFamilia(ficha?.bebe_apelido || bebe, periodo.replace(/^ · /, ''));
   const Sec = ({ n, t, children, dica }: { n: number; t: string; children: React.ReactNode; dica?: string }) => (
     <section data-secao={n} className="relatorio-secao border-t border-[#F0ECF6] pt-4 first:border-0 first:pt-0">
       <div className="mb-2 flex items-center gap-2.5">
@@ -1271,14 +1290,15 @@ async function RelatorioCompleto({ c, id, status, fams }: { c: Consultora; id: s
       {children}
     </section>
   );
-  const P = ({ xs }: { xs: string[] }) => (xs.length ? <>{xs.map((x, i) => <p key={i} className="mt-1.5 text-[13.5px] leading-relaxed">{x}</p>)}</> : <p className="text-[13px] text-[#9A95AD]">Sem texto nesta seção.</p>);
+  const P = ({ xs }: { xs: string[] }) => (xs.length ? <>{xs.map((x, i) => <p key={i} className="mt-1.5 text-[13.5px] leading-relaxed">{x}</p>)}</> : <p className="text-[13px] text-[#9A95AD]">{t.semTexto}</p>);
+  const idade = idadeTxt(fam?.nascimento ?? null, idioma);
   return (
     <div className="relatorio-ia">
       <div className="no-print">
         <Titulo
-          t={`Relatório de ${bebe}`}
-          sub={`${idadeTxt(fam?.nascimento ?? null) ? `${idadeTxt(fam?.nascimento ?? null)} · ` : ''}${periodo.replace(/^ · /, '')}${geradoEm ? ` · gerado em ${geradoEm}` : ''}`}
-          direita={<Link href={`${BASE}?aba=relatorio`} className={botao.cinza}>Voltar</Link>}
+          t={t.tituloDe(bebe)}
+          sub={`${idade ? `${idade} · ` : ''}${periodo.replace(/^ · /, '')}${geradoEm ? ` · ${t.geradoEm(geradoEm)}` : ''}`}
+          direita={<Link href={`${BASE}?aba=relatorio`} className={botao.cinza}>{tp.comum.voltar}</Link>}
         />
       </div>
       {/* Cabeçalho do PDF: só na impressão. */}
@@ -1286,12 +1306,12 @@ async function RelatorioCompleto({ c, id, status, fams }: { c: Consultora; id: s
         <Avatar id={c.id} nome={c.nome} foto={c.foto_url} tamanho={52} />
         <div className="flex-1">
           <p className="text-[17px] font-black">{c.nome}</p>
-          <p className="text-[12.5px] text-ninho-cinza">Consultora independente</p>
+          <p className="text-[12.5px] text-ninho-cinza">{tp.comum.consultoraIndependente}</p>
         </div>
         <div className="text-right text-[12px] text-ninho-cinza">
-          <p className="font-extrabold text-[#24164F]">Relatório de {bebe}</p>
+          <p className="font-extrabold text-[#24164F]">{t.tituloDe(bebe)}</p>
           <p>{periodo.replace(/^ · /, '')}</p>
-          {geradoEm && <p>gerado em {geradoEm}</p>}
+          {geradoEm && <p>{t.geradoEm(geradoEm)}</p>}
         </div>
       </div>
       <CompartilharRelatorio whatsapp={ficha?.whatsapp ?? null} mensagem={msgFamilia}>
@@ -1299,12 +1319,12 @@ async function RelatorioCompleto({ c, id, status, fams }: { c: Consultora; id: s
           <div className="flex flex-col gap-5 rounded-[22px] bg-white p-6 shadow-[0_10px_30px_-22px_rgba(80,40,160,.35)]">
             {r.falta.length > 0 && (
               <section className="rounded-2xl bg-[#FFF8EC] p-4">
-                <p className="font-extrabold">Ainda não dá para um relatório completo</p>
+                <p className="font-extrabold">{t.faltaTitulo}</p>
                 <ul className="mt-2 list-disc pl-5 text-[13.5px]">{r.falta.map((x, i) => <li key={i}>{x}</li>)}</ul>
               </section>
             )}
             {sx.notaSaude && <Aviso tom="ambar">{sx.notaSaude}</Aviso>}
-            <Sec n={1} t="Resumo em 3 linhas">
+            <Sec n={1} t={t.secResumo}>
               {sx.resumo.length ? (
                 <ul className="flex flex-col gap-2">
                   {sx.resumo.map((x, i) => <li key={i} className="flex gap-2.5 text-[14px] leading-relaxed"><i className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#9F86E0]" />{x}</li>)}
@@ -1312,17 +1332,17 @@ async function RelatorioCompleto({ c, id, status, fams }: { c: Consultora; id: s
               ) : <P xs={[]} />}
             </Sec>
             <div className="grid gap-5 md:grid-cols-2">
-              <Sec n={2} t="Sono da noite">
-                {s && <FaixasNoites s={s} />}
+              <Sec n={2} t={t.secNoite}>
+                {s && <FaixasNoites s={s} idioma={idioma} />}
                 <P xs={sx.noite} />
               </Sec>
-              <Sec n={3} t="Sonecas e janelas">
-                {s && <JanelaAntesDeDormir s={s} />}
+              <Sec n={3} t={t.secSonecas}>
+                {s && <JanelaAntesDeDormir s={s} idioma={idioma} />}
                 <P xs={sx.sonecas} />
                 {sx.faixaIdade && <p className="mt-2 rounded-xl bg-[#F8F6FC] p-2.5 text-[12px] text-ninho-cinza">{sx.faixaIdade}</p>}
               </Sec>
             </div>
-            <Sec n={4} t="O que acontece antes dos despertares" dica="padrões nos registros, não causas">
+            <Sec n={4} t={t.secPadroes} dica={t.secPadroesDica}>
               {sx.padroes.length ? (
                 <div className="grid gap-3 md:grid-cols-2">
                   {sx.padroes.map((p, i) => (
@@ -1338,11 +1358,11 @@ async function RelatorioCompleto({ c, id, status, fams }: { c: Consultora; id: s
               ) : <P xs={[]} />}
             </Sec>
             <div className="grid gap-5 md:grid-cols-2">
-              <Sec n={5} t="Melhores e piores noites">
+              <Sec n={5} t={t.secMelhoresPiores}>
                 {(sx.melhores.length > 0 || sx.piores.length > 0) && (
                   <div className="grid grid-cols-2 gap-2 text-[12.5px]">
-                    <div className="rounded-xl bg-[#EEF8F1] p-2.5"><p className="font-extrabold text-[#2F8A55]">Melhores</p>{sx.melhores.map((x, i) => <p key={i}>{x}</p>)}</div>
-                    <div className="rounded-xl bg-[#FFF8EC] p-2.5"><p className="font-extrabold text-[#A8670F]">Mais agitadas</p>{sx.piores.map((x, i) => <p key={i}>{x}</p>)}</div>
+                    <div className="rounded-xl bg-[#EEF8F1] p-2.5"><p className="font-extrabold text-[#2F8A55]">{t.melhores}</p>{sx.melhores.map((x, i) => <p key={i}>{x}</p>)}</div>
+                    <div className="rounded-xl bg-[#FFF8EC] p-2.5"><p className="font-extrabold text-[#A8670F]">{t.piores}</p>{sx.piores.map((x, i) => <p key={i}>{x}</p>)}</div>
                   </div>
                 )}
                 {sx.diferencas.length > 0 && (
@@ -1356,16 +1376,16 @@ async function RelatorioCompleto({ c, id, status, fams }: { c: Consultora; id: s
                 )}
                 {!sx.melhores.length && !sx.piores.length && !sx.diferencas.length && <P xs={[]} />}
               </Sec>
-              <Sec n={6} t="Consistência dos horários">
-                {s && <Horarios s={s} />}
+              <Sec n={6} t={t.secConsistencia}>
+                {s && <Horarios s={s} idioma={idioma} />}
                 <P xs={sx.consistencia} />
               </Sec>
             </div>
             <div className="grid gap-5 md:grid-cols-2">
-              <Sec n={7} t="Perguntas para levar à família" dica="roteiro seu">
+              <Sec n={7} t={t.secPerguntas} dica={t.secPerguntasDica}>
                 {sx.perguntas.length ? <ol className="list-decimal space-y-1.5 pl-5 text-[13.5px] leading-relaxed">{sx.perguntas.map((x, i) => <li key={i}>{x}</li>)}</ol> : <P xs={[]} />}
               </Sec>
-              <Sec n={8} t="O que observar nos próximos dias">
+              <Sec n={8} t={t.secObservar}>
                 {sx.observar.length ? <ul className="space-y-1.5 text-[13.5px] leading-relaxed">{sx.observar.map((x, i) => <li key={i}>• {x}</li>)}</ul> : <P xs={[]} />}
               </Sec>
             </div>
@@ -1375,22 +1395,22 @@ async function RelatorioCompleto({ c, id, status, fams }: { c: Consultora; id: s
                 <P xs={o.texto} />
               </section>
             ))}
-            <p className="mt-1 flex items-start gap-2 rounded-2xl bg-[#F3EEFC] p-3 text-[12.5px] leading-snug text-[#4B3A8C]">ⓘ {RODAPE_IA}</p>
+            <p className="mt-1 flex items-start gap-2 rounded-2xl bg-[#F3EEFC] p-3 text-[12.5px] leading-snug text-[#4B3A8C]">ⓘ {rodapeIa(idioma)}</p>
           </div>
           <div className="no-print flex flex-col gap-4 lg:sticky lg:top-20">
             {r.dadosUsados && (
-              <Card titulo="Dados usados">
+              <Card titulo={t.dadosUsados}>
                 <div className="flex flex-wrap gap-1.5">
                   {Object.entries(r.dadosUsados).map(([k, v]) => (
                     <span key={k} className="rounded-pill bg-[#F0EEF4] px-2.5 py-1 text-[11.5px] font-bold text-ninho-cinza">{k.replace(/_/g, ' ')}: {String(v)}</span>
                   ))}
                 </div>
-                <p className="mt-2 text-[12px] text-ninho-cinza">Fotos, momentos e chat não entram.</p>
+                <p className="mt-2 text-[12px] text-ninho-cinza">{t.naoEntram}</p>
               </Card>
             )}
-            <Card titulo="Seus relatórios">
+            <Card titulo={t.seus}>
               <p className="text-[13px] text-ninho-cinza">
-                {!status ? 'Situação da assinatura indisponível agora.' : status.assinante ? `Assinatura ativa${status.assinaturaAte ? ` até ${dataBr(status.assinaturaAte)}` : ''}. ${status.usadosMes} de ${status.limiteMes} relatórios usados neste mês.` : status.gratisUsado ? `Este foi o seu relatório grátis. Para os próximos, assine pelo app do Ninho (${brl(IA_PRECO_MENSAL)}/mês).` : 'Você ainda tem 1 relatório grátis.'}
+                {!status ? t.situacaoIndisp : status.assinante ? t.ativaAte(status.assinaturaAte ? dataBr(status.assinaturaAte, idioma) : null, status.usadosMes, status.limiteMes) : status.gratisUsado ? t.gratisFoi(brl(IA_PRECO_MENSAL, idioma)) : t.aindaTemGratis}
               </p>
             </Card>
           </div>
@@ -1401,32 +1421,33 @@ async function RelatorioCompleto({ c, id, status, fams }: { c: Consultora; id: s
 }
 
 // ── Assinatura IA e Ajuda (menu de conta) ─────────────────
-async function AssinaturaIA({ c }: { c: Consultora }) {
+async function AssinaturaIA({ c, idioma }: { c: Consultora; idioma: Idioma }) {
+  const tp = textos(idioma).pagina;
+  const t = tp.assinatura;
   const st = await iaStatus(c.id);
   return (
     <>
-      <Titulo t="Assinatura IA" sub="Relatórios IA das suas famílias: o 1º é grátis; depois, a assinatura da consultora." />
+      <Titulo t={t.titulo} sub={t.sub} />
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card titulo="Sua situação">
+        <Card titulo={t.suaSituacao}>
           {!st ? (
-            <p className="py-4 text-sm text-ninho-cinza">Situação indisponível agora. O Relatório IA ainda está sendo liberado.</p>
+            <p className="py-4 text-sm text-ninho-cinza">{t.indisponivel}</p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              <Kpi rotulo="Assinatura" valor={st.assinante ? 'Ativa' : 'Sem assinatura'} sub={st.assinante && st.assinaturaAte ? `até ${dataBr(st.assinaturaAte)}` : st.gratisUsado ? 'relatório grátis já usado' : '1 relatório grátis disponível'} />
-              <Kpi rotulo="Relatórios neste mês" valor={`${st.usadosMes} de ${st.assinante ? st.limiteMes : 1}`} sub={st.podeGerar ? 'pode gerar agora' : 'sem relatório disponível'} />
+              <Kpi rotulo={t.assinatura} valor={st.assinante ? t.ativa : t.semAssinatura} sub={st.assinante && st.assinaturaAte ? t.ate(dataBr(st.assinaturaAte, idioma)) : st.gratisUsado ? t.gratisUsado : t.gratisDisponivel} />
+              <Kpi rotulo={t.noMes} valor={tp.comum.deTotal(st.usadosMes, st.assinante ? st.limiteMes : 1)} sub={st.podeGerar ? t.podeGerar : t.semDisponivel} />
             </div>
           )}
-          <Link href={`${BASE}?aba=relatorio`} className={`${botao.grad} mt-4`}>Ir para Relatório IA</Link>
+          <Link href={`${BASE}?aba=relatorio`} className={`${botao.grad} mt-4`}>{t.irPara}</Link>
         </Card>
-        <Card titulo="Como assinar">
+        <Card titulo={t.comoAssinar}>
           <div className="rounded-2xl bg-[#EEF8F1] p-4 text-center">
-            <p className="text-[13px] font-bold text-[#2F8A55]">Assinatura da consultora</p>
-            <p className="text-[24px] font-black tabular-nums text-[#2F8A55]">{brl(IA_PRECO_MENSAL)}<span className="text-sm font-bold"> /mês</span></p>
-            <p className="text-[12px] text-[#2F8A55]">até {IA_LIMITE_MES} relatórios por mês, de 7 ou 14 dias</p>
+            <p className="text-[13px] font-bold text-[#2F8A55]">{tp.relatorio.assinaturaConsultora}</p>
+            <p className="text-[24px] font-black tabular-nums text-[#2F8A55]">{brl(IA_PRECO_MENSAL, idioma)}<span className="text-sm font-bold">{tp.comum.porMes}</span></p>
+            <p className="text-[12px] text-[#2F8A55]">{t.limite(IA_LIMITE_MES)}</p>
           </div>
           <Aviso>
-            A assinatura é feita <b>pelo app do Ninho</b> (Relatório IA › Assinar), com a App Store ou o Google Play. Ela
-            renova todo mês; cancele quando quiser nos ajustes da loja.
+            {t.avisoAntes}<b>{t.avisoNegrito}</b>{t.avisoDepois}
           </Aviso>
         </Card>
       </div>
@@ -1434,21 +1455,22 @@ async function AssinaturaIA({ c }: { c: Consultora }) {
   );
 }
 
-function Ajuda({ c }: { c: Consultora }) {
+function Ajuda({ c, idioma }: { c: Consultora; idioma: Idioma }) {
+  const t = textos(idioma).pagina.ajuda;
   return (
     <>
-      <Titulo t="Código e ajuda" />
+      <Titulo t={t.titulo} />
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card titulo="Seu código">
+        <Card titulo={t.seuCodigo}>
           <p className="text-3xl font-black tracking-[0.12em] text-[#24164F]">{c.codigo}</p>
-          <p className="mt-2 text-[12.5px] text-ninho-cinza">A família digita o código em Cuidador ou Consultor › Adicionar › Consultora de sono. O link para convidar fica em Convidar família{COMISSAO_VISIVEL ? '; o de indicar e ganhar comissão, em Ganhos.' : '.'}</p>
+          <p className="mt-2 text-[12.5px] text-ninho-cinza">{t.codigoTexto(COMISSAO_VISIVEL)}</p>
         </Card>
-        <Card titulo="Ajuda">
+        <Card titulo={t.ajuda}>
           <ul className="space-y-2 text-[13.5px] leading-relaxed">
-            <li><b>Entrar no computador:</b> no app, gere o código de 6 dígitos e use com o seu e-mail em useninho.com.br/admin/login (aba Sou consultora). Ele vale 10 minutos.</li>
-            <li><b>Rotina sumiu?</b> A família pode ter tirado o acesso, estar sem plano, ou a sua conta pode estar pausada.</li>
-            {COMISSAO_VISIVEL && <li><b>Comissão:</b> {TEXTO_QUEM_GERA_COMISSAO}</li>}
-            <li><b>Falar com o Ninho:</b> pelo botão Ajuda do app ou pelo e-mail suporte@useninho.com.br.</li>
+            <li><b>{t.entrarT}</b>{t.entrar}</li>
+            <li><b>{t.sumiuT}</b>{t.sumiu}</li>
+            {COMISSAO_VISIVEL && <li><b>{t.comissaoT}</b> {textoQuemGeraComissao(idioma)}</li>}
+            <li><b>{t.falarT}</b>{t.falar}</li>
           </ul>
         </Card>
       </div>
@@ -1460,59 +1482,64 @@ function Ajuda({ c }: { c: Consultora }) {
  * Manual da consultora (dono, 14/11/2026): o mesmo passo a passo que ele manda
  * em PDF, agora dentro do painel dela. O app tem a versão enxuta no menu ☰.
  */
-function Manual({ c }: { c: Consultora }) {
+function Manual({ c, idioma }: { c: Consultora; idioma: Idioma }) {
+  const t = textos(idioma).pagina.manual;
   return (
     <>
-      <Titulo t="Manual" sub="Do convite ao acompanhamento, com as telas do app." />
+      <Titulo t={t.titulo} sub={t.sub} />
       <ManualDaConsultora
-        dados={{ nome: primeiro(c.nome) || 'consultora', email: c.email_liberado ?? '', codigo: c.codigo, whatsapp: c.whatsapp }}
+        dados={{ nome: primeiro(c.nome) || t.nomePadrao, email: c.email_liberado ?? '', codigo: c.codigo, whatsapp: c.whatsapp }}
+        idioma={idioma}
       />
     </>
   );
 }
 
 // ── Convidar ──────────────────────────────────────────────
-async function Convidar({ c, ok, erro }: { c: Consultora; ok?: string; erro?: string }) {
+async function Convidar({ c, ok, erro, idioma }: { c: Consultora; ok?: string; erro?: string; idioma: Idioma }) {
+  const t = textos(idioma).pagina.convidar;
   // Só o que liga a família a você (dono, 12/11/2026). O link de divulgação
   // (indicar e ganhar comissão) fica no topo de Ganhos.
   const comConsultoria = consultoriaLiberada(c.email_liberado);
   return (
     <>
-      <Titulo t="Convidar família" sub="Para as famílias que você atende compartilharem a rotina do bebê com você." />
+      <Titulo t={t.titulo} sub={t.sub} />
       {!c.codigo ? (
-        <Aviso tom="ambar">Seu código ainda não foi criado. Fale com o Ninho.</Aviso>
+        <Aviso tom="ambar">{t.semCodigo}</Aviso>
       ) : (
         <>
-          {comConsultoria && <LinkConsultoria codigo={c.codigo} />}
+          {comConsultoria && <LinkConsultoria codigo={c.codigo} idioma={idioma} />}
           <div className={comConsultoria ? 'mt-3.5' : ''}>
-            <CodigoConsultora codigo={c.codigo} principal={!comConsultoria} />
+            <CodigoConsultora codigo={c.codigo} principal={!comConsultoria} idioma={idioma} />
           </div>
         </>
       )}
-      <Card titulo="Convidar pelo e-mail da família" className="mt-4">
+      <Card titulo={t.porEmailTitulo} className="mt-4">
         <p className="text-[13px] leading-relaxed text-ninho-cinza">
-          Para quem já usa o Ninho. Digite o e-mail exato da conta da família: ela recebe o convite no sininho, escolhe o
-          bebê e decide. A rotina só aparece depois que ela aceitar.{COMISSAO_VISIVEL ? ' Convite não gera comissão.' : ''}
+          {t.porEmailTexto}{COMISSAO_VISIVEL ? t.naoGeraComissao : ''}
         </p>
         <form action={convidarFamilia} className="mt-3 max-w-xl">
-          <label className={rotuloCampo}>E-mail da família no Ninho</label>
-          <input name="email" type="email" required maxLength={254} placeholder="familia@gmail.com" className={campo} />
+          <label className={rotuloCampo}>{t.emailLabel}</label>
+          <input name="email" type="email" required maxLength={254} placeholder={t.emailPh} className={campo} />
           <label className="mt-3 flex items-start gap-2.5 text-[13px] leading-relaxed">
             <input type="checkbox" name="aceite" required className="mt-1 h-4 w-4 shrink-0 accent-[#4CAF74]" />
-            <span>{ACEITE_VINCULO_CONSULTORA_TEXTO}</span>
+            <span>{textoAceiteVinculo(idioma)}</span>
           </label>
-          <button className={`${botao.grad} mt-4`} disabled={c.estado !== 'ativa'}>Enviar convite</button>
+          <button className={`${botao.grad} mt-4`} disabled={c.estado !== 'ativa'}>{t.enviar}</button>
         </form>
         {(ok || erro) && <div className="mt-3"><Retorno ok={ok} erro={erro} /></div>}
       </Card>
-      {COMISSAO_VISIVEL && <Aviso tom="vermelho">Para trazer uma amiga consultora, use Indicar consultora.</Aviso>}
+      {COMISSAO_VISIVEL && <Aviso tom="vermelho">{t.indicarAviso}</Aviso>}
     </>
   );
 }
 
 // ── Ganhos ────────────────────────────────────────────────
-async function Ganhos({ c, mes }: { c: Consultora; mes?: string }) {
-  const [g, eventos, base] = await Promise.all([montarGanhos(c), eventosDosLinks(), baseComissoes()]);
+async function Ganhos({ c, mes, idioma }: { c: Consultora; mes?: string; idioma: Idioma }) {
+  const t = textos(idioma).pagina.ganhos;
+  const pct = (p: number) => pctTxt(p, idioma);
+  const brlI = (v: number) => brl(v, idioma);
+  const [g, eventos, base] = await Promise.all([montarGanhos(c, idioma), eventosDosLinks(), baseComissoes()]);
   const funil = funilDaConsultora(c.id, base.familias, eventos, ultimosMesesFunil(6));
   const meses = g.meses.map((m) => m.competencia);
   const m = mes && meses.includes(mes) ? mes : meses[0] ?? null;
@@ -1524,17 +1551,17 @@ async function Ganhos({ c, mes }: { c: Consultora; mes?: string }) {
   return (
     <>
       <Titulo
-        t="Ganhos"
+        t={t.titulo}
         sub={
           g.consultora.indicada_por_nome
-            ? `Você foi indicada por ${g.consultora.indicada_por_nome}: suas famílias dão ${pctTxt(PCT_REDE)} para você e ${pctTxt(PCT_REDE)} para ela.`
-            : `Suas famílias dão ${pctTxt(PCT_DIRETO)} por ${PARCELAS_MENSAL} meses no mensal, ou 1x no anual. Famílias de quem você indicou dão ${pctTxt(PCT_REDE)} para você.`
+            ? t.subIndicada(g.consultora.indicada_por_nome, pct(PCT_REDE))
+            : t.subDireta(pct(PCT_DIRETO), PARCELAS_MENSAL, pct(PCT_REDE))
         }
         direita={
           meses.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {meses.slice(0, 6).map((mm) => (
-                <Link key={mm} href={`${BASE}?aba=ganhos&mes=${mm}`} className={`rounded-pill px-3 py-1.5 text-xs font-bold ${mm === m ? 'bg-[#24164F] text-white' : 'bg-white text-ninho-cinza shadow-[inset_0_0_0_1.5px_#ECE6F5]'}`}>{nomeMes(mm)}</Link>
+                <Link key={mm} href={`${BASE}?aba=ganhos&mes=${mm}`} className={`rounded-pill px-3 py-1.5 text-xs font-bold ${mm === m ? 'bg-[#24164F] text-white' : 'bg-white text-ninho-cinza shadow-[inset_0_0_0_1.5px_#ECE6F5]'}`}>{nomeMes(mm, idioma)}</Link>
               ))}
             </div>
           )
@@ -1543,66 +1570,66 @@ async function Ganhos({ c, mes }: { c: Consultora; mes?: string }) {
       {/* Link de divulgação: indicar o Ninho e ganhar comissão (dono, 12/11/2026). */}
       {c.codigo && (
         <div className="mb-4">
-          <LinkDivulgacao codigo={c.codigo} />
+          <LinkDivulgacao codigo={c.codigo} idioma={idioma} />
         </div>
       )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Dono, 13/11/2026: o que conta é quem criou conta pelo link dela. */}
-        <Kpi rotulo="Cadastros" valor={g.resumo.cadastros} sub="criaram conta pelo seu link" />
-        <Kpi rotulo="Assinaturas" valor={g.resumo.assinaturas} sub="assinaram depois do cadastro" />
-        <Kpi rotulo="Cancelamentos" valor={g.resumo.cancelamentos} sub="cancelaram a assinatura" />
+        <Kpi rotulo={t.cadastros} valor={g.resumo.cadastros} sub={t.cadastrosSub} />
+        <Kpi rotulo={t.assinaturas} valor={g.resumo.assinaturas} sub={t.assinaturasSub} />
+        <Kpi rotulo={t.cancelamentos} valor={g.resumo.cancelamentos} sub={t.cancelamentosSub} />
         <Kpi
           verde
-          rotulo={atual ? `Comissão de ${nomeMes(atual.competencia)} (R$)` : 'Comissão (R$)'}
-          valor={atual ? brl(atual.total) : brl(0)}
-          sub={atual ? (atual.status === 'pago' ? 'pago' : `Pix até ${dataBr(atual.prazo)}`) : 'ainda sem família assinante'}
+          rotulo={atual ? t.comissaoDe(nomeMes(atual.competencia, idioma)) : t.comissao}
+          valor={atual ? brlI(atual.total) : brlI(0)}
+          sub={atual ? (atual.status === 'pago' ? t.pago : t.pixAte(dataBr(atual.prazo, idioma))) : t.semAssinante}
         />
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-[380px_1fr]">
-        <Card titulo={m ? `De onde vem (${nomeMes(m)})` : 'De onde vem'}>
+        <Card titulo={m ? t.deOndeVemDe(nomeMes(m, idioma)) : t.deOndeVem}>
           <table className="w-full">
             <tbody>
-              <tr><td className={td}><b>Suas famílias</b><small className="block text-[11.5px] text-ninho-cinza">{g.consultora.indicada_por_nome ? pctTxt(PCT_REDE) : pctTxt(PCT_DIRETO)} por {PARCELAS_MENSAL} meses</small></td><td className={`${td} text-right font-bold tabular-nums`}>{brl(direto)}</td></tr>
+              <tr><td className={td}><b>{t.suasFamilias}</b><small className="block text-[11.5px] text-ninho-cinza">{t.porMeses(g.consultora.indicada_por_nome ? pct(PCT_REDE) : pct(PCT_DIRETO), PARCELAS_MENSAL)}</small></td><td className={`${td} text-right font-bold tabular-nums`}>{brlI(direto)}</td></tr>
               {Array.from(viaG).map(([nome, v]) => (
-                <tr key={nome}><td className={td}><b>Famílias da {primeiro(nome)}</b><small className="block text-[11.5px] text-ninho-cinza">{pctTxt(PCT_REDE)} para você</small></td><td className={`${td} text-right font-bold tabular-nums`}>{brl(v)}</td></tr>
+                <tr key={nome}><td className={td}><b>{t.familiasDa(primeiro(nome))}</b><small className="block text-[11.5px] text-ninho-cinza">{t.paraVoce(pct(PCT_REDE))}</small></td><td className={`${td} text-right font-bold tabular-nums`}>{brlI(v)}</td></tr>
               ))}
             </tbody>
           </table>
-          <p className="mt-4 text-[11px] font-extrabold tracking-[0.09em] text-[#9A95AD]">PAGAMENTOS</p>
+          <p className="mt-4 text-[11px] font-extrabold tracking-[0.09em] text-[#9A95AD]">{t.pagamentos}</p>
           {g.meses.map((mm) => (
             <div key={mm.competencia} className="flex justify-between py-1.5 text-[13px]">
-              <span>{nomeCompetencia(mm.competencia)}</span>
-              <span className="tabular-nums"><b>{brl(mm.total)}</b>{' '}{mm.status === 'pago' ? <Selo cor="verde">Recebido em {new Date(mm.pago_em!).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</Selo> : <Selo cor="ambar">Recebe até {dataBr(mm.prazo)}</Selo>}</span>
+              <span>{nomeCompetencia(mm.competencia, idioma)}</span>
+              <span className="tabular-nums"><b>{brlI(mm.total)}</b>{' '}{mm.status === 'pago' ? <Selo cor="verde">{t.recebidoEm(fmtData(idioma, mm.pago_em!, { timeZone: 'America/Sao_Paulo' }))}</Selo> : <Selo cor="ambar">{t.recebeAte(dataBr(mm.prazo, idioma))}</Selo>}</span>
             </div>
           ))}
-          {g.meses.length === 0 && <p className="py-2 text-[13px] text-ninho-cinza">Nenhuma comissão ainda.</p>}
-          {!c.pix_chave || !c.cpf ? <Aviso tom="ambar">Falta cadastrar CPF e chave Pix em Meu perfil na lista para receber.</Aviso> : null}
+          {g.meses.length === 0 && <p className="py-2 text-[13px] text-ninho-cinza">{t.nenhumaComissao}</p>}
+          {!c.pix_chave || !c.cpf ? <Aviso tom="ambar">{t.faltaPix}</Aviso> : null}
         </Card>
-        <Card titulo={m ? `Extrato de ${nomeMes(m)}` : 'Extrato'}>
+        <Card titulo={m ? t.extratoDe(nomeMes(m, idioma)) : t.extrato}>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr><th className={th}>Família</th><th className={th}>Plano</th><th className={th}>Parcela</th><th className={th}>Regra</th><th className={`${th} text-right`}>Base (R$)</th><th className={`${th} text-right`}>Comissão (R$)</th></tr></thead>
+              <thead><tr><th className={th}>{t.colFamilia}</th><th className={th}>{t.colPlano}</th><th className={th}>{t.colParcela}</th><th className={th}>{t.colRegra}</th><th className={`${th} text-right`}>{t.colBase}</th><th className={`${th} text-right`}>{t.colComissao}</th></tr></thead>
               <tbody>
                 {ls.map((l, i) => (
                   <tr key={i}>
-                    <td className={td}><b>{l.bebe}</b>{l.via && <small className="block text-[11px] text-ninho-cinza">família da {primeiro(l.via)}</small>}</td>
-                    <td className={td}>{l.plano}</td>
-                    <td className={td}>{l.parcela}</td>
-                    <td className={td}>{pctTxt(l.pct)}{l.via ? ' (indicação)' : ''}</td>
-                    <td className={`${td} text-right tabular-nums`}>{brl(l.base)}</td>
-                    <td className={`${td} text-right font-bold tabular-nums`}>{brl(l.valor)}</td>
+                    <td className={td}><b>{l.bebe}</b>{l.via && <small className="block text-[11px] text-ninho-cinza">{t.familiaDa(primeiro(l.via))}</small>}</td>
+                    <td className={td}>{t.plano(l.plano)}</td>
+                    <td className={td}>{t.parcela(l.parcela)}</td>
+                    <td className={td}>{pct(l.pct)}{l.via ? t.indicacao : ''}</td>
+                    <td className={`${td} text-right tabular-nums`}>{brlI(l.base)}</td>
+                    <td className={`${td} text-right font-bold tabular-nums`}>{brlI(l.valor)}</td>
                   </tr>
                 ))}
               </tbody>
-              {ls.length > 0 && <tfoot><tr><td className={`${td} font-extrabold`} colSpan={5}>Total</td><td className={`${td} text-right font-extrabold tabular-nums`}>{brl(somar(ls.map((l) => l.valor)))}</td></tr></tfoot>}
+              {ls.length > 0 && <tfoot><tr><td className={`${td} font-extrabold`} colSpan={5}>{t.total}</td><td className={`${td} text-right font-extrabold tabular-nums`}>{brlI(somar(ls.map((l) => l.valor)))}</td></tr></tfoot>}
             </table>
-            {ls.length === 0 && <p className="py-6 text-center text-sm text-ninho-cinza">Sem comissão neste mês. Teste grátis não conta: a comissão começa quando a família paga.</p>}
+            {ls.length === 0 && <p className="py-6 text-center text-sm text-ninho-cinza">{t.semComissaoMes}</p>}
           </div>
-          {m && <Aviso>Pix até o 5º dia útil do mês seguinte: a comissão de {nomeMes(m)} vence em {dataBr(prazoPix(m))}.</Aviso>}
+          {m && <Aviso>{t.pixAviso(nomeMes(m, idioma), dataBr(prazoPix(m), idioma))}</Aviso>}
         </Card>
       </div>
       {g.familias.length > 0 && (
-        <Card className="mt-4" titulo="Suas famílias e por que algumas estão em R$ 0" direita="famílias que chegaram pelo seu link ou código">
+        <Card className="mt-4" titulo={t.porQueZero} direita={t.porQueZeroDireita}>
           <table className="w-full">
             <tbody>
               {g.familias.map((x, i) => {
@@ -1614,25 +1641,27 @@ async function Ganhos({ c, mes }: { c: Consultora; mes?: string }) {
                       <Selo cor={x.situacao === 'ativa' ? 'verde' : x.situacao === 'teste' ? 'lilas' : 'cinza'}>{x.texto}</Selo>
                     </td>
                     <td className={`${td} text-right tabular-nums`}>
-                      {valorMes ? brl(valorMes) : <span className="text-ninho-cinza">{brl(0)}{x.situacao === 'ativa' ? ' · parcelas já pagas ou fora deste mês' : ''}</span>}
+                      {valorMes ? brlI(valorMes) : <span className="text-ninho-cinza">{brlI(0)}{x.situacao === 'ativa' ? t.parcelasJaPagas : ''}</span>}
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          <p className="mt-2 text-[11.5px] text-ninho-cinza">A comissão só existe quando a família paga: teste grátis não conta, e ela para quando a família cancela ou pede reembolso.</p>
+          <p className="mt-2 text-[11.5px] text-ninho-cinza">{t.rodape}</p>
         </Card>
       )}
-      <Card titulo="Funil dos seus links" direita="últimos 6 meses" className="mt-4">
-        <FunilTabela meses={funil} indisponivel={!eventos} titulo="Últimos 6 meses" />
+      <Card titulo={t.funil} direita={t.ultimos6} className="mt-4">
+        <FunilTabela meses={funil} indisponivel={!eventos} titulo={t.ultimos6Titulo} />
       </Card>
     </>
   );
 }
 
 // ── Indicar ───────────────────────────────────────────────
-async function Indicar({ c, noPerfil = false }: { c: Consultora; noPerfil?: boolean }) {
+async function Indicar({ c, noPerfil = false, idioma }: { c: Consultora; noPerfil?: boolean; idioma: Idioma }) {
+  const tp = textos(idioma).pagina;
+  const t = tp.indicar;
   const sb = appDb();
   const [{ data: peds }, { data: libs }] = await Promise.all([
     sb.from('consultora_pedidos').select('id,nome,email,status,criado_em').eq('indicada_por', c.id).order('criado_em', { ascending: false }).limit(50),
@@ -1644,45 +1673,46 @@ async function Indicar({ c, noPerfil = false }: { c: Consultora; noPerfil?: bool
   return (
     <>
       {noPerfil ? (
-        <h2 className="mb-2 mt-6 text-lg font-black text-[#24164F]">Indicar consultora</h2>
+        <h2 className="mb-2 mt-6 text-lg font-black text-[#24164F]">{t.titulo}</h2>
       ) : (
-        <Titulo t="Indicar consultora" sub={`O Ninho confere e libera a conta dela. Depois, as famílias dela dão ${pctTxt(PCT_REDE)} para ela e ${pctTxt(PCT_REDE)} para você.`} />
+        <Titulo t={t.titulo} sub={t.sub(pctTxt(PCT_REDE, idioma))} />
       )}
       <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
-        <Card titulo="Quem você quer indicar">
+        <Card titulo={t.quem}>
           <form action={indicarConsultora}>
             <input type="hidden" name="volta" value={noPerfil ? 'perfil' : 'indicar'} />
-            <label className={rotuloCampo}>Nome</label>
-            <input name="nome" required minLength={2} maxLength={80} placeholder="Nome e sobrenome" className={campo} />
-            <label className={rotuloCampo}>E-mail que ela vai usar no app</label>
-            <input name="email" type="email" required placeholder="nome@gmail.com" className={campo} />
-            <label className={rotuloCampo}>WhatsApp</label>
+            <label className={rotuloCampo}>{t.nome}</label>
+            <input name="nome" required minLength={2} maxLength={80} placeholder={t.nomePh} className={campo} />
+            <label className={rotuloCampo}>{t.email}</label>
+            <input name="email" type="email" required placeholder={t.emailPh} className={campo} />
+            <label className={rotuloCampo}>{tp.comum.whatsapp}</label>
             <TelefonePais name="whatsapp" classeSelect={campo} classeInput={campo} />
-            <label className={rotuloCampo}>Instagram</label>
+            <label className={rotuloCampo}>{tp.comum.instagram}</label>
             <input name="instagram" placeholder="@" className={campo} />
-            <label className={rotuloCampo}>Como ela ficou sabendo do Ninho?</label>
+            <label className={rotuloCampo}>{t.comoSoube}</label>
+            {/* O valor gravado continua em pt; só o rótulo muda. */}
             <select name="como_soube" defaultValue="Indicação de outra consultora" className={campo}>
-              <option value="">Escolha</option>
-              {COMO_SOUBE_OPCOES.map((o) => <option key={o} value={o}>{o}</option>)}
+              <option value="">{t.escolha}</option>
+              {comoSoubeOpcoes(idioma).map((o) => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}
             </select>
-            <label className={rotuloCampo}>Comentário (opcional)</label>
+            <label className={rotuloCampo}>{t.comentario}</label>
             <textarea name="comentario" maxLength={500} rows={2} className={`${campo} h-auto py-2`} />
-            <button className={`${botao.grad} mt-4 w-full`} disabled={c.estado !== 'ativa'}>Enviar indicação ao Ninho</button>
+            <button className={`${botao.grad} mt-4 w-full`} disabled={c.estado !== 'ativa'}>{t.enviar}</button>
           </form>
         </Card>
-        <Card titulo="Suas indicações">
+        <Card titulo={t.suas}>
           <table className="w-full">
             <tbody>
               {pedidos.map((p) => (
-                <tr key={p.id}><td className={td}><b>{p.nome}</b><small className="block text-[11.5px] text-ninho-cinza">{p.email}</small></td><td className={td}>{p.status === 'pendente' ? <Selo cor="ambar">O Ninho está conferindo</Selo> : p.status === 'recusado' ? <Selo cor="cinza">Não aprovada</Selo> : <Selo cor="lilas">Aprovada</Selo>}</td></tr>
+                <tr key={p.id}><td className={td}><b>{p.nome}</b><small className="block text-[11.5px] text-ninho-cinza">{p.email}</small></td><td className={td}>{p.status === 'pendente' ? <Selo cor="ambar">{t.conferindo}</Selo> : p.status === 'recusado' ? <Selo cor="cinza">{t.naoAprovada}</Selo> : <Selo cor="lilas">{t.aprovada}</Selo>}</td></tr>
               ))}
               {liberadas.map((x) => (
-                <tr key={x.id}><td className={td}><b>{x.nome}</b><small className="block text-[11.5px] text-ninho-cinza">{x.email_liberado}</small></td><td className={td}>{x.estado === 'ativa' ? <Selo cor="verde">Liberada e ativa</Selo> : x.estado === 'esperando' ? <Selo cor="lilas">Liberada · falta ela entrar no app</Selo> : <Selo cor="cinza">Pausada</Selo>}</td></tr>
+                <tr key={x.id}><td className={td}><b>{x.nome}</b><small className="block text-[11.5px] text-ninho-cinza">{x.email_liberado}</small></td><td className={td}>{x.estado === 'ativa' ? <Selo cor="verde">{t.liberadaAtiva}</Selo> : x.estado === 'esperando' ? <Selo cor="lilas">{t.liberadaFalta}</Selo> : <Selo cor="cinza">{t.pausada}</Selo>}</td></tr>
               ))}
             </tbody>
           </table>
-          {pedidos.length + liberadas.length === 0 && <p className="py-6 text-center text-sm text-ninho-cinza">Nenhuma indicação ainda.</p>}
-          <Aviso>Só 1 nível: você ganha nas famílias de quem você indicou, mas não nas famílias de quem ela indicar.</Aviso>
+          {pedidos.length + liberadas.length === 0 && <p className="py-6 text-center text-sm text-ninho-cinza">{t.nenhuma}</p>}
+          <Aviso>{t.umNivel}</Aviso>
         </Card>
       </div>
     </>
@@ -1690,92 +1720,86 @@ async function Indicar({ c, noPerfil = false }: { c: Consultora; noPerfil?: bool
 }
 
 // ── Meu perfil ────────────────────────────────────────────
-async function Perfil({ c }: { c: Consultora }) {
+async function Perfil({ c, idioma }: { c: Consultora; idioma: Idioma }) {
+  const tp = textos(idioma).pagina;
+  const t = tp.perfil;
   const naLista = c.na_lista && c.estado === 'ativa' && !!c.perfil_aprovado_em;
   const exemplo = COMISSAO_VISIVEL ? valorComissao(PRECOS.premium.mensal, PCT_DIRETO) : 0;
   return (
     <>
       <Titulo
-        t="Meu perfil na lista"
-        sub={`É assim que as famílias te encontram em "Encontrar consultora de sono", no app. A lista mostra até 10 consultoras escolhidas pelo Ninho; quem mais traz assinantes aparece primeiro.`}
-        direita={<Selo cor={naLista ? 'verde' : 'cinza'}>{naLista ? 'Liberado para a lista' : c.estado === 'pausada' ? 'Fora da lista: conta pausada' : 'Fora da lista'}</Selo>}
+        t={t.titulo}
+        sub={t.sub}
+        direita={<Selo cor={naLista ? 'verde' : 'cinza'}>{naLista ? t.liberado : c.estado === 'pausada' ? t.foraPausada : t.fora}</Selo>}
       />
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card titulo="Editar">
+        <Card titulo={t.editar}>
           {/* key: depois de salvar, os campos voltam com o que está no banco (não o que ficou digitado). */}
           <form action={salvarPerfil} key={c.atualizado_em}>
-            <label className={rotuloCampo}>Texto curto (até 160 letras)</label>
+            <label className={rotuloCampo}>{t.textoCurto}</label>
             <textarea name="bio" maxLength={600} defaultValue={c.bio_pendente ?? c.bio ?? ''} rows={5} className={`${campo} h-auto py-2`} />
-            {c.bio_pendente && <p className="mt-1 text-[11.5px] text-[#7C5CD6]">Texto novo esperando o Ninho aprovar.</p>}
+            {c.bio_pendente && <p className="mt-1 text-[11.5px] text-[#7C5CD6]">{t.bioPendente}</p>}
             <div className="grid grid-cols-[1fr_80px] gap-2">
-              <div><label className={rotuloCampo}>Cidade</label><input name="cidade" defaultValue={c.cidade ?? ''} maxLength={80} className={campo} /></div>
-              <div><label className={rotuloCampo}>UF</label><input name="uf" defaultValue={c.uf ?? ''} maxLength={2} className={`${campo} uppercase`} /></div>
+              <div><label className={rotuloCampo}>{t.cidade}</label><input name="cidade" defaultValue={c.cidade ?? ''} maxLength={80} className={campo} /></div>
+              <div><label className={rotuloCampo}>{t.uf}</label><input name="uf" defaultValue={c.uf ?? ''} maxLength={2} className={`${campo} uppercase`} /></div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div className="col-span-2"><label className={rotuloCampo}>WhatsApp</label><TelefonePais name="whatsapp" valor={c.whatsapp} classeSelect={campo} classeInput={campo} /></div>
-              <div className="col-span-2"><label className={rotuloCampo}>Instagram</label><input name="instagram" defaultValue={c.instagram ? `@${c.instagram}` : ''} className={campo} /></div>
+              <div className="col-span-2"><label className={rotuloCampo}>{tp.comum.whatsapp}</label><TelefonePais name="whatsapp" valor={c.whatsapp} classeSelect={campo} classeInput={campo} /></div>
+              <div className="col-span-2"><label className={rotuloCampo}>{tp.comum.instagram}</label><input name="instagram" defaultValue={c.instagram ? `@${c.instagram}` : ''} className={campo} /></div>
             </div>
-            <label className={rotuloCampo}>Idades que atende</label>
-            <input name="idades" defaultValue={c.idades ?? ''} maxLength={40} placeholder="Ex.: 0 a 2 anos" className={campo} />
+            <label className={rotuloCampo}>{t.idades}</label>
+            <input name="idades" defaultValue={c.idades ?? ''} maxLength={40} placeholder={t.idadesPh} className={campo} />
             <div className="mt-3 flex gap-5 text-[13px] font-semibold">
-              <label className="flex items-center gap-2"><input type="checkbox" name="atende_online" defaultChecked={c.atende_online} /> Online</label>
-              <label className="flex items-center gap-2"><input type="checkbox" name="atende_presencial" defaultChecked={c.atende_presencial} /> Presencial</label>
+              <label className="flex items-center gap-2"><input type="checkbox" name="atende_online" defaultChecked={c.atende_online} /> {t.online}</label>
+              <label className="flex items-center gap-2"><input type="checkbox" name="atende_presencial" defaultChecked={c.atende_presencial} /> {t.presencial}</label>
             </div>
             {COMISSAO_VISIVEL && (
               <>
-              <p className="mt-4 text-[11px] font-extrabold tracking-[0.09em] text-[#9A95AD]">PARA RECEBER (SÓ O NINHO VÊ)</p>
+              <p className="mt-4 text-[11px] font-extrabold tracking-[0.09em] text-[#9A95AD]">{t.paraReceber}</p>
               <div className="grid grid-cols-2 gap-2">
-                <div><label className={rotuloCampo}>CPF</label><input name="cpf" inputMode="numeric" placeholder={c.cpf ? 'trocar o CPF' : 'só números'} className={campo} /></div>
-                <div><label className={rotuloCampo}>Chave Pix</label><input name="pix" placeholder={c.pix_chave ? 'trocar a chave' : ''} className={campo} /></div>
+                <div><label className={rotuloCampo}>{t.cpf}</label><input name="cpf" inputMode="numeric" placeholder={c.cpf ? t.trocarCpf : t.soNumeros} className={campo} /></div>
+                <div><label className={rotuloCampo}>{t.pix}</label><input name="pix" placeholder={c.pix_chave ? t.trocarChave : ''} className={campo} /></div>
               </div>
               <p className="mt-1 text-[11.5px] text-ninho-cinza">
-                {c.cpf ? `CPF salvo: •••.•••.•${c.cpf.slice(-4, -2)}-${c.cpf.slice(-2)}` : 'CPF ainda não cadastrado'} ·{' '}
-                {c.pix_chave ? `Pix salvo: ${c.pix_chave.length > 6 ? `${c.pix_chave.slice(0, 3)}•••${c.pix_chave.slice(-3)}` : '•••'}` : 'Pix ainda não cadastrado'}.
-                Por segurança, os campos ficam vazios: deixe vazio para manter.
+                {c.cpf ? t.cpfSalvo(`•••.•••.•${c.cpf.slice(-4, -2)}-${c.cpf.slice(-2)}`) : t.cpfNao} ·{' '}
+                {c.pix_chave ? t.pixSalvo(c.pix_chave.length > 6 ? `${c.pix_chave.slice(0, 3)}•••${c.pix_chave.slice(-3)}` : '•••') : t.pixNao}.{' '}
+                {t.seguranca}
               </p>
               </>
             )}
-            <button className={`${botao.grad} mt-4 w-full`}>Salvar</button>
-            <p className="mt-2 text-xs leading-snug text-ninho-cinza">Texto e foto novos passam pelo Ninho antes de aparecer. Cidade, contato e atendimento valem na hora.</p>
+            <button className={`${botao.grad} mt-4 w-full`}>{t.salvar}</button>
+            <p className="mt-2 text-xs leading-snug text-ninho-cinza">{t.salvarDica}</p>
           </form>
           <form action={enviarFoto} className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#F0ECF6] pt-4 text-xs">
             <input type="file" name="foto" accept="image/jpeg,image/png,image/webp" />
-            <button className={botao.suave}>Enviar foto</button>
-            <span className="text-ninho-cinza">JPG, PNG ou WebP até 2 MB{c.foto_pendente_url ? ' · uma foto nova espera aprovação' : ''}</span>
+            <button className={botao.suave}>{t.enviarFoto}</button>
+            <span className="text-ninho-cinza">{t.fotoFormatos}{c.foto_pendente_url ? t.fotoEspera : ''}</span>
           </form>
         </Card>
-        <Card titulo="Prévia">
+        <Card titulo={t.previa}>
           <div className="rounded-[20px] bg-[#F8F6FC] p-4">
             <div className="flex items-center gap-3">
               <Avatar id={c.id} nome={c.nome} foto={c.foto_url} tamanho={48} />
               <div>
                 <b className="text-base">{c.nome}</b>
-                <p className="text-[12.5px] text-ninho-cinza">Consultora independente · {c.cidade ? `${c.cidade}${c.uf ? ` · ${c.uf}` : ''}` : 'cidade a preencher'}</p>
-                <p className="text-xs text-ninho-cinza">{[c.atende_online && 'Online', c.atende_presencial && 'Presencial'].filter(Boolean).join(' e ')}{c.idades ? ` · ${c.idades}` : ''}</p>
+                <p className="text-[12.5px] text-ninho-cinza">{tp.comum.consultoraIndependente} · {c.cidade ? `${c.cidade}${c.uf ? ` · ${c.uf}` : ''}` : t.cidadePreencher}</p>
+                <p className="text-xs text-ninho-cinza">{[c.atende_online && t.online, c.atende_presencial && t.presencial].filter(Boolean).join(t.e)}{c.idades ? ` · ${c.idades}` : ''}</p>
               </div>
             </div>
-            <p className={`mt-2 text-[13.5px] leading-relaxed ${c.bio ? '' : 'text-[#9A95AD]'}`}>{c.bio || 'Sem texto ainda.'}</p>
-            <p className="mt-2.5 text-[11px] leading-snug text-[#9A95AD]">
-              Consultora independente. As orientações são de responsabilidade dela e não substituem o pediatra. Ela
-              pode receber comissão do Ninho se a família assinar pelo link dela.
-            </p>
+            <p className={`mt-2 text-[13.5px] leading-relaxed ${c.bio ? '' : 'text-[#9A95AD]'}`}>{c.bio || t.semTexto}</p>
+            <p className="mt-2.5 text-[11px] leading-snug text-[#9A95AD]">{t.disclaimer}</p>
           </div>
           {c.bio_pendente && (
-            <Aviso tom="ambar">
-              Texto novo esperando o Ninho aprovar: &ldquo;{c.bio_pendente}&rdquo;. Até lá, a lista do app mostra o texto acima.
-            </Aviso>
+            <Aviso tom="ambar">{t.bioPendenteAviso(c.bio_pendente)}</Aviso>
           )}
-          <p className="mt-3 text-[11.5px] text-ninho-cinza">Última alteração salva: {new Date(c.atualizado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.</p>
-          <Aviso>
-            Antes de te chamar, a família marca que você é independente e que suas orientações são de sua responsabilidade
-            {COMISSAO_VISIVEL ? ', e que você pode receber comissão' : ''}.
-          </Aviso>
+          <p className="mt-3 text-[11.5px] text-ninho-cinza">{t.ultimaAlteracao(quandoTxt(c.atualizado_em, idioma, true))}</p>
+          <Aviso>{t.avisoFamiliaMarca(COMISSAO_VISIVEL)}</Aviso>
           {COMISSAO_VISIVEL && (
-            <Aviso tom="verde">Exemplo: cada família no Premium mensal pelo seu link dá {brl(exemplo)} por mês, por {PARCELAS_MENSAL} meses.</Aviso>
+            <Aviso tom="verde">{t.exemplo(brl(exemplo, idioma), PARCELAS_MENSAL)}</Aviso>
           )}
         </Card>
       </div>
-      {COMISSAO_VISIVEL && (await Indicar({ c, noPerfil: true }))}
+      {COMISSAO_VISIVEL && (await Indicar({ c, noPerfil: true, idioma }))}
     </>
   );
 }

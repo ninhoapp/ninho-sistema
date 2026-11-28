@@ -24,8 +24,7 @@ import { normalizarEmail, EMAIL_RE } from '@/lib/consultoras-regras';
 import type { Consultora } from '@/lib/consultoras';
 import type { Perfil } from '@/lib/painel/store';
 
-const ERRO = 'E-mail ou código não confere. Confira e tente de novo, ou gere um código novo no app do Ninho.';
-const ERRO_LIMITE = 'Muitas tentativas. Espere 15 minutos e gere um código novo no app do Ninho.';
+import { textos, type Idioma } from '@/lib/i18n-consultora';
 
 const MAX_ERROS_POR_CODIGO = 5;
 const MAX_POR_EMAIL = 10;
@@ -65,7 +64,12 @@ function iguais(a: string, b: string): boolean {
 export async function loginConsultora(
   emailBruto: string,
   codigoBruto: string,
+  idioma: Idioma = 'pt',
 ): Promise<{ perfil?: Perfil; error?: string }> {
+  // Mensagens no idioma do login da consultora (pt/en/es).
+  const tl = textos(idioma).geral.login;
+  const ERRO = tl.naoConfere;
+  const ERRO_LIMITE = tl.muitasTentativas;
   const email = normalizarEmail(emailBruto);
   const codigo = codigoBruto.replace(/\D/g, '');
   if (!EMAIL_RE.test(email) || email.length > 254 || codigo.length !== 6) return { error: ERRO };
@@ -126,7 +130,7 @@ export async function loginConsultora(
   errosPorCodigo.delete(certo.id);
 
   const perfil = await garantirPerfil(c);
-  if (!perfil) return { error: 'Seu acesso ao painel foi desligado. Fale com o Ninho pelo botão Ajuda do app.' };
+  if (!perfil) return { error: tl.desligado };
   return { perfil };
 }
 

@@ -4,6 +4,9 @@ import { useRef, useState } from 'react';
 import { toJpeg } from 'html-to-image';
 import { dataUrlParaBytes, montarPdf, type PaginaPdf } from '@/lib/pdf-de-imagens';
 import { linkWhatsApp } from '@/components/consultoras/BotaoWhatsApp';
+import { Rico } from '@/components/consultoras/Celular';
+import { useIdioma } from '@/components/consultoras/IdiomaConsultora';
+import { textos, type Idioma } from '@/lib/i18n-consultora';
 import { LINK_BAIXAR, codigoDe, textoComPdf, textoManual, type DadosManual, type TipoManual } from '@/components/consultoras/manualTextos';
 import {
   TelaAprovado,
@@ -35,6 +38,9 @@ import {
  * Enviar: no celular, abre o compartilhar do aparelho com o PDF (escolhe o
  * WhatsApp). No computador, baixa o PDF e abre o WhatsApp com a mensagem;
  * aí é só arrastar o PDF para a conversa.
+ *
+ * Idioma (25/11/2026): `useIdioma()` (o dono vê pt). Textos em
+ * lib/i18n-consultora/{pt,en,es}/manual.ts (`pdf` e `mensagem`).
  */
 
 const L = 794; // largura da página A4 desenhada, em px
@@ -76,7 +82,20 @@ function PassoPdf({ n, titulo, children, telas, lado = false }: { n: number; tit
   );
 }
 
-function Pagina({ n, total, children, refPagina }: { n: number; total: number; children: React.ReactNode; refPagina: (el: HTMLDivElement | null) => void }) {
+function Pagina({
+  n,
+  total,
+  children,
+  refPagina,
+  idioma,
+}: {
+  n: number;
+  total: number;
+  children: React.ReactNode;
+  refPagina: (el: HTMLDivElement | null) => void;
+  idioma: Idioma;
+}) {
+  const t = textos(idioma).manual.pdf;
   return (
     <div ref={refPagina} style={{ width: L, height: A }} className="relative flex flex-col overflow-hidden bg-white px-12 pt-10 font-sans text-[#1E1F25]">
       <div className="flex items-center justify-between border-b border-[#ECE6F5] pb-3">
@@ -84,35 +103,32 @@ function Pagina({ n, total, children, refPagina }: { n: number; total: number; c
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#A46DFF] to-[#8C5CF8] text-[13px] font-black text-white">N</span>
           <b className="text-[17px] text-[#7C5CD6]">Ninho</b>
         </div>
-        <span className="text-[12px] font-bold text-[#9A95AD]">Manual da consultora</span>
+        <span className="text-[12px] font-bold text-[#9A95AD]">{t.cabecalho}</span>
       </div>
       <div className="flex-1">{children}</div>
       <div className="mb-6 flex items-center justify-between border-t border-[#ECE6F5] pt-3 text-[11px] text-[#9A95AD]">
         <span>useninho.com.br</span>
-        <span>
-          página {n} de {total}
-        </span>
+        <span>{t.pagina(n, total)}</span>
       </div>
     </div>
   );
 }
 
-function Capa({ d, tipo }: { d: DadosManual; tipo: TipoManual }) {
+function Capa({ d, tipo, idioma }: { d: DadosManual; tipo: TipoManual; idioma: Idioma }) {
+  const t = textos(idioma).manual.pdf;
   return (
     <div className="mt-8 rounded-[26px] bg-gradient-to-br from-[#F4EEFF] to-[#EDE4FB] p-7">
-      <p className="text-[28px] font-black leading-tight text-[#24164F]">Oi, {d.nome}, tudo bem? Que bom te ter aqui!</p>
+      <p className="text-[28px] font-black leading-tight text-[#24164F]">{t.capaOi(d.nome)}</p>
       <p className="mt-2 max-w-[600px] text-[14.5px] leading-relaxed text-[#4B3A8C]">
-        {tipo === 'sem-conta'
-          ? 'Preparei este passo a passo para você começar no Ninho. É rapidinho, e eu vou te mostrando cada tela. Vamos juntas?'
-          : 'Como você já usa o Ninho, falta pouquinho. Preparei este passo a passo mostrando cada tela, para você começar a acompanhar as suas clientes.'}
+        {tipo === 'sem-conta' ? t.capaSemConta : t.capaComConta}
       </p>
       <div className="mt-5 grid grid-cols-2 gap-3">
         <div className="rounded-[18px] bg-white p-4">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9A95AD]">Seu e-mail de consultora</p>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9A95AD]">{t.seuEmail}</p>
           <p className="mt-1 break-all text-[15px] font-black text-[#24164F]">{d.email}</p>
         </div>
         <div className="rounded-[18px] bg-white p-4">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9A95AD]">Seu código</p>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9A95AD]">{t.seuCodigo}</p>
           <p className="mt-1 text-[15px] font-black tracking-wider text-[#7C5CD6]">{codigoDe(d)}</p>
         </div>
       </div>
@@ -120,81 +136,74 @@ function Capa({ d, tipo }: { d: DadosManual; tipo: TipoManual }) {
   );
 }
 
-function PassosComuns({ d, inicio }: { d: DadosManual; inicio: number }) {
+function PassosComuns({ d, inicio, idioma }: { d: DadosManual; inicio: number; idioma: Idioma }) {
+  const t = textos(idioma).manual.pdf;
   const codigo = codigoDe(d);
   return {
     termo: (
-      <PassoPdf lado n={inicio} titulo="Aceite o Termo da Consultora" telas={<Encolhido><TelaTermo primeiro={d.nome} /></Encolhido>}>
+      <PassoPdf lado n={inicio} titulo={t.termoTitulo} telas={<Encolhido><TelaTermo primeiro={d.nome} idioma={idioma} /></Encolhido>}>
         <p>
-          Assim que você entrar, o app já abre a sua área de consultora, com uma mensagem de boas-vindas: <b>Bem-vinda, {d.nome}</b>. Leia o
-          termo com calma, marque <b>Li e aceito o Termo da Consultora</b> e toque em <b>Começar</b>. Depois aparecem três telas rápidas de
-          apresentação.
+          <Rico texto={t.termoTexto(d.nome)} />
         </p>
       </PassoPdf>
     ),
     convidar: (
       <PassoPdf
         n={inicio + 1}
-        titulo="Convide a sua primeira cliente"
+        titulo={t.convidarTitulo}
         telas={
           <>
-            <Encolhido><TelaInicioVazio /></Encolhido>
-            <Encolhido><TelaConvidar codigo={codigo} /></Encolhido>
-            <Encolhido><TelaWhatsAppConvite codigo={codigo} /></Encolhido>
+            <Encolhido><TelaInicioVazio idioma={idioma} /></Encolhido>
+            <Encolhido><TelaConvidar codigo={codigo} idioma={idioma} /></Encolhido>
+            <Encolhido><TelaWhatsAppConvite codigo={codigo} idioma={idioma} /></Encolhido>
           </>
         }
       >
         <p>
-          Agora vamos convidar a sua primeira cliente. Toque em <b>Convidar família</b> (ou em <b>Convidar</b>, na barra de baixo; se ela estiver
-          fechada, toque na setinha do meio) e depois em <b>Enviar pelo WhatsApp</b>. A sua cliente recebe uma mensagem com o passo a passo e o
-          seu código, <b>{codigo}</b>.
+          <Rico texto={t.convidarA(codigo)} />
         </p>
         <p>
-          Se preferir, convide pelo e-mail dela, em <b>Convidar pelo e-mail da família</b>. Use o e-mail com que ela entra no Ninho.
+          <Rico texto={t.convidarB} />
         </p>
       </PassoPdf>
     ),
     aceita: (
       <PassoPdf
         n={inicio + 2}
-        titulo="Veja como a sua cliente recebe"
+        titulo={t.aceitaTitulo}
         telas={
           <>
-            <Encolhido><TelaFamiliaAdicionar /></Encolhido>
-            <Encolhido><TelaFamiliaCodigo codigo={codigo} nome={d.nome} /></Encolhido>
-            <Encolhido><TelaSininho nome={d.nome} /></Encolhido>
+            <Encolhido><TelaFamiliaAdicionar idioma={idioma} /></Encolhido>
+            <Encolhido><TelaFamiliaCodigo codigo={codigo} nome={d.nome} idioma={idioma} /></Encolhido>
+            <Encolhido><TelaSininho nome={d.nome} idioma={idioma} /></Encolhido>
           </>
         }
       >
-        <p>Quando você convida, a sua cliente tem dois caminhos, conforme o jeito que você escolheu:</p>
+        <p>{t.aceitaA}</p>
         <p>
-          <b>Pelo WhatsApp (com o seu código):</b> ela segue este caminho no app dela: menu ☰ › <b>Cuidador ou Consultor</b> › <b>Adicionar</b>{' '}
-          › <b>Consultora de sono</b>. Digita o seu código, toca em <b>Buscar</b>, marca a caixa e toca em <b>Compartilhar a rotina</b>.
+          <Rico texto={t.aceitaB} />
         </p>
         <p>
-          <b>Pelo e-mail:</b> chega uma notificação no sininho dela, <b>Pedido de consultora de sono</b>. Ela escolhe o bebê e toca em{' '}
-          <b>Aprovar</b>.
+          <Rico texto={t.aceitaC} />
         </p>
       </PassoPdf>
     ),
     aprovar: (
       <PassoPdf
         n={inicio + 3}
-        titulo="Aprove o pedido e acompanhe"
+        titulo={t.aprovarTitulo}
         telas={
           <>
-            <Encolhido><TelaPedido /></Encolhido>
-            <Encolhido><TelaAprovado /></Encolhido>
+            <Encolhido><TelaPedido idioma={idioma} /></Encolhido>
+            <Encolhido><TelaAprovado idioma={idioma} /></Encolhido>
           </>
         }
       >
         <p>
-          Quando a sua cliente usa o seu código, chega para você o aviso <b>Novo pedido de família</b>. No Início, em{' '}
-          <b>Pedidos de famílias</b>, toque em <b>Aprovar</b> e depois em <b>Aprovar e acompanhar</b>.
+          <Rico texto={t.aprovarA} />
         </p>
         <p>
-          Pronto! O bebê aparece em <b>Suas famílias</b>, e você acompanha a rotina em <b>Rotina</b> e <b>Evolução</b>. Se ela aprovou pelo
-          sininho, nem precisa deste passo: o bebê já aparece para você.
+          <Rico texto={t.aprovarB} />
         </p>
       </PassoPdf>
     ),
@@ -203,69 +212,70 @@ function PassosComuns({ d, inicio }: { d: DadosManual; inicio: number }) {
         <PassoPdf
           lado
           n={inicio + 4}
-          titulo="Complete o seu perfil público"
+          titulo={t.perfilTitulo}
           telas={
             <>
-              <Encolhido><TelaApareca /></Encolhido>
-              <Encolhido><TelaEditarPerfil nome={d.nome} /></Encolhido>
+              <Encolhido><TelaApareca idioma={idioma} /></Encolhido>
+              <Encolhido><TelaEditarPerfil nome={d.nome} idioma={idioma} /></Encolhido>
             </>
           }
         >
+          <p>{t.perfilA}</p>
           <p>
-            Agora o passo que coloca você na vitrine: o seu perfil público. Mais de 2 mil pessoas já usam o Ninho, e quem procura ajuda com o
-            sono do bebê encontra as consultoras dentro do próprio app.
+            <Rico texto={t.perfilB} />
           </p>
-          <p>
-            No menu ☰, toque em <b>Editar perfil</b> (ou em <b>Completar perfil</b>, na apresentação). Coloque uma foto, um texto curto sobre
-            como você ajuda as famílias, a cidade, as idades que atende e o seu WhatsApp, e toque em <b>Salvar</b>.
-          </p>
-          <p>
-            Eu reviso o texto e a foto e libero o seu perfil na lista. É só evitar promessa de resultado e indicação de remédio ou de posição de
-            sono.
-          </p>
+          <p>{t.perfilC}</p>
         </PassoPdf>
         <PassoPdf
           lado
           n={inicio + 5}
-          titulo="Veja como as famílias vão te encontrar"
+          titulo={t.vitrineTitulo}
           telas={
             <>
-              <Encolhido><TelaListaConsultoras nome={d.nome} /></Encolhido>
-              <Encolhido><TelaPerfilNaLista nome={d.nome} /></Encolhido>
+              <Encolhido><TelaListaConsultoras nome={d.nome} idioma={idioma} /></Encolhido>
+              <Encolhido><TelaPerfilNaLista nome={d.nome} idioma={idioma} /></Encolhido>
             </>
           }
         >
           <p>
-            No app, a família abre o menu ☰ › <b>Apoio</b> › <b>Encontrar consultora de sono</b>. Lá aparece a lista com foto, nome e cidade.
+            <Rico texto={t.vitrineA} />
           </p>
           <p>
-            Ao tocar no seu nome, ela vê o seu perfil completo e o botão <b>Conversar no WhatsApp</b>, que abre a conversa direto com você.
+            <Rico texto={t.vitrineB} />
           </p>
-          <p>
-            A lista mostra até 10 consultoras, e quem traz mais famílias assinantes aparece primeiro. Quanto mais você convidar, mais perto do
-            topo você fica.
-          </p>
+          <p>{t.vitrineC}</p>
         </PassoPdf>
       </>
     ),
   };
 }
 
-function Ajuda() {
+function Ajuda({ idioma }: { idioma: Idioma }) {
+  const t = textos(idioma).manual.pdf;
   return (
     <div className="mt-5 rounded-[22px] bg-[#E7F5EC] p-4">
-      <p className="text-[16px] font-black text-[#2F8A55]">Estou aqui com você</p>
+      <p className="text-[16px] font-black text-[#2F8A55]">{t.ajudaTitulo}</p>
       <p className="mt-1 text-[13.5px] leading-relaxed text-[#2D4A39]">
-        Qualquer dúvida, me chama no WhatsApp, no horário que for. Se travar em alguma tela, me manda um print que a gente resolve junto. E as
-        suas sugestões são muito bem-vindas: é com elas que o Ninho fica cada vez melhor para o seu trabalho.
+        {t.ajudaTexto}
       </p>
-      <p className="mt-3 text-[13.5px] font-bold text-[#2D4A39]">Um abraço, Mailson · Ninho</p>
+      <p className="mt-3 text-[13.5px] font-bold text-[#2D4A39]">{t.ajudaAssinatura}</p>
     </div>
   );
 }
 
-export function Paginas({ tipo, d, refs }: { tipo: TipoManual; d: DadosManual; refs: React.MutableRefObject<(HTMLDivElement | null)[]> }) {
-  const c = PassosComuns({ d, inicio: 3 });
+export function Paginas({
+  tipo,
+  d,
+  refs,
+  idioma = 'pt',
+}: {
+  tipo: TipoManual;
+  d: DadosManual;
+  refs: React.MutableRefObject<(HTMLDivElement | null)[]>;
+  idioma?: Idioma;
+}) {
+  const t = textos(idioma).manual.pdf;
+  const c = PassosComuns({ d, inicio: 3, idioma });
   const set = (i: number) => (el: HTMLDivElement | null) => {
     refs.current[i] = el;
   };
@@ -273,12 +283,11 @@ export function Paginas({ tipo, d, refs }: { tipo: TipoManual; d: DadosManual; r
     const total = 6;
     return (
       <>
-        <Pagina n={1} total={total} refPagina={set(0)}>
-          <Capa d={d} tipo={tipo} />
-          <PassoPdf n={1} titulo="Para começar, baixe o Ninho">
+        <Pagina n={1} total={total} refPagina={set(0)} idioma={idioma}>
+          <Capa d={d} tipo={tipo} idioma={idioma} />
+          <PassoPdf n={1} titulo={t.baixarTitulo}>
             <p>
-              Toque no botão abaixo: ele abre a App Store no iPhone ou o Google Play no Android. Toque em <b>Obter</b> (ou <b>Instalar</b>) e,
-              quando terminar, volte aqui para a gente continuar.
+              <Rico texto={t.baixarTexto} />
             </p>
             <div className="flex items-center gap-8 pt-3">
               <div>
@@ -287,96 +296,90 @@ export function Paginas({ tipo, d, refs }: { tipo: TipoManual; d: DadosManual; r
                   data-pdf-link={LINK_BAIXAR}
                   className="inline-flex h-14 items-center rounded-full bg-gradient-to-br from-[#A46DFF] to-[#8C5CF8] px-8 text-[17px] font-black text-white"
                 >
-                  Toque aqui para baixar o Ninho
+                  {t.baixarBotao}
                 </a>
                 <p className="mt-2 text-[12.5px] font-bold text-[#7C5CD6]" data-pdf-link={LINK_BAIXAR}>
                   {LINK_BAIXAR.replace(/^https?:\/\//, '')}
                 </p>
               </div>
-              <Encolhido><TelaLoja /></Encolhido>
+              <Encolhido><TelaLoja idioma={idioma} /></Encolhido>
             </div>
           </PassoPdf>
         </Pagina>
-        <Pagina n={2} total={total} refPagina={set(1)}>
+        <Pagina n={2} total={total} refPagina={set(1)} idioma={idioma}>
           <PassoPdf
             n={2}
-            titulo="Agora crie a sua conta"
+            titulo={t.contaTitulo}
             telas={
               <>
-                <Encolhido><TelaLogin dedo="email" /></Encolhido>
-                <Encolhido><TelaCriarConta email={d.email} /></Encolhido>
-                <Encolhido><TelaConfirmar /></Encolhido>
+                <Encolhido><TelaLogin dedo="email" idioma={idioma} /></Encolhido>
+                <Encolhido><TelaCriarConta email={d.email} idioma={idioma} /></Encolhido>
+                <Encolhido><TelaConfirmar idioma={idioma} /></Encolhido>
               </>
             }
           >
             <p>
-              Abra o Ninho e entre com a Apple, com o Google ou com o seu e-mail, para a gente continuar. O importante é usar o e-mail{' '}
-              <b>{d.email}</b>: foi ele que eu liberei para você como consultora.
+              <Rico texto={t.contaA(d.email)} />
             </p>
             <p>
-              <b>Com o e-mail:</b> toque em <b>Novo aqui? Criar conta</b>, coloque o e-mail e uma senha e confirme com o código de 6 dígitos que
-              chega no seu e-mail (confira também o spam). <b>Com o Google:</b> escolha a conta desse e-mail. <b>Com a Apple:</b> escolha
-              compartilhar o seu e-mail, e não <b>ocultar meu e-mail</b>, assim o app reconhece você.
+              <Rico texto={t.contaB} />
             </p>
           </PassoPdf>
           {c.termo}
         </Pagina>
-        <Pagina n={3} total={total} refPagina={set(2)}>
+        <Pagina n={3} total={total} refPagina={set(2)} idioma={idioma}>
           {c.convidar}
         </Pagina>
-        <Pagina n={4} total={total} refPagina={set(3)}>
+        <Pagina n={4} total={total} refPagina={set(3)} idioma={idioma}>
           {c.aceita}
         </Pagina>
-        <Pagina n={5} total={total} refPagina={set(4)}>
+        <Pagina n={5} total={total} refPagina={set(4)} idioma={idioma}>
           {c.aprovar}
         </Pagina>
-        <Pagina n={6} total={total} refPagina={set(5)}>
+        <Pagina n={6} total={total} refPagina={set(5)} idioma={idioma}>
           {c.perfil}
-          <Ajuda />
+          <Ajuda idioma={idioma} />
         </Pagina>
       </>
     );
   }
   const total = 5;
-  const c2 = PassosComuns({ d, inicio: 2 });
+  const c2 = PassosComuns({ d, inicio: 2, idioma });
   return (
     <>
-      <Pagina n={1} total={total} refPagina={set(0)}>
-        <Capa d={d} tipo={tipo} />
+      <Pagina n={1} total={total} refPagina={set(0)} idioma={idioma}>
+        <Capa d={d} tipo={tipo} idioma={idioma} />
         <PassoPdf
           n={1}
-          titulo="Abra o Ninho na conta do e-mail liberado"
+          titulo={t.abrirTitulo}
           telas={
             <>
-              <Encolhido><TelaModoConsultora /></Encolhido>
-              <Encolhido><TelaTermo primeiro={d.nome} /></Encolhido>
+              <Encolhido><TelaModoConsultora idioma={idioma} /></Encolhido>
+              <Encolhido><TelaTermo primeiro={d.nome} idioma={idioma} /></Encolhido>
             </>
           }
         >
           <p>
-            Como você já usa o Ninho, é só fechar o app e abrir de novo, na conta do e-mail <b>{d.email}</b>. O app reconhece a sua conta de
-            consultora sozinho.
+            <Rico texto={t.abrirA(d.email)} />
           </p>
           <p>
-            Se você já tem um bebê cadastrado, vai aparecer a pergunta <b>Sua conta foi liberada como consultora</b>: toque em{' '}
-            <b>Usar modo consultora</b>. Dá para voltar quando quiser pelo menu, em <b>Mudar para conta comum</b>. Na primeira vez, leia o Termo
-            da Consultora, marque a caixa e toque em <b>Começar</b>.
+            <Rico texto={t.abrirB} />
           </p>
-          <p>Se você entra no Ninho com outro e-mail, me conta qual é, que eu ligo a sua conta por aqui.</p>
+          <p>{t.abrirC}</p>
         </PassoPdf>
       </Pagina>
-      <Pagina n={2} total={total} refPagina={set(1)}>
+      <Pagina n={2} total={total} refPagina={set(1)} idioma={idioma}>
         {c2.convidar}
       </Pagina>
-      <Pagina n={3} total={total} refPagina={set(2)}>
+      <Pagina n={3} total={total} refPagina={set(2)} idioma={idioma}>
         {c2.aceita}
       </Pagina>
-      <Pagina n={4} total={total} refPagina={set(3)}>
+      <Pagina n={4} total={total} refPagina={set(3)} idioma={idioma}>
         {c2.aprovar}
       </Pagina>
-      <Pagina n={5} total={total} refPagina={set(4)}>
+      <Pagina n={5} total={total} refPagina={set(4)} idioma={idioma}>
         {c2.perfil}
-        <Ajuda />
+        <Ajuda idioma={idioma} />
       </Pagina>
     </>
   );
@@ -390,10 +393,12 @@ const esperarQuadro = () => new Promise<void>((r) => requestAnimationFrame(() =>
  * o manual para ela.
  */
 export function AcoesManual({ tipo, dados, apenasPdf = false, rotuloPdf }: { tipo: TipoManual; dados: DadosManual; apenasPdf?: boolean; rotuloPdf?: string }) {
+  const idioma = useIdioma();
+  const t = textos(idioma).manual.pdf;
   const [desenhar, setDesenhar] = useState(false);
   const [estado, setEstado] = useState<'' | 'gerando' | 'copiado' | 'erro'>('');
   const refs = useRef<(HTMLDivElement | null)[]>([]);
-  const nomeArquivo = `Manual Ninho - ${dados.nome}.pdf`;
+  const nomeArquivo = t.nomeArquivo(dados.nome);
 
   async function gerar(): Promise<Blob> {
     refs.current = [];
@@ -438,7 +443,7 @@ export function AcoesManual({ tipo, dados, apenasPdf = false, rotuloPdf }: { tip
   }
 
   async function aoEnviar() {
-    const texto = textoComPdf(tipo, dados);
+    const texto = textoComPdf(tipo, dados, idioma);
     const teste = new File([''], 'teste.pdf', { type: 'application/pdf' });
     const podeCompartilhar = typeof navigator !== 'undefined' && !!navigator.canShare && navigator.canShare({ files: [teste] });
     // Abre a janela já no toque, senão o navegador bloqueia depois da espera.
@@ -465,7 +470,7 @@ export function AcoesManual({ tipo, dados, apenasPdf = false, rotuloPdf }: { tip
 
   async function aoCopiar() {
     try {
-      await navigator.clipboard.writeText(textoManual(tipo, dados));
+      await navigator.clipboard.writeText(textoManual(tipo, dados, idioma));
       setEstado('copiado');
       setTimeout(() => setEstado(''), 1800);
     } catch {
@@ -479,17 +484,17 @@ export function AcoesManual({ tipo, dados, apenasPdf = false, rotuloPdf }: { tip
       <div className="flex flex-wrap items-center justify-end gap-2">
         {!apenasPdf && (
           <button type="button" onClick={aoCopiar} className="inline-flex h-8 items-center rounded-pill bg-[#F0EEF4] px-3 text-[12.5px] font-bold text-ninho-cinza">
-            {estado === 'copiado' ? 'Copiado!' : 'Copiar texto'}
+            {estado === 'copiado' ? t.copiado : t.copiarTexto}
           </button>
         )}
         {!apenasPdf && (
           <a
-            href={linkWhatsApp(dados.whatsapp, textoManual(tipo, dados))}
+            href={linkWhatsApp(dados.whatsapp, textoManual(tipo, dados, idioma))}
             target="_blank"
             rel="noreferrer"
             className="inline-flex h-8 items-center rounded-pill bg-[#F1EBFC] px-3 text-[12.5px] font-bold text-[#7C5CD6]"
           >
-            Só o texto no WhatsApp
+            {t.soTexto}
           </a>
         )}
         <button
@@ -498,7 +503,7 @@ export function AcoesManual({ tipo, dados, apenasPdf = false, rotuloPdf }: { tip
           disabled={gerando}
           className="inline-flex h-8 items-center rounded-pill bg-[#24164F] px-3.5 text-[12.5px] font-bold text-white disabled:opacity-50"
         >
-          {gerando ? 'Gerando PDF…' : (rotuloPdf ?? 'Baixar PDF')}
+          {gerando ? t.gerando : (rotuloPdf ?? t.baixarPdf)}
         </button>
         {!apenasPdf && (
         <button
@@ -510,20 +515,19 @@ export function AcoesManual({ tipo, dados, apenasPdf = false, rotuloPdf }: { tip
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M21 12a9 9 0 0 1-13.5 7.8L3 21l1.2-4.4A9 9 0 1 1 21 12z" />
           </svg>
-          Enviar PDF no WhatsApp
+          {t.enviarPdf}
         </button>
         )}
       </div>
-      {estado === 'erro' && <p className="text-[11.5px] font-bold text-[#E85D5D]">Não consegui gerar o PDF agora. Tente de novo.</p>}
+      {estado === 'erro' && <p className="text-[11.5px] font-bold text-[#E85D5D]">{t.erro}</p>}
       {!apenasPdf && (
         <p className="max-w-[420px] text-right text-[11px] leading-snug text-ninho-cinza">
-          No computador, o PDF é baixado e o WhatsApp abre com a mensagem: arraste o PDF para a conversa. No celular, escolha o WhatsApp na
-          lista.
+          {t.dicaEnviar}
         </p>
       )}
       {desenhar && (
         <div aria-hidden style={{ position: 'fixed', left: -100000, top: 0, width: L }}>
-          <Paginas tipo={tipo} d={dados} refs={refs} />
+          <Paginas tipo={tipo} d={dados} refs={refs} idioma={idioma} />
         </div>
       )}
     </div>

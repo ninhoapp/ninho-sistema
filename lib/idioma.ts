@@ -8,7 +8,8 @@
  * Espanhol desde 25/11/2026: latino neutro, "tú". Palavras obrigatórias em
  * Ninho-expo/docs/i18n/glossario-espanhol.md ("toma", nunca "mamada").
  *
- * O /admin fica em português: não use isto lá.
+ * O /admin do dono fica em português. O painel da CONSULTORA (/admin/consultora,
+ * login de consultora) segue o idioma dela desde 25/11/2026: lib/i18n-consultora.
  */
 export type Idioma = 'pt' | 'en' | 'es';
 

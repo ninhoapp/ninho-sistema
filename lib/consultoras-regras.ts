@@ -44,6 +44,14 @@
  */
 export const COMISSAO_VISIVEL = false;
 
+/**
+ * Idioma do painel da consultora (pt, en, es). É o mesmo `Idioma` de
+ * lib/idioma.ts, repetido aqui porque este arquivo não importa nada (o
+ * script do Node lê direto). Por isso os textos de regra e o termo moram
+ * aqui, ao lado da versão do aceite, e não no dicionário lib/i18n-consultora.
+ */
+export type IdiomaRegras = 'pt' | 'en' | 'es';
+
 export const PCT_DIRETO = 25;
 export const PCT_REDE = 12.5;
 export const PARCELAS_MENSAL = 6;
@@ -51,6 +59,17 @@ export const PARCELAS_MENSAL = 6;
 /** A regra de quem gera comissão, em texto para a consultora (site, painel e termo). */
 export const TEXTO_QUEM_GERA_COMISSAO =
   'Você ganha comissão pelas famílias que criam a conta no Ninho pelo seu link ou código. A comissão para quando a família cancela ou pede reembolso. Só o vínculo (a família compartilhar a rotina com você) não gera comissão, e famílias que encontraram você pela lista "Encontrar consultora" dentro do Ninho também não.';
+
+const QUEM_GERA_COMISSAO: Record<IdiomaRegras, string> = {
+  pt: TEXTO_QUEM_GERA_COMISSAO,
+  en: 'You earn commission for families who create their Ninho account through your link or code. The commission stops when the family cancels or asks for a refund. Being linked alone (the family sharing the routine with you) does not earn commission, and neither do families who found you through the "Find a consultant" list inside Ninho.',
+  es: 'Ganas comisión por las familias que crean su cuenta en Ninho con tu enlace o tu código. La comisión se detiene cuando la familia cancela o pide un reembolso. Solo el vínculo (que la familia comparta la rutina contigo) no genera comisión, y las familias que te encontraron en la lista "Encontrar asesora" dentro de Ninho tampoco.',
+};
+
+/** A regra de quem gera comissão no idioma do painel (pt = TEXTO_QUEM_GERA_COMISSAO). */
+export function textoQuemGeraComissao(idioma: IdiomaRegras = 'pt'): string {
+  return QUEM_GERA_COMISSAO[idioma] ?? TEXTO_QUEM_GERA_COMISSAO;
+}
 
 /**
  * Termo da CONSULTORA (texto do Darck). O painel precisa mostrar EXATAMENTE o
@@ -68,8 +87,54 @@ export const ACEITE_VINCULO_CONSULTORA_TEXTO = [
   'Sei que a família vê quando eu envio e se leu, que o Ninho guarda o que eu envio e que, se a família denunciar uma mensagem, a equipe do Ninho pode lê-la e pausar minhas orientações ou minha conta.',
 ].join('\n\n');
 
+/**
+ * O MESMO termo (mesma versão) em en e es, copiado do app
+ * (Ninho-expo/src/i18n/locales/{en,es}/consultora.ts, o termo da consultora
+ * no vínculo). É o texto gravado em aceite_textos para esses idiomas (a
+ * migration 00198 confere o hash). Nada disso vai para o banco daqui: o
+ * painel manda só a versão (ACEITE_VINCULO_CONSULTORA_VERSAO).
+ */
+const ACEITE_VINCULO_CONSULTORA: Record<IdiomaRegras, string> = {
+  pt: ACEITE_VINCULO_CONSULTORA_TEXTO,
+  en: [
+    'I serve families as an independent professional. **All guidance I give a family, in Ninho or elsewhere, is entirely my responsibility.** Ninho only delivers the message: it does not write, review, or answer for my guidance, does not provide health advice, and does not supervise my work.',
+    "I use the baby's routine, night wakings, nap marks, and the family's comments only to serve that family, without copying or sharing them outside Ninho.",
+    'In my guidance and notes, I do not write diagnoses, names or doses of medication, supplements or melatonin, sleep position or surface, bed-sharing, or promises of results, and I never ask a family to delay an appointment, test, or vaccine. If there is a health warning sign, I tell the family to see the pediatrician or go to the emergency room.',
+    'I understand that the family sees when I send guidance and whether they read it, that Ninho stores what I send, and that if a family reports a message, the Ninho team may read it and pause my guidance or my account.',
+  ].join('\n\n'),
+  es: [
+    'Atiendo a las familias como profesional independiente. **Toda orientación que dé a una familia, en Ninho o fuera de Ninho, es de mi total responsabilidad.** Ninho solo entrega el mensaje: no escribe, no revisa ni responde por lo que yo oriento, no da asesoramiento de salud y no supervisa mi atención.',
+    'Uso la rutina del bebé, los despertares, las marcas de las siestas y los comentarios de la familia solo para atender a esa familia, sin copiarlos ni compartirlos fuera de Ninho.',
+    'En las orientaciones y en las notas, no escribo diagnósticos, nombres ni dosis de medicamentos, suplementos o melatonina, posición ni superficie para dormir, colecho ni promesas de resultados, y nunca pido aplazar una consulta, un examen o una vacuna. Ante una señal de alerta de salud, indico acudir al pediatra o a urgencias.',
+    'Sé que la familia ve cuándo envío algo y si lo leyó, que Ninho guarda lo que envío y que, si la familia denuncia un mensaje, el equipo de Ninho puede leerlo y pausar mis orientaciones o mi cuenta.',
+  ].join('\n\n'),
+};
+
+/** Termo da consultora no idioma do painel (pt = ACEITE_VINCULO_CONSULTORA_TEXTO). Mesma versão nos três. */
+export function textoAceiteVinculo(idioma: IdiomaRegras = 'pt'): string {
+  return ACEITE_VINCULO_CONSULTORA[idioma] ?? ACEITE_VINCULO_CONSULTORA_TEXTO;
+}
+
 /** "Como ficou sabendo do Ninho?" no pedido para ser consultora (consultora_pedidos.como_soube). */
 export const COMO_SOUBE_OPCOES = ['Instagram', 'Indicação de outra consultora', 'Google', 'Família/cliente', 'Outro'] as const;
+
+export type ComoSoube = (typeof COMO_SOUBE_OPCOES)[number];
+
+const COMO_SOUBE_ROTULOS: Record<IdiomaRegras, Record<ComoSoube, string>> = {
+  pt: { Instagram: 'Instagram', 'Indicação de outra consultora': 'Indicação de outra consultora', Google: 'Google', 'Família/cliente': 'Família/cliente', Outro: 'Outro' },
+  en: { Instagram: 'Instagram', 'Indicação de outra consultora': 'Referred by another consultant', Google: 'Google', 'Família/cliente': 'Family or client', Outro: 'Other' },
+  es: { Instagram: 'Instagram', 'Indicação de outra consultora': 'Recomendación de otra asesora', Google: 'Google', 'Família/cliente': 'Familia o clienta', Outro: 'Otro' },
+};
+
+/**
+ * As mesmas opções de COMO_SOUBE_OPCOES, na mesma ordem, com o rótulo no
+ * idioma. `valor` é o que vai no formulário e no banco (sempre o pt de hoje);
+ * `rotulo` é só o que aparece: `<option value={o.valor}>{o.rotulo}</option>`.
+ */
+export function comoSoubeOpcoes(idioma: IdiomaRegras = 'pt'): { valor: ComoSoube; rotulo: string }[] {
+  const r = COMO_SOUBE_ROTULOS[idioma] ?? COMO_SOUBE_ROTULOS.pt;
+  return COMO_SOUBE_OPCOES.map((valor) => ({ valor, rotulo: r[valor] }));
+}
 
 export function normalizarComoSoube(v: string): string | null {
   const t = v.trim();
@@ -125,30 +190,42 @@ export function diaUtil(y: number, m: number, n: number): string {
 }
 
 /** Competência (yyyy-mm) → prazo do Pix (yyyy-mm-dd): 5º dia útil do mês seguinte. */
-export function prazoPix(competencia: string): string {
+export function prazoPix(competencia: string, idioma: IdiomaRegras = 'pt'): string {
+  // Devolve yyyy-mm-dd (não é texto): o idioma só existe para o painel da
+  // consultora chamar igual às outras; para mostrar, use dataBr(prazo, idioma).
+  void idioma;
   const [y, m] = competencia.split('-').map(Number);
   const ny = m === 12 ? y + 1 : y;
   const nm = m === 12 ? 1 : m + 1;
   return diaUtil(ny, nm, 5);
 }
 
-/** dd/mm/aaaa de um yyyy-mm-dd (sem fuso: é data civil). */
-export function dataBr(isoDia: string): string {
+/**
+ * dd/mm/aaaa de um yyyy-mm-dd (sem fuso: é data civil). Em inglês,
+ * mm/dd/yyyy (como o app em en); em espanhol, dd/mm/aaaa.
+ */
+export function dataBr(isoDia: string, idioma: IdiomaRegras = 'pt'): string {
   const [y, m, d] = isoDia.slice(0, 10).split('-');
-  return `${d}/${m}/${y}`;
+  return idioma === 'en' ? `${m}/${d}/${y}` : `${d}/${m}/${y}`;
 }
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const MESES_IDIOMA: Record<IdiomaRegras, string[]> = {
+  pt: MESES,
+  en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+  es: ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'],
+};
 
-/** "novembro de 2026". */
-export function nomeCompetencia(competencia: string): string {
+/** "novembro de 2026" · "November 2026" · "noviembre de 2026". */
+export function nomeCompetencia(competencia: string, idioma: IdiomaRegras = 'pt'): string {
   const [y, m] = competencia.split('-').map(Number);
-  return `${MESES[m - 1]} de ${y}`;
+  const mes = (MESES_IDIOMA[idioma] ?? MESES)[m - 1];
+  return idioma === 'en' ? `${mes} ${y}` : `${mes} de ${y}`;
 }
 
-/** "novembro". */
-export function nomeMes(competencia: string): string {
-  return MESES[Number(competencia.split('-')[1]) - 1];
+/** "novembro" · "November" · "noviembre". */
+export function nomeMes(competencia: string, idioma: IdiomaRegras = 'pt'): string {
+  return (MESES_IDIOMA[idioma] ?? MESES)[Number(competencia.split('-')[1]) - 1];
 }
 
 // ── Linhas de comissão ────────────────────────────────────
