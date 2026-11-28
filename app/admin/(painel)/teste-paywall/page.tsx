@@ -1,7 +1,9 @@
+import { Suspense } from 'react';
 import { requireRole } from '@/lib/auth/guard';
 import {
-  fetchTestePaywall,
-  fetchContinuidade,
+  fetchCartoes,
+  fetchTestePaywallGuardado,
+  fetchContinuidadeGuardada,
   cadastrosPorDia,
   type Continuidade,
   type FatiaContinuidade,
@@ -357,9 +359,85 @@ function TabelaContinuidade({ linhas }: { linhas: Continuidade[] | null }) {
   );
 }
 
+/** Enquanto uma parte da tela carrega, o resto já aparece. */
+function Carregando({ texto }: { texto: string }) {
+  return (
+    <div className="mb-8 animate-pulse rounded-2xl border border-ninho-borda bg-white p-8 text-center text-sm text-ninho-cinza">
+      {texto}
+    </div>
+  );
+}
+
+function textoStatus(t: Awaited<ReturnType<typeof fetchTestePaywallGuardado>>): string {
+  if (!t.config) return 'Configuração do teste não encontrada';
+  if (!t.config.ativo) return 'Rodízio desligado';
+  if (t.config.modo === 'C') return `Todo iPhone novo no C desde ${dataBR(DIA_MUDANCA)} · Android no A`;
+  return `Rodízio ligado · ${
+    t.config.modo === 'AC'
+      ? '1 para o A, 1 para o C (B fora desde 12/11)'
+      : t.config.modo === 'ABC'
+      ? '1 para cada grupo (A, B, C)'
+      : proporcao(t.config.fracao_b)
+  }`;
+}
+
+async function SeloStatus() {
+  const t = await fetchTestePaywallGuardado();
+  return (
+    <span
+      className={`inline-block rounded-full px-3 py-1.5 text-xs font-semibold ${
+        t.config?.ativo ? 'bg-state-success/15 text-state-success' : 'bg-ninho-borda text-ninho-cinza'
+      }`}
+    >
+      {textoStatus(t)}
+    </span>
+  );
+}
+
+/** Topo: cartões, previsão por dia e tabela. Os cartões são lidos na hora. */
+async function Topo() {
+  const [cartoes, uso, t] = await Promise.all([fetchCartoes(), fetchUsoPorUsuario(), fetchTestePaywallGuardado()]);
+  const linhasCartao: CartaoLinha[] = cartoes.map((c) => {
+    const u = uso.get(c.profile_id);
+    return { ...c, diasUso: Math.max(u?.diasAbertura ?? 0, u?.diasRegistro ?? 0) };
+  });
+  return (
+    <div className="mb-8">
+      <PainelCartoes lista={linhasCartao} corte={t.fluxoNovo.corte} cadastrosAtual={t.fluxoNovo.cSemSorteio.cadastros} />
+    </div>
+  );
+}
+
+/**
+ * Pedido do dono (28/11/2026): a tela travava, dava erro e demorava. Agora o
+ * cabeçalho aparece na hora e cada parte carrega sozinha; o que é histórico
+ * vem guardado por 5 min (fetchTestePaywallGuardado).
+ */
 export default async function TestePaywallPage() {
   await requireRole('admin');
-  const [t, continuidade, uso] = await Promise.all([fetchTestePaywall(), fetchContinuidade(), fetchUsoPorUsuario()]);
+  return (
+    <>
+      <PageHeader
+        title="Paywall e cartões"
+        subtitle="Quem pôs o cartão, quem cancelou, quando cada um vai ser cobrado e a conversão de verdade do fluxo atual."
+        right={
+          <Suspense fallback={null}>
+            <SeloStatus />
+          </Suspense>
+        }
+      />
+      <Suspense fallback={<Carregando texto="Carregando os cartões…" />}>
+        <Topo />
+      </Suspense>
+      <Suspense fallback={<Carregando texto="Carregando a conversão e o histórico…" />}>
+        <ConversaoEHistorico />
+      </Suspense>
+    </>
+  );
+}
+
+async function ConversaoEHistorico() {
+  const [t, continuidade] = await Promise.all([fetchTestePaywallGuardado(), fetchContinuidadeGuardada()]);
   const { A, B, C } = t.resumo;
   const total = A.cadastros + B.cadastros + C.cadastros;
   const hoje = hojeDubai();
@@ -367,14 +445,6 @@ export default async function TestePaywallPage() {
   const hojeB = t.diario.find((d) => d.dia === hoje && d.grupo === 'B')?.cadastros ?? 0;
   const hojeC = t.diario.find((d) => d.dia === hoje && d.grupo === 'C')?.cadastros ?? 0;
   const serie = cadastrosPorDia(t.diario, DIAS_GRAFICO);
-
-  const status = !t.config
-    ? 'Configuração do teste não encontrada'
-    : t.config.ativo
-    ? t.config.modo === 'C'
-      ? `Todo iPhone novo no C desde ${dataBR(DIA_MUDANCA)} · Android no A`
-      : `Rodízio ligado · ${t.config.modo === 'AC' ? '1 para o A, 1 para o C (B fora desde 12/11)' : t.config.modo === 'ABC' ? '1 para cada grupo (A, B, C)' : proporcao(t.config.fracao_b)}`
-    : 'Rodízio desligado';
   // Quem entrou antes da 00088 foi pelo sorteio aleatório (1 em 3 para o B),
   // não pelo rodízio: sem este aviso, "3 para o A, 1 para o B" no selo e
   // 1 A × 3 B nos números pareciam erro.
@@ -383,31 +453,9 @@ export default async function TestePaywallPage() {
   const f = t.fluxoNovo;
   const cAtual = f.cSemSorteio;
   const aAgora = f.depois.grupos.A?.cadastros ?? 0;
-  const linhasCartao: CartaoLinha[] = t.cartoes.map((c) => {
-    const u = uso.get(c.profile_id);
-    return { ...c, diasUso: Math.max(u?.diasAbertura ?? 0, u?.diasRegistro ?? 0) };
-  });
 
   return (
     <>
-      <PageHeader
-        title="Paywall e cartões"
-        subtitle="Quem pôs o cartão, quem cancelou, quando cada um vai ser cobrado e a conversão de verdade do fluxo atual."
-        right={
-          <span
-            className={`inline-block rounded-full px-3 py-1.5 text-xs font-semibold ${
-              t.config?.ativo ? 'bg-state-success/15 text-state-success' : 'bg-ninho-borda text-ninho-cinza'
-            }`}
-          >
-            {status}
-          </span>
-        }
-      />
-
-      <div className="mb-8">
-        <PainelCartoes lista={linhasCartao} corte={f.corte} cadastrosAtual={cAtual.cadastros} />
-      </div>
-
       <h2 className="mb-1 text-base font-bold text-ninho-grafite">Conversão real · pagaram ÷ quem já decidiu</h2>
       <p className="mb-3 text-xs text-ninho-cinza">
         Decidiu = pagou ou o período grátis acabou. Quem ainda está nos dias grátis fica de fora, senão a taxa parece

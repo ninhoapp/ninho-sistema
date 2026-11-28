@@ -12,7 +12,7 @@ import {
   type Situacao,
 } from '@/lib/teste-paywall-formato';
 import { ORIGEM_LABEL, ORIGENS } from '@/lib/origem';
-import { brl, PLANO_LABEL } from '@/lib/precos';
+import { brl, liquido, PLANO_LABEL, TAXA_LOJA } from '@/lib/precos';
 import { TESTE_STYLE } from '@/components/admin/GrupoTesteEstilo';
 import { OrigemPill, TabelaPessoas, type Coluna } from '@/components/admin/TabelaPessoas';
 
@@ -41,17 +41,22 @@ function faltaTexto(c: Cartao): string {
 const COLUNAS_CARTAO: Coluna<CartaoLinha>[] = [
   { key: 'nome', label: 'Nome', largura: 160, valor: (c) => c.nome ?? 'sem nome', className: 'font-medium text-ninho-grafite' },
   {
-    key: 'grupo', label: 'Grupo', largura: 95,
-    valor: (c) => c.grupo ?? '—',
-    render: (c) =>
-      c.grupo ? (
-        <span className={`inline-block rounded-pill px-2 py-0.5 text-xs font-semibold ${TESTE_STYLE[c.grupo]}`}>{c.grupo}</span>
-      ) : (
-        <span className="text-ninho-cinza">—</span>
-      ),
-    title: (c) => (c.grupo ? `${c.grupo}: ${c.sorteado ? 'caiu neste grupo no sorteio' : 'entrou neste grupo sem sorteio'}` : undefined),
+    key: 'dias', label: 'Dias de uso', largura: 110, numerica: true,
+    valor: (c) => String(c.diasUso), ordem: (c) => c.diasUso,
+    title: () => 'Dias diferentes em que abriu o app ou registrou algo (o mesmo de Usuários ativos)',
   },
-  { key: 'cartao', label: 'Pôs o cartão', largura: 120, valor: (c) => quandoDubai(cartaoEm(c)), ordem: (c) => cartaoEm(c) },
+  {
+    key: 'registros', label: 'Lançamentos', largura: 135, numerica: true,
+    valor: (c) => String(c.registros), ordem: (c) => c.registros,
+    className: (c) => (c.registros === 0 ? 'font-semibold text-state-danger' : ''),
+  },
+  {
+    key: 'cobranca', label: 'Cobrança', largura: 120,
+    valor: (c) => quandoDubai(c.cobranca_em), ordem: (c) => c.cobranca_em,
+    title: (c) => (situacao(c) === 'cancelou' ? 'Desligou a renovação: não vai ser cobrado' : undefined),
+    className: (c) => (situacao(c) === 'cancelou' ? 'text-ninho-cinza line-through' : ''),
+  },
+  { key: 'plano', label: 'Plano', largura: 140, valor: (c) => (c.plano ? `${PLANO_LABEL[c.plano]} ${c.ciclo ?? ''}`.trim() : '—') },
   {
     key: 'situacao', label: 'Situação', largura: 190,
     valor: (c) => SITUACAO_LABEL[situacao(c)],
@@ -62,12 +67,6 @@ const COLUNAS_CARTAO: Coluna<CartaoLinha>[] = [
     ),
   },
   {
-    key: 'cobranca', label: 'Cobrança', largura: 120,
-    valor: (c) => quandoDubai(c.cobranca_em), ordem: (c) => c.cobranca_em,
-    title: (c) => (situacao(c) === 'cancelou' ? 'Desligou a renovação: não vai ser cobrado' : undefined),
-    className: (c) => (situacao(c) === 'cancelou' ? 'text-ninho-cinza line-through' : ''),
-  },
-  {
     key: 'falta', label: 'Falta', largura: 90, numerica: true,
     valor: faltaTexto, ordem: falta,
     className: (c) => {
@@ -75,22 +74,23 @@ const COLUNAS_CARTAO: Coluna<CartaoLinha>[] = [
       return d != null && d <= 2 ? 'font-semibold text-ninho-roxo-escuro' : '';
     },
   },
-  { key: 'plano', label: 'Plano', largura: 140, valor: (c) => (c.plano ? `${PLANO_LABEL[c.plano]} ${c.ciclo ?? ''}`.trim() : '—') },
   {
     key: 'valor', label: 'Valor', largura: 150,
     valor: (c) => valorCartao(c).texto,
     ordem: (c) => valorCartao(c).valor,
     className: (c) => (c.renova === false && !c.pagou ? 'text-ninho-cinza' : ''),
   },
+  { key: 'cartao', label: 'Pôs o cartão', largura: 120, valor: (c) => quandoDubai(cartaoEm(c)), ordem: (c) => cartaoEm(c) },
   {
-    key: 'registros', label: 'Lançamentos', largura: 135, numerica: true,
-    valor: (c) => String(c.registros), ordem: (c) => c.registros,
-    className: (c) => (c.registros === 0 ? 'font-semibold text-state-danger' : ''),
-  },
-  {
-    key: 'dias', label: 'Dias de uso', largura: 110, numerica: true,
-    valor: (c) => String(c.diasUso), ordem: (c) => c.diasUso,
-    title: () => 'Dias diferentes em que abriu o app ou registrou algo (o mesmo de Usuários ativos)',
+    key: 'grupo', label: 'Grupo', largura: 95,
+    valor: (c) => c.grupo ?? '—',
+    render: (c) =>
+      c.grupo ? (
+        <span className={`inline-block rounded-pill px-2 py-0.5 text-xs font-semibold ${TESTE_STYLE[c.grupo]}`}>{c.grupo}</span>
+      ) : (
+        <span className="text-ninho-cinza">—</span>
+      ),
+    title: (c) => (c.grupo ? `${c.grupo}: ${c.sorteado ? 'caiu neste grupo no sorteio' : 'entrou neste grupo sem sorteio'}` : undefined),
   },
   {
     key: 'origem', label: 'Origem', largura: 185,
@@ -99,6 +99,121 @@ const COLUNAS_CARTAO: Coluna<CartaoLinha>[] = [
     render: (c) => <OrigemPill origem={c.origem} />,
   },
 ];
+
+/** Dia (yyyy-mm-dd) no fuso de Dubai, o mesmo do resto do painel. */
+function diaDubai(iso: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(
+    new Date(iso),
+  );
+}
+
+const SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+
+function rotuloDia(dia: string, hoje: string, amanha: string): string {
+  const [y, m, d] = dia.split('-').map(Number);
+  const curto = `${SEMANA[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+  if (dia === hoje) return `Hoje · ${curto}`;
+  if (dia === amanha) return `Amanhã · ${curto}`;
+  return curto;
+}
+
+/**
+ * Previsão de quanto entra por dia se ninguém cancelar (pedido do dono,
+ * 28/11/2026): todo mundo que está nos 7 dias grátis da loja agora, somado
+ * pelo dia da 1ª cobrança. Bruto = preço de tabela; líquido = sem os 15% da
+ * loja. Cartão recusado fica numa linha à parte: a loja segue tentando e pode
+ * entrar a qualquer dia.
+ */
+function PrevisaoPorDia({ lista }: { lista: Cartao[] }) {
+  const agora = Date.now();
+  const hoje = diaDubai(new Date(agora).toISOString());
+  const amanha = diaDubai(new Date(agora + 86400000).toISOString());
+
+  const porDia = new Map<string, { n: number; bruto: number; planos: Map<string, number> }>();
+  for (const c of lista) {
+    if (situacao(c, agora) !== 'gratis' || !c.cobranca_em) continue;
+    const valor = valorCartao(c).valor;
+    if (valor <= 0) continue;
+    const dia = diaDubai(c.cobranca_em);
+    const linha = porDia.get(dia) ?? { n: 0, bruto: 0, planos: new Map<string, number>() };
+    linha.n += 1;
+    linha.bruto += valor;
+    const plano = c.plano ? `${PLANO_LABEL[c.plano]} ${c.ciclo ?? ''}`.trim() : 'sem plano';
+    linha.planos.set(plano, (linha.planos.get(plano) ?? 0) + 1);
+    porDia.set(dia, linha);
+  }
+  const dias = [...porDia.entries()].sort(([a], [b]) => a.localeCompare(b));
+  const recusados = lista.filter((c) => situacao(c, agora) === 'recusado');
+  const brutoRecusado = recusados.reduce((s, c) => s + valorCartao(c).valor, 0);
+  const totalN = dias.reduce((s, [, l]) => s + l.n, 0);
+  const totalBruto = dias.reduce((s, [, l]) => s + l.bruto, 0);
+
+  return (
+    <div className="mb-8">
+      <h2 className="mb-1 text-base font-bold text-ninho-grafite">Previsão de cobranças por dia</h2>
+      <p className="mb-3 text-xs text-ninho-cinza">
+        Quem está nos 7 dias grátis agora, pelo dia da 1ª cobrança (fuso de Dubai), se ninguém cancelar. Bruto = preço de
+        tabela; líquido = sem os {Math.round(TAXA_LOJA * 100)}% da loja.
+      </p>
+      {dias.length === 0 && recusados.length === 0 ? (
+        <div className="rounded-2xl border border-ninho-borda bg-white p-6 text-center text-sm text-ninho-cinza">
+          Ninguém nos dias grátis agora: nenhuma cobrança prevista.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-ninho-borda bg-white">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr className="border-b-2 border-ninho-borda text-left text-xs text-ninho-cinza">
+                <th className="px-4 py-2.5 font-semibold">Dia</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Cobranças</th>
+                <th className="px-4 py-2.5 font-semibold">Planos</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Bruto</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Entra (líquido)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dias.map(([dia, l]) => (
+                <tr key={dia} className={`border-b border-ninho-borda ${dia === hoje || dia === amanha ? 'bg-ninho-roxo-suave/40' : ''}`}>
+                  <td className="whitespace-nowrap px-4 py-2.5 font-medium text-ninho-grafite">{rotuloDia(dia, hoje, amanha)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">{l.n}</td>
+                  <td className="px-4 py-2.5 text-xs text-ninho-cinza">
+                    {[...l.planos.entries()].map(([p, q]) => `${q} ${p}`).join(' · ')}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums">{brl(l.bruto)}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-semibold tabular-nums text-ninho-roxo-escuro">
+                    {brl(liquido(l.bruto))}
+                  </td>
+                </tr>
+              ))}
+              {recusados.length > 0 && (
+                <tr className="border-b border-ninho-borda">
+                  <td className="whitespace-nowrap px-4 py-2.5 font-medium text-[#9A5B1E]">Cartão recusado · loja tentando</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">{recusados.length}</td>
+                  <td className="px-4 py-2.5 text-xs text-ninho-cinza">pode entrar a qualquer dia, ou não entrar</td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums">{brl(brutoRecusado)}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-ninho-cinza">
+                    {brl(liquido(brutoRecusado))}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-ninho-borda bg-ninho-nuvem">
+                <td className="px-4 py-2.5 text-xs font-semibold uppercase text-ninho-cinza">Total previsto</td>
+                <td className="px-4 py-2.5 text-right font-semibold tabular-nums">{totalN}</td>
+                <td className="px-4 py-2.5 text-xs text-ninho-cinza">sem os cartões recusados</td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right font-semibold tabular-nums">{brl(totalBruto)}</td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-ninho-roxo-escuro">
+                  {brl(liquido(totalBruto))}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const CARTOES: { k: Situacao | null; label: string; cor: string }[] = [
   { k: null, label: 'Puseram o cartão', cor: '#9F86E0' },
@@ -197,6 +312,8 @@ export function PainelCartoes({
           </button>
         ))}
       </div>
+
+      <PrevisaoPorDia lista={lista} />
 
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-bold text-ninho-grafite">Quem pôs o cartão</h2>

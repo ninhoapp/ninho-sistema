@@ -13,7 +13,9 @@
  * Quem cadastrou bebê que ainda não nasceu vai direto para o A, fora do
  * sorteio (sorteado = false), e não entra na comparação.
  */
+import { cache } from 'react';
 import { appDb } from '@/lib/supabase/server';
+import { cacheCompacto } from '@/lib/cache-compacto';
 import { lerTudo } from '@/lib/supabase/paginar';
 import { resolverOrigem, type Origem } from '@/lib/origem';
 import type { PlanoCiclo, PlanoTier } from '@/lib/precos';
@@ -107,7 +109,6 @@ export interface TestePaywall {
   foraDoSorteio: number;
   /** null = a view ainda não existe (migration 00089 não aplicada). */
   liberados: Liberado[] | null;
-  cartoes: Cartao[];
   fluxoNovo: FluxoNovo;
 }
 
@@ -136,7 +137,9 @@ const nOuNull = (v: unknown) => (v == null ? null : Number(v));
 
 export async function fetchTestePaywall(): Promise<TestePaywall> {
   const sb = appDb();
-  const [cfg, res, dia, fora, lib] = await Promise.all([
+  // Uma leitura só da view de participantes (era uma 2ª só para contar quem
+  // ficou fora do sorteio): cada leitura dela refaz as subconsultas por pessoa.
+  const [cfg, res, dia, lib] = await Promise.all([
     // '*': a coluna modo só existe depois da 00100.
     sb.from('teste_paywall_config').select('*').limit(1).maybeSingle(),
     sb.from('teste_paywall_resumo').select('*'),
@@ -150,13 +153,9 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
         .order('profile_id')
         .range(de, ate),
     ),
-    sb
-      .from('teste_paywall_participantes')
-      .select('profile_id', { count: 'exact', head: true })
-      .eq('sorteado', false),
     sb.from('teste_paywall_liberados').select('*').order('liberado_em', { ascending: false }),
   ]);
-  for (const r of [cfg, res, dia, fora]) {
+  for (const r of [cfg, res, dia]) {
     if (r.error) throw new Error(`Teste de paywall: ${r.error.message}`);
   }
 
@@ -214,8 +213,6 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
         assinou: !!r.assinou,
       }));
 
-  const cartoes = await fetchCartoes();
-
   return {
     config: cfg.data
       ? {
@@ -227,9 +224,8 @@ export async function fetchTestePaywall(): Promise<TestePaywall> {
       : null,
     resumo,
     diario,
-    foraDoSorteio: fora.count ?? 0,
+    foraDoSorteio: dia.data.filter((r) => !r.sorteado).length,
     liberados,
-    cartoes,
     fluxoNovo: montarFluxoNovo(dia.data, resumo),
   };
 }
@@ -378,7 +374,7 @@ function montarFluxoNovo(linhas: ParticipanteDia[], resumo: Record<Grupo, Resumo
 /** Todo mundo que pôs o cartão (sorteado ou não), com nome, plano, origem e
  *  quantos registros fez — a pergunta é "essa pessoa está usando e vai
  *  pagar?". Ordem: 1ª cobrança mais próxima primeiro. */
-async function fetchCartoes(): Promise<Cartao[]> {
+export async function fetchCartoes(): Promise<Cartao[]> {
   const sb = appDb();
   const { data: part, error } = await sb
     .from('teste_paywall_participantes')
@@ -575,3 +571,20 @@ export async function fetchGrupoTestePorUsuario(): Promise<Map<string, GrupoTest
   }
   return out;
 }
+
+/**
+ * Versões guardadas por 5 min (pedido do dono, 28/11/2026: a tela travava,
+ * dava erro e demorava). O resumo, o diário, o antes × depois e a
+ * continuidade leem views que refazem subconsultas por pessoa em todo mundo
+ * que já passou pelo teste; refazer isso a cada visita estourava o tempo.
+ * São números de conversão e de histórico, que mudam devagar. A lista de
+ * cartões (fetchCartoes) continua lida na hora.
+ * O `cache` do React evita ler duas vezes na mesma visita (o topo e o
+ * histórico da tela usam os mesmos dados).
+ */
+export const fetchTestePaywallGuardado = cache(
+  cacheCompacto(fetchTestePaywall, ['teste-paywall-v1'], { revalidate: 300 }),
+);
+export const fetchContinuidadeGuardada = cache(
+  cacheCompacto(fetchContinuidade, ['teste-paywall-continuidade-v1'], { revalidate: 300 }),
+);
